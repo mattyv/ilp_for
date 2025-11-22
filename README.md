@@ -123,10 +123,12 @@ Simple loop macro without control flow.
 
 **Example**
 ```cpp
-int sum = 0;
+// Transform in place (no dependency chain)
 ILP_FOR_SIMPLE(i, 0, 100, 4) {
-    sum += data[i];
+    data[i] = data[i] * 2 + 1;
 } ILP_END;
+
+// For sums, use ILP_REDUCE_* instead
 ```
 
 ---
@@ -181,10 +183,10 @@ Range-based loop without control flow.
 **Example**
 ```cpp
 std::vector<int> v = {1, 2, 3, 4, 5};
-int sum = 0;
 ILP_FOR_RANGE_SIMPLE(val, v, 4) {
-    sum += val;
+    process(val);  // independent operations
 } ILP_END;
+// For sums, use ILP_REDUCE_RANGE_SUM instead
 ```
 
 ---
@@ -199,10 +201,10 @@ Step loop without control flow.
 
 **Example**
 ```cpp
-int sum = 0;
 ILP_FOR_STEP_SIMPLE(i, 0, 100, 2, 4) {
-    sum += data[i];  // every 2nd element
+    data[i] = data[i] * 2;  // every 2nd element
 } ILP_END;
+// For sums, use ILP_REDUCE_STEP_SUM instead
 ```
 
 ---
@@ -431,10 +433,11 @@ Executes `body` for each value in `[start, end)` with unroll factor `N`.
 
 **Example**
 ```cpp
-int sum = 0;
+// Transform in place
 ilp::for_loop_simple<4>(0, 100, [&](int i) {
-    sum += data[i];
+    data[i] = data[i] * 2 + 1;
 });
+// For sums, use reduce_* functions instead
 ```
 
 ---
