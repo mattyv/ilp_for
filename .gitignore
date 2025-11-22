@@ -1,0 +1,19 @@
+# Build artifacts
+*.o
+*.s
+*.a
+*.so
+*.dylib
+
+# Test binaries
+tests/correctness/test_runner
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
