@@ -43,6 +43,65 @@ std::optional<R> for_loop_search(T start, T end, F&& body);
 
 ---
 
+## Macros - Preferred Interfce
+
+### ILP_FOR_SIMPLE
+
+```cpp
+#define ILP_FOR_SIMPLE(var, start, end, N) /* ... */
+```
+
+Simple loop macro without control flow.
+
+**Example**
+```cpp
+int sum = 0;
+ILP_FOR_SIMPLE(i, 0, 100, 4) {
+    sum += data[i];
+} ILP_END;
+```
+
+---
+
+### ILP_FOR
+
+```cpp
+#define ILP_FOR(var, start, end, N) /* ... */
+```
+
+Loop macro with break/continue support.
+
+**Example**
+```cpp
+ILP_FOR(i, 0, 100, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    if (data[i] == 0) ILP_CONTINUE;
+    process(data[i]);
+} ILP_END;
+```
+
+---
+
+### ILP_FOR_RET
+
+```cpp
+#define ILP_FOR_RET(ret_type, var, start, end, N) /* ... */
+```
+
+Loop macro with return value support.
+
+**Example**
+```cpp
+ILP_FOR_RET(int, i, 0, 100, 4) {
+    if (data[i] == target) {
+        ILP_RETURN(i);
+    }
+} ILP_END_RET;
+// Returns from enclosing function if found
+```
+
+---
+
 ## Member functions
 
 ### for_loop_simple
@@ -188,65 +247,6 @@ int sum = 0;
 ilp::for_loop_range_simple<4>(v, [&](int x) {
     sum += x;
 });
-```
-
----
-
-## Macros
-
-### ILP_FOR_SIMPLE
-
-```cpp
-#define ILP_FOR_SIMPLE(var, start, end, N) /* ... */
-```
-
-Simple loop macro without control flow.
-
-**Example**
-```cpp
-int sum = 0;
-ILP_FOR_SIMPLE(i, 0, 100, 4) {
-    sum += data[i];
-} ILP_END;
-```
-
----
-
-### ILP_FOR
-
-```cpp
-#define ILP_FOR(var, start, end, N) /* ... */
-```
-
-Loop macro with break/continue support.
-
-**Example**
-```cpp
-ILP_FOR(i, 0, 100, 4) {
-    if (data[i] < 0) ILP_BREAK;
-    if (data[i] == 0) ILP_CONTINUE;
-    process(data[i]);
-} ILP_END;
-```
-
----
-
-### ILP_FOR_RET
-
-```cpp
-#define ILP_FOR_RET(ret_type, var, start, end, N) /* ... */
-```
-
-Loop macro with return value support.
-
-**Example**
-```cpp
-ILP_FOR_RET(int, i, 0, 100, 4) {
-    if (data[i] == target) {
-        ILP_RETURN(i);
-    }
-} ILP_END_RET;
-// Returns from enclosing function if found
 ```
 
 ---
