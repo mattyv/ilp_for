@@ -95,49 +95,46 @@ TEST_CASE("optimal_N with actual types", "[cpu]") {
     REQUIRE(n_double >= 2); // 8 bytes
 }
 
-TEST_CASE("Auto-selecting loop functions", "[cpu][auto]") {
-    SECTION("for_loop_sum with int") {
+TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
+    SECTION("reduce_sum with int") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        int sum = 0;
-        for_loop_sum(0, 100, [&](int i) {
-            sum += data[i];
+        int sum = reduce_sum<4>(0, 100, [&](int i) {
+            return data[i];
         });
 
         REQUIRE(sum == 5050);
     }
 
-    SECTION("for_loop_sum with short") {
+    SECTION("reduce_sum with short") {
         std::vector<short> data(100);
         for (int i = 0; i < 100; ++i) data[i] = static_cast<short>(i + 1);
 
-        short sum = 0;
-        for_loop_sum(short(0), short(100), [&](short i) {
-            sum += data[i];
+        short sum = reduce_sum<4>(short(0), short(100), [&](short i) {
+            return data[i];
         });
 
         REQUIRE(sum == 5050);
     }
 
-    SECTION("for_loop_range_sum") {
+    SECTION("reduce_range_sum") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        int sum = 0;
-        for_loop_range_sum(data, [&](int val) {
-            sum += val;
+        int sum = reduce_range_sum<4>(data, [&](int val) {
+            return val;
         });
 
         REQUIRE(sum == 5050);
     }
 
-    SECTION("for_loop_search") {
+    SECTION("for_loop_ret search") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
         data[42] = 999;
 
-        auto result = for_loop_search<int>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop_ret<int, 4>(0, 100, [&](int i, auto& ctrl) {
             if (data[i] == 999) {
                 ctrl.return_with(i);
             }
@@ -147,10 +144,10 @@ TEST_CASE("Auto-selecting loop functions", "[cpu][auto]") {
         REQUIRE(result.value() == 42);
     }
 
-    SECTION("for_loop_range_search") {
+    SECTION("for_loop_range_ret search") {
         std::vector<int> data = {1, 2, 3, 42, 5, 6};
 
-        auto result = for_loop_range_search<int>(data, [&](int val, auto& ctrl) {
+        auto result = for_loop_range_ret<int, 4>(data, [&](int val, auto& ctrl) {
             if (val == 42) {
                 ctrl.return_with(val);
             }
@@ -160,11 +157,11 @@ TEST_CASE("Auto-selecting loop functions", "[cpu][auto]") {
         REQUIRE(result.value() == 42);
     }
 
-    SECTION("for_loop_sum not found") {
+    SECTION("search not found") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
 
-        auto result = for_loop_search<int>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop_ret<int, 4>(0, 100, [&](int i, auto& ctrl) {
             if (data[i] == 999) {  // Not in data
                 ctrl.return_with(i);
             }

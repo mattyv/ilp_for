@@ -4,9 +4,7 @@
 
 __attribute__((noinline))
 int sum_range_ilp(std::span<const int> data) {
-    int sum = 0;
-    ILP_FOR_RANGE_SIMPLE(val, data, 4) {
-        sum += val;
-    } ILP_END;
-    return sum;
+    return ILP_REDUCE_RANGE_SUM(val, data, 4) {
+        return val;
+    } ILP_END_REDUCE;
 }

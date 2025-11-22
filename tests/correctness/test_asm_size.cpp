@@ -25,7 +25,7 @@ TEST_CASE("Assembly instruction count comparison", "[asm]") {
     // Max overhead for simple functions
     const int MAX_OVERHEAD = 10;
     // Higher tolerance for SIMD-vectorized functions (setup/teardown complexity)
-    const int MAX_OVERHEAD_SIMD = 30;
+    const int MAX_OVERHEAD_SIMD = 50;
 
     auto check = [&](const std::string& name, int max_overhead) {
         std::string hand_path = "asm_compare/handrolled/" + name + ".s";

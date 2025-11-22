@@ -4,7 +4,7 @@
 
 // Hand-rolled declarations
 unsigned sum_plain_handrolled(unsigned n);
-unsigned sum_with_break_handrolled(unsigned n, unsigned limit);
+unsigned sum_with_break_handrolled(unsigned n, unsigned stop_at);
 unsigned sum_odd_handrolled(unsigned n);
 int sum_negative_handrolled(int start, int end);
 int sum_backward_handrolled(int start, int end);
@@ -12,7 +12,7 @@ unsigned sum_step2_handrolled(unsigned n);
 
 // ILP declarations
 unsigned sum_plain_ilp(unsigned n);
-unsigned sum_with_break_ilp(unsigned n, unsigned limit);
+unsigned sum_with_break_ilp(unsigned n, unsigned stop_at);
 unsigned sum_odd_ilp(unsigned n);
 int sum_negative_ilp(int start, int end);
 int sum_backward_ilp(int start, int end);

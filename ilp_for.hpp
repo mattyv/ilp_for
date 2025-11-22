@@ -4,6 +4,7 @@
 // C++23 required
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <concepts>
@@ -105,34 +106,66 @@ std::optional<R> for_loop_range_ret_simple(Range&& range, F&& body) {
 }
 
 // =============================================================================
-// Auto-selecting loops (use optimal_N from CPU profile)
+// Public API - Reduce (multi-accumulator for true ILP)
 // =============================================================================
 
-template<std::integral T, typename F>
+// Generic reduce with break support
+template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, T, LoopCtrl<void>&>
+auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_impl<N>(start, end, init, op, std::forward<F>(body));
+}
+
+// Simple reduce (no break)
+template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
-void for_loop_sum(T start, T end, F&& body) {
-    constexpr std::size_t N = optimal_N<LoopType::Sum, sizeof(T)>;
-    for_loop_simple<N>(start, end, std::forward<F>(body));
+auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_simple_impl<N>(start, end, init, op, std::forward<F>(body));
 }
 
-template<typename R, std::integral T, typename F>
-std::optional<R> for_loop_search(T start, T end, F&& body) {
-    constexpr std::size_t N = optimal_N<LoopType::Search, sizeof(T)>;
-    return for_loop_ret<R, N>(start, end, std::forward<F>(body));
+// Convenience: reduce_sum
+template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+auto reduce_sum(T start, T end, F&& body) {
+    using R = std::invoke_result_t<F, T>;
+    return detail::reduce_simple_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
-template<std::ranges::random_access_range Range, typename F>
-void for_loop_range_sum(Range&& range, F&& body) {
-    using T = std::ranges::range_value_t<Range>;
-    constexpr std::size_t N = optimal_N<LoopType::Sum, sizeof(T)>;
-    for_loop_range_simple<N>(std::forward<Range>(range), std::forward<F>(body));
+// Range-based reduce
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, LoopCtrl<void>&>
+auto reduce_range(Range&& range, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_range_impl<N>(std::forward<Range>(range), init, op, std::forward<F>(body));
 }
 
-template<typename R, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_search(Range&& range, F&& body) {
-    using T = std::ranges::range_value_t<Range>;
-    constexpr std::size_t N = optimal_N<LoopType::Search, sizeof(T)>;
-    return for_loop_range_ret<R, N>(std::forward<Range>(range), std::forward<F>(body));
+// Simple range reduce
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>>
+auto reduce_range_simple(Range&& range, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), init, op, std::forward<F>(body));
+}
+
+// Convenience: reduce_range_sum
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>>
+auto reduce_range_sum(Range&& range, F&& body) {
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+    return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
+}
+
+// Step-based reduce
+template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, T>
+auto reduce_step_simple(T start, T end, T step, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_step_simple_impl<N>(start, end, step, init, op, std::forward<F>(body));
+}
+
+// Convenience: reduce_step_sum
+template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+auto reduce_step_sum(T start, T end, T step, F&& body) {
+    using R = std::invoke_result_t<F, T>;
+    return detail::reduce_step_simple_impl<N>(start, end, step, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
 } // namespace ilp
@@ -213,3 +246,31 @@ std::optional<R> for_loop_range_search(Range&& range, F&& body) {
 
 #define ILP_RETURN(x) \
     do { _ilp_ctrl.ok = false; _ilp_ctrl.return_value = x; return; } while(0)
+
+// ----- Reduce macros (multi-accumulator ILP) -----
+
+#define ILP_REDUCE(op, init, var, start, end, N) \
+    ::ilp::reduce<N>(start, end, init, op, [&](auto var, [[maybe_unused]] auto& _ilp_ctrl)
+
+#define ILP_REDUCE_SIMPLE(op, init, var, start, end, N) \
+    ::ilp::reduce_simple<N>(start, end, init, op, [&](auto var)
+
+#define ILP_REDUCE_SUM(var, start, end, N) \
+    ::ilp::reduce_sum<N>(start, end, [&](auto var)
+
+#define ILP_REDUCE_RANGE(op, init, var, range, N) \
+    ::ilp::reduce_range<N>(range, init, op, [&](auto&& var, [[maybe_unused]] auto& _ilp_ctrl)
+
+#define ILP_REDUCE_RANGE_SIMPLE(op, init, var, range, N) \
+    ::ilp::reduce_range_simple<N>(range, init, op, [&](auto&& var)
+
+#define ILP_REDUCE_RANGE_SUM(var, range, N) \
+    ::ilp::reduce_range_sum<N>(range, [&](auto&& var)
+
+#define ILP_REDUCE_STEP_SIMPLE(op, init, var, start, end, step, N) \
+    ::ilp::reduce_step_simple<N>(start, end, step, init, op, [&](auto var)
+
+#define ILP_REDUCE_STEP_SUM(var, start, end, step, N) \
+    ::ilp::reduce_step_sum<N>(start, end, step, [&](auto var)
+
+#define ILP_END_REDUCE )
