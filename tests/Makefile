@@ -12,7 +12,7 @@ ILP_OBJS = $(ILP_SRCS:.cpp=.o)
 # Test sources
 TEST_SRCS = $(wildcard correctness/*.cpp)
 
-.PHONY: all clean test handrolled ilp
+.PHONY: all clean test test-asm handrolled ilp
 
 all: handrolled ilp
 
@@ -22,9 +22,13 @@ handrolled: $(HANDROLLED_OBJS)
 ilp: $(ILP_OBJS)
 	@echo "ILP objects built successfully"
 
-# Build test executable
-test: correctness/test_runner
+# Build and run all tests (includes asm generation)
+test: handrolled_asm ilp_asm correctness/test_runner
 	./correctness/test_runner
+
+# Build and run assembly size tests only
+test-asm: handrolled_asm ilp_asm correctness/test_runner
+	./correctness/test_runner "[asm]"
 
 correctness/test_runner: $(HANDROLLED_OBJS) $(ILP_OBJS) $(TEST_SRCS)
 	$(CXX) $(CXXFLAGS) -o $@ $(HANDROLLED_OBJS) $(ILP_OBJS) $(TEST_SRCS)

@@ -38,17 +38,37 @@ struct LoopCtrl<void> {
 // Index-based loops
 // =============================================================================
 
-// for_loop: Basic loop with step=1, no return value
+// for_loop_simple: No control flow - maximum optimization
 template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+void for_loop_simple(T start, T end, F&& body) {
+    T i = start;
+
+    // Unrolled loop
+    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            (body(i + static_cast<T>(Is)), ...);
+        }(std::make_index_sequence<N>{});
+    }
+
+    // Remainder
+    for (; i < end; ++i) {
+        body(i);
+    }
+}
+
+// for_loop: With control flow support
+template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop(T start, T end, F&& body) {
     LoopCtrl<void> ctrl;
 
     T i = start;
 
-    // Unrolled loop
+    // Unrolled loop - lambda per iteration for better branch codegen
     for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(i + static_cast<T>(Is), ctrl), ctrl.ok) && ...);
+            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
     }
 
@@ -65,10 +85,10 @@ std::optional<R> for_loop_ret(T start, T end, F&& body) {
 
     T i = start;
 
-    // Unrolled loop
+    // Unrolled loop - lambda per iteration for better branch codegen
     for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(i + static_cast<T>(Is), ctrl), ctrl.ok) && ...);
+            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
     }
 
@@ -80,8 +100,35 @@ std::optional<R> for_loop_ret(T start, T end, F&& body) {
     return std::move(ctrl.return_value);
 }
 
+// for_loop_step_simple: No control flow
+template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+void for_loop_step_simple(T start, T end, T step, F&& body) {
+    T i = start;
+    T last_offset = step * static_cast<T>(N - 1);
+
+    auto in_range = [&](T val) {
+        return step > 0 ? val < end : val > end;
+    };
+
+    // Unrolled loop
+    while (in_range(i) && in_range(i + last_offset)) {
+        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            (body(i + step * static_cast<T>(Is)), ...);
+        }(std::make_index_sequence<N>{});
+        i += step * static_cast<T>(N);
+    }
+
+    // Remainder
+    while (in_range(i)) {
+        body(i);
+        i += step;
+    }
+}
+
 // for_loop_step: Loop with custom step
 template<std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop_step(T start, T end, T step, F&& body) {
     LoopCtrl<void> ctrl;
 
@@ -95,7 +142,7 @@ void for_loop_step(T start, T end, T step, F&& body) {
     // Unrolled loop
     while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(i + step * static_cast<T>(Is), ctrl), ctrl.ok) && ...);
+            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
         i += step * static_cast<T>(N);
     }
@@ -122,7 +169,7 @@ std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
     // Unrolled loop
     while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(i + step * static_cast<T>(Is), ctrl), ctrl.ok) && ...);
+            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
         i += step * static_cast<T>(N);
     }
@@ -140,19 +187,40 @@ std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
 // Range-based loops (random access)
 // =============================================================================
 
+// for_loop_range_simple: No control flow
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+void for_loop_range_simple(Range&& range, F&& body) {
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+
+    std::size_t i = 0;
+
+    // Unrolled loop
+    for (; i + N <= size; i += N) {
+        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            (body(it[i + Is]), ...);
+        }(std::make_index_sequence<N>{});
+    }
+
+    // Remainder
+    for (; i < size; ++i) {
+        body(it[i]);
+    }
+}
+
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 void for_loop_range(Range&& range, F&& body) {
     LoopCtrl<void> ctrl;
 
     auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);  // Direct size, not distance()
+    auto size = std::ranges::size(range);
 
     std::size_t i = 0;
 
     // Unrolled loop
     for (; i + N <= size && ctrl.ok; i += N) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(it[i + Is], ctrl), ctrl.ok) && ...);
+            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
     }
 
@@ -167,14 +235,14 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
     LoopCtrl<R> ctrl;
 
     auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);  // Direct size, not distance()
+    auto size = std::ranges::size(range);
 
     std::size_t i = 0;
 
     // Unrolled loop
     for (; i + N <= size && ctrl.ok; i += N) {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((body(it[i + Is], ctrl), ctrl.ok) && ...);
+            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
         }(std::make_index_sequence<N>{});
     }
 
@@ -192,33 +260,44 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
 // Macros
 // =============================================================================
 
-// ----- Index-based loops -----
+// ----- Simple loops (no control flow - maximum optimization) -----
+
+#define ILP_FOR_SIMPLE(var, start, end, N) \
+    ::ilp::for_loop_simple<N>(start, end, [&](auto var)
+
+#define ILP_FOR_STEP_SIMPLE(var, start, end, step, N) \
+    ::ilp::for_loop_step_simple<N>(start, end, step, [&](auto var)
+
+#define ILP_FOR_RANGE_SIMPLE(var, range, N) \
+    ::ilp::for_loop_range_simple<N>(range, [&](auto&& var)
+
+// ----- Index-based loops with control flow -----
 
 #define ILP_FOR(var, start, end, N) \
-    ::ilp::for_loop<N>(start, end, [&](auto var, auto& _ilp_ctrl)
+    ::ilp::for_loop<N>(start, end, [&](auto var, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RET(ret_type, var, start, end, N) \
     if (bool _ilp_done_ = false; !_ilp_done_) \
         for (auto _ilp_r_ = ::ilp::for_loop_ret<ret_type, N>(start, end, \
-            [&](auto var, auto& _ilp_ctrl)
+            [&](auto var, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP(var, start, end, step, N) \
-    ::ilp::for_loop_step<N>(start, end, step, [&](auto var, auto& _ilp_ctrl)
+    ::ilp::for_loop_step<N>(start, end, step, [&](auto var, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP_RET(ret_type, var, start, end, step, N) \
     if (bool _ilp_done_ = false; !_ilp_done_) \
         for (auto _ilp_r_ = ::ilp::for_loop_step_ret<ret_type, N>(start, end, step, \
-            [&](auto var, auto& _ilp_ctrl)
+            [&](auto var, [[maybe_unused]] auto& _ilp_ctrl)
 
-// ----- Range-based loops -----
+// ----- Range-based loops with control flow -----
 
 #define ILP_FOR_RANGE(var, range, N) \
-    ::ilp::for_loop_range<N>(range, [&](auto&& var, auto& _ilp_ctrl)
+    ::ilp::for_loop_range<N>(range, [&](auto&& var, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RANGE_RET(ret_type, var, range, N) \
     if (bool _ilp_done_ = false; !_ilp_done_) \
         for (auto _ilp_r_ = ::ilp::for_loop_range_ret<ret_type, N>(range, \
-            [&](auto&& var, auto& _ilp_ctrl)
+            [&](auto&& var, [[maybe_unused]] auto& _ilp_ctrl)
 
 // ----- Loop endings -----
 
