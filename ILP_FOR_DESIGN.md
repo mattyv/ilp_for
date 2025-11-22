@@ -29,7 +29,7 @@ unsigned foo2(unsigned x, unsigned total) {
 }
 ```
 
-This library provides a DSL that generates identical assembly:
+This library provides a DSL that generates as close to identical assembly as possible:
 
 ```cpp
 unsigned foo3(unsigned x, unsigned total) {
