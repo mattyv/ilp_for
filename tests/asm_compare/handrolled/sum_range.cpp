@@ -1,9 +1,11 @@
 #include <cstddef>
 #include <span>
+#include "../escape.hpp"
 
 __attribute__((noinline))
-int sum_range_handrolled(std::span<const int> data) {
-    int sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
+unsigned sum_range_handrolled(std::span<const unsigned> data) {
+    escape(data);
+    unsigned sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
     std::size_t n = data.size();
     std::size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -15,5 +17,7 @@ int sum_range_handrolled(std::span<const int> data) {
     for (; i < n; ++i) {
         sum0 += data[i];
     }
-    return sum0 + sum1 + sum2 + sum3;
+    auto result = sum0 + sum1 + sum2 + sum3;
+    escape(result);
+    return result;
 }
