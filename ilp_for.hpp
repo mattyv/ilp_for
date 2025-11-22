@@ -14,12 +14,12 @@
 // Available: default, skylake, apple_m1
 #define ILP_STRINGIFY_(x) #x
 #define ILP_STRINGIFY(x) ILP_STRINGIFY_(x)
-#define ILP_CPU_HEADER(cpu) ILP_STRINGIFY(ilp_cpu_##cpu.hpp)
+#define ILP_CPU_HEADER(cpu) ILP_STRINGIFY(cpu_profiles/ilp_cpu_##cpu.hpp)
 
 #ifdef ILP_CPU
     #include ILP_CPU_HEADER(ILP_CPU)
 #else
-    #include "ilp_cpu_default.hpp"
+    #include "cpu_profiles/ilp_cpu_default.hpp"
 #endif
 
 namespace ilp {
@@ -30,7 +30,7 @@ namespace ilp {
 
 template<typename R = void>
 struct LoopCtrl {
-    bool ok = true;  // Direct bool - faster than enum comparison
+    bool ok = true;
     std::optional<R> return_value;
 
     void break_loop() { ok = false; }
@@ -46,231 +46,77 @@ struct LoopCtrl<void> {
     void break_loop() { ok = false; }
 };
 
+} // namespace ilp
+
+#include "detail/loops.hpp"
+
+namespace ilp {
+
 // =============================================================================
-// Index-based loops
+// Public API - Index-based loops
 // =============================================================================
 
-// for_loop_simple: No control flow - maximum optimization
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_simple(T start, T end, F&& body) {
-    T i = start;
-
-    // Unrolled loop
-    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(i + static_cast<T>(Is)), ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < end; ++i) {
-        body(i);
-    }
+    detail::for_loop_simple_impl<N>(start, end, std::forward<F>(body));
 }
 
-// for_loop: With control flow support
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop(T start, T end, F&& body) {
-    LoopCtrl<void> ctrl;
-
-    T i = start;
-
-    // Unrolled loop - lambda per iteration for better branch codegen
-    for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < end && ctrl.ok; ++i) {
-        body(i, ctrl);
-    }
+    detail::for_loop_impl<N>(start, end, std::forward<F>(body));
 }
 
-// for_loop_ret: Loop with return value
 template<typename R, std::size_t N = 4, std::integral T, typename F>
 std::optional<R> for_loop_ret(T start, T end, F&& body) {
-    LoopCtrl<R> ctrl;
-
-    T i = start;
-
-    // Unrolled loop - lambda per iteration for better branch codegen
-    for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < end && ctrl.ok; ++i) {
-        body(i, ctrl);
-    }
-
-    return std::move(ctrl.return_value);
+    return detail::for_loop_ret_impl<R, N>(start, end, std::forward<F>(body));
 }
 
-// for_loop_step_simple: No control flow
+// =============================================================================
+// Public API - Step loops
+// =============================================================================
+
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_step_simple(T start, T end, T step, F&& body) {
-    T i = start;
-    T last_offset = step * static_cast<T>(N - 1);
-
-    auto in_range = [&](T val) {
-        return step > 0 ? val < end : val > end;
-    };
-
-    // Unrolled loop
-    while (in_range(i) && in_range(i + last_offset)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(i + step * static_cast<T>(Is)), ...);
-        }(std::make_index_sequence<N>{});
-        i += step * static_cast<T>(N);
-    }
-
-    // Remainder
-    while (in_range(i)) {
-        body(i);
-        i += step;
-    }
+    detail::for_loop_step_simple_impl<N>(start, end, step, std::forward<F>(body));
 }
 
-// for_loop_step: Loop with custom step
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop_step(T start, T end, T step, F&& body) {
-    LoopCtrl<void> ctrl;
-
-    T i = start;
-    T last_offset = step * static_cast<T>(N - 1);
-
-    auto in_range = [&](T val) {
-        return step > 0 ? val < end : val > end;
-    };
-
-    // Unrolled loop
-    while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-        i += step * static_cast<T>(N);
-    }
-
-    // Remainder
-    while (in_range(i) && ctrl.ok) {
-        body(i, ctrl);
-        i += step;
-    }
+    detail::for_loop_step_impl<N>(start, end, step, std::forward<F>(body));
 }
 
-// for_loop_step_ret: Loop with custom step and return value
 template<typename R, std::size_t N = 4, std::integral T, typename F>
 std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
-    LoopCtrl<R> ctrl;
-
-    T i = start;
-    T last_offset = step * static_cast<T>(N - 1);
-
-    auto in_range = [&](T val) {
-        return step > 0 ? val < end : val > end;
-    };
-
-    // Unrolled loop
-    while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-        i += step * static_cast<T>(N);
-    }
-
-    // Remainder
-    while (in_range(i) && ctrl.ok) {
-        body(i, ctrl);
-        i += step;
-    }
-
-    return std::move(ctrl.return_value);
+    return detail::for_loop_step_ret_impl<R, N>(start, end, step, std::forward<F>(body));
 }
 
 // =============================================================================
-// Range-based loops (random access)
+// Public API - Range-based loops
 // =============================================================================
 
-// for_loop_range_simple: No control flow
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 void for_loop_range_simple(Range&& range, F&& body) {
-    auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);
-
-    std::size_t i = 0;
-
-    // Unrolled loop
-    for (; i + N <= size; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(it[i + Is]), ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < size; ++i) {
-        body(it[i]);
-    }
+    detail::for_loop_range_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 void for_loop_range(Range&& range, F&& body) {
-    LoopCtrl<void> ctrl;
-
-    auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);
-
-    std::size_t i = 0;
-
-    // Unrolled loop
-    for (; i + N <= size && ctrl.ok; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < size && ctrl.ok; ++i) {
-        body(it[i], ctrl);
-    }
+    detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
-    LoopCtrl<R> ctrl;
-
-    auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);
-
-    std::size_t i = 0;
-
-    // Unrolled loop
-    for (; i + N <= size && ctrl.ok; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
-    }
-
-    // Remainder
-    for (; i < size && ctrl.ok; ++i) {
-        body(it[i], ctrl);
-    }
-
-    return std::move(ctrl.return_value);
+    return detail::for_loop_range_ret_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 // =============================================================================
 // Auto-selecting loops (use optimal_N from CPU profile)
 // =============================================================================
 
-// Auto sum loop: uses optimal_N<LoopType::Sum, sizeof(T)>
 template<std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_sum(T start, T end, F&& body) {
@@ -278,14 +124,12 @@ void for_loop_sum(T start, T end, F&& body) {
     for_loop_simple<N>(start, end, std::forward<F>(body));
 }
 
-// Auto search loop: uses optimal_N<LoopType::Search, sizeof(T)>
 template<typename R, std::integral T, typename F>
 std::optional<R> for_loop_search(T start, T end, F&& body) {
     constexpr std::size_t N = optimal_N<LoopType::Search, sizeof(T)>;
     return for_loop_ret<R, N>(start, end, std::forward<F>(body));
 }
 
-// Auto range sum: uses optimal_N<LoopType::Sum, sizeof(element)>
 template<std::ranges::random_access_range Range, typename F>
 void for_loop_range_sum(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
@@ -293,7 +137,6 @@ void for_loop_range_sum(Range&& range, F&& body) {
     for_loop_range_simple<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
-// Auto range search: uses optimal_N<LoopType::Search, sizeof(element)>
 template<typename R, std::ranges::random_access_range Range, typename F>
 std::optional<R> for_loop_range_search(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
