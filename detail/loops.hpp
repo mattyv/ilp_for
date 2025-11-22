@@ -66,6 +66,29 @@ std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
     return std::move(ctrl.return_value);
 }
 
+template<typename R, std::size_t N, std::integral T, typename F>
+    requires std::invocable<F, T>
+std::optional<R> for_loop_ret_simple_impl(T start, T end, F&& body) {
+    T i = start;
+
+    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+        std::optional<R> result;
+        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (([&] {
+                result = body(i + static_cast<T>(Is));
+                return result.has_value();
+            }()) || ...);
+        }(std::make_index_sequence<N>{});
+        if (done) return result;
+    }
+
+    for (; i < end; ++i) {
+        if (auto result = body(i)) return result;
+    }
+
+    return std::nullopt;
+}
+
 // =============================================================================
 // Step loops
 // =============================================================================
@@ -142,6 +165,36 @@ std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
     return std::move(ctrl.return_value);
 }
 
+template<typename R, std::size_t N, std::integral T, typename F>
+    requires std::invocable<F, T>
+std::optional<R> for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
+    T i = start;
+    T last_offset = step * static_cast<T>(N - 1);
+
+    auto in_range = [&](T val) {
+        return step > 0 ? val < end : val > end;
+    };
+
+    while (in_range(i) && in_range(i + last_offset)) {
+        std::optional<R> result;
+        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (([&] {
+                result = body(i + step * static_cast<T>(Is));
+                return result.has_value();
+            }()) || ...);
+        }(std::make_index_sequence<N>{});
+        if (done) return result;
+        i += step * static_cast<T>(N);
+    }
+
+    while (in_range(i)) {
+        if (auto result = body(i)) return result;
+        i += step;
+    }
+
+    return std::nullopt;
+}
+
 // =============================================================================
 // Range-based loops
 // =============================================================================
@@ -199,6 +252,30 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
     }
 
     return std::move(ctrl.return_value);
+}
+
+template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
+std::optional<R> for_loop_range_ret_simple_impl(Range&& range, F&& body) {
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+    std::size_t i = 0;
+
+    for (; i + N <= size; i += N) {
+        std::optional<R> result;
+        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (([&] {
+                result = body(it[i + Is]);
+                return result.has_value();
+            }()) || ...);
+        }(std::make_index_sequence<N>{});
+        if (done) return result;
+    }
+
+    for (; i < size; ++i) {
+        if (auto result = body(it[i])) return result;
+    }
+
+    return std::nullopt;
 }
 
 } // namespace detail

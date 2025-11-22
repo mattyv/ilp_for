@@ -47,6 +47,12 @@ std::optional<R> for_loop_ret(T start, T end, F&& body) {
     return detail::for_loop_ret_impl<R, N>(start, end, std::forward<F>(body));
 }
 
+template<typename R, std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+std::optional<R> for_loop_ret_simple(T start, T end, F&& body) {
+    return detail::for_loop_ret_simple_impl<R, N>(start, end, std::forward<F>(body));
+}
+
 // =============================================================================
 // Public API - Step loops
 // =============================================================================
@@ -68,6 +74,12 @@ std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
     return detail::for_loop_step_ret_impl<R, N>(start, end, step, std::forward<F>(body));
 }
 
+template<typename R, std::size_t N = 4, std::integral T, typename F>
+    requires std::invocable<F, T>
+std::optional<R> for_loop_step_ret_simple(T start, T end, T step, F&& body) {
+    return detail::for_loop_step_ret_simple_impl<R, N>(start, end, step, std::forward<F>(body));
+}
+
 // =============================================================================
 // Public API - Range-based loops
 // =============================================================================
@@ -85,6 +97,11 @@ void for_loop_range(Range&& range, F&& body) {
 template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
     return detail::for_loop_range_ret_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+std::optional<R> for_loop_range_ret_simple(Range&& range, F&& body) {
+    return detail::for_loop_range_ret_simple_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 // =============================================================================
@@ -134,6 +151,23 @@ std::optional<R> for_loop_range_search(Range&& range, F&& body) {
 
 #define ILP_FOR_RANGE_SIMPLE(var, range, N) \
     ::ilp::for_loop_range_simple<N>(range, [&](auto&& var)
+
+// ----- Simple loops with return (no control flow) -----
+
+#define ILP_FOR_RET_SIMPLE(ret_type, var, start, end, N) \
+    if (bool _ilp_done_ = false; !_ilp_done_) \
+        for (auto _ilp_r_ = ::ilp::for_loop_ret_simple<ret_type, N>(start, end, \
+            [&](auto var) -> std::optional<ret_type>
+
+#define ILP_FOR_STEP_RET_SIMPLE(ret_type, var, start, end, step, N) \
+    if (bool _ilp_done_ = false; !_ilp_done_) \
+        for (auto _ilp_r_ = ::ilp::for_loop_step_ret_simple<ret_type, N>(start, end, step, \
+            [&](auto var) -> std::optional<ret_type>
+
+#define ILP_FOR_RANGE_RET_SIMPLE(ret_type, var, range, N) \
+    if (bool _ilp_done_ = false; !_ilp_done_) \
+        for (auto _ilp_r_ = ::ilp::for_loop_range_ret_simple<ret_type, N>(range, \
+            [&](auto&& var) -> std::optional<ret_type>
 
 // ----- Index-based loops with control flow -----
 

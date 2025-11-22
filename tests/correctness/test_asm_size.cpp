@@ -52,6 +52,7 @@ TEST_CASE("Assembly instruction count comparison", "[asm]") {
     SECTION("sum_plain") { check("sum_plain", MAX_OVERHEAD); }
     SECTION("sum_with_break") { check("sum_with_break", MAX_OVERHEAD); }
     SECTION("find_value") { check("find_value", MAX_OVERHEAD); }
+    SECTION("find_value_no_ctrl") { check("find_value_no_ctrl", MAX_OVERHEAD); }
     SECTION("sum_range") { check("sum_range", MAX_OVERHEAD_SIMD); }
     SECTION("sum_odd") { check("sum_odd", MAX_OVERHEAD); }
     SECTION("sum_step2") { check("sum_step2", MAX_OVERHEAD); }
