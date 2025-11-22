@@ -10,6 +10,18 @@
 #include <ranges>
 #include <type_traits>
 
+// CPU profile selection via -DILP_CPU=xxx
+// Available: default, skylake, apple_m1
+#define ILP_STRINGIFY_(x) #x
+#define ILP_STRINGIFY(x) ILP_STRINGIFY_(x)
+#define ILP_CPU_HEADER(cpu) ILP_STRINGIFY(ilp_cpu_##cpu.hpp)
+
+#ifdef ILP_CPU
+    #include ILP_CPU_HEADER(ILP_CPU)
+#else
+    #include "ilp_cpu_default.hpp"
+#endif
+
 namespace ilp {
 
 // =============================================================================
@@ -252,6 +264,41 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
     }
 
     return std::move(ctrl.return_value);
+}
+
+// =============================================================================
+// Auto-selecting loops (use optimal_N from CPU profile)
+// =============================================================================
+
+// Auto sum loop: uses optimal_N<LoopType::Sum, sizeof(T)>
+template<std::integral T, typename F>
+    requires std::invocable<F, T>
+void for_loop_sum(T start, T end, F&& body) {
+    constexpr std::size_t N = optimal_N<LoopType::Sum, sizeof(T)>;
+    for_loop_simple<N>(start, end, std::forward<F>(body));
+}
+
+// Auto search loop: uses optimal_N<LoopType::Search, sizeof(T)>
+template<typename R, std::integral T, typename F>
+std::optional<R> for_loop_search(T start, T end, F&& body) {
+    constexpr std::size_t N = optimal_N<LoopType::Search, sizeof(T)>;
+    return for_loop_ret<R, N>(start, end, std::forward<F>(body));
+}
+
+// Auto range sum: uses optimal_N<LoopType::Sum, sizeof(element)>
+template<std::ranges::random_access_range Range, typename F>
+void for_loop_range_sum(Range&& range, F&& body) {
+    using T = std::ranges::range_value_t<Range>;
+    constexpr std::size_t N = optimal_N<LoopType::Sum, sizeof(T)>;
+    for_loop_range_simple<N>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+// Auto range search: uses optimal_N<LoopType::Search, sizeof(element)>
+template<typename R, std::ranges::random_access_range Range, typename F>
+std::optional<R> for_loop_range_search(Range&& range, F&& body) {
+    using T = std::ranges::range_value_t<Range>;
+    constexpr std::size_t N = optimal_N<LoopType::Search, sizeof(T)>;
+    return for_loop_range_ret<R, N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 } // namespace ilp
