@@ -130,6 +130,7 @@ public:
 
 BENCHMARK_DEFINE_F(SumStep2Fixture, Simple)(benchmark::State& state) {
     for (auto _ : state) {
+        benchmark::DoNotOptimize(data.data());
         uint32_t sum = 0;
         for (size_t i = 0; i < data.size(); i += 2) sum += data[i];
         benchmark::DoNotOptimize(sum);
@@ -139,6 +140,7 @@ BENCHMARK_DEFINE_F(SumStep2Fixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumStep2Fixture, Handrolled)(benchmark::State& state) {
     for (auto _ : state) {
+        benchmark::DoNotOptimize(data.data());
         uint32_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
         const uint32_t* ptr = data.data();
         size_t n = data.size();
@@ -158,6 +160,7 @@ BENCHMARK_DEFINE_F(SumStep2Fixture, Handrolled)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumStep2Fixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
+        benchmark::DoNotOptimize(data.data());
         uint32_t sum = ILP_REDUCE_STEP_SUM(i, 0u, (unsigned)data.size(), 2u, 4) {
             return data[i];
         } ILP_END_REDUCE;

@@ -18,3 +18,5 @@
 
 ## Get benchmarks to use auto unrulling based on cpu type
  - if the macro or function doesn't exist create it. 
+
+ ## add a #define mechanims to disble unrolling to allow develoopers to quickly a:b simple vs ILP loops.
