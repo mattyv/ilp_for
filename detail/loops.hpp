@@ -280,6 +280,32 @@ std::optional<R> for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     return std::nullopt;
 }
 
+// Range-based early-return with index (simple - no control flow)
+template<std::size_t N, typename R, std::ranges::random_access_range Range, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+std::optional<R> for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+    std::size_t i = 0;
+
+    for (; i + N <= size; i += N) {
+        std::optional<R> result;
+        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (([&] {
+                result = body(it[i + Is], i + Is);
+                return result.has_value();
+            }()) || ...);
+        }(std::make_index_sequence<N>{});
+        if (done) return result;
+    }
+
+    for (; i < size; ++i) {
+        if (auto result = body(it[i], i)) return result;
+    }
+
+    return std::nullopt;
+}
+
 // =============================================================================
 // Reduce loops (multi-accumulator for true ILP)
 // =============================================================================

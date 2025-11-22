@@ -105,6 +105,11 @@ std::optional<R> for_loop_range_ret_simple(Range&& range, F&& body) {
     return detail::for_loop_range_ret_simple_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
+template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+std::optional<R> for_loop_range_idx_ret_simple(Range&& range, F&& body) {
+    return detail::for_loop_range_idx_ret_simple_impl<N, R>(std::forward<Range>(range), std::forward<F>(body));
+}
+
 // =============================================================================
 // Public API - Reduce (multi-accumulator for true ILP)
 // =============================================================================
@@ -202,6 +207,11 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
         for (auto _ilp_r_ = ::ilp::for_loop_range_ret_simple<ret_type, N>(range, \
             [&](auto&& var) -> std::optional<ret_type>
 
+#define ILP_FOR_RANGE_IDX_RET_SIMPLE(ret_type, var, idx, range, N) \
+    if (bool _ilp_done_ = false; !_ilp_done_) \
+        for (auto _ilp_r_ = ::ilp::for_loop_range_idx_ret_simple<ret_type, N>(range, \
+            [&](auto&& var, auto idx) -> std::optional<ret_type>
+
 // ----- Index-based loops with control flow -----
 
 #define ILP_FOR(var, start, end, N) \
@@ -243,6 +253,10 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
 
 #define ILP_BREAK \
     do { _ilp_ctrl.ok = false; return; } while(0)
+
+// For reduce macros - breaks and returns a value (typically the neutral element)
+#define ILP_BREAK_RET(val) \
+    do { _ilp_ctrl.break_loop(); return val; } while(0)
 
 #define ILP_RETURN(x) \
     do { _ilp_ctrl.ok = false; _ilp_ctrl.return_value = x; return; } while(0)

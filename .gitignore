@@ -8,6 +8,10 @@
 # Test binaries
 tests/correctness/test_runner
 
+# Build directories
+build/
+benchmarks/build/
+
 # IDE
 .vscode/
 .idea/
