@@ -6,11 +6,9 @@
 #include <concepts>
 #include <ranges>
 
+#include "ctrl.hpp"
+
 namespace ilp {
-
-template<typename R>
-struct LoopCtrl;
-
 namespace detail {
 
 // =============================================================================
