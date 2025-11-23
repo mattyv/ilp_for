@@ -68,7 +68,7 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint32_t sum = ILP_REDUCE_RANGE_SUM(val, arr, 4) {
+        uint32_t sum = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
             return val;
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
@@ -245,9 +245,9 @@ public:
         size_t size = state.range(0);
         data.resize(size);
         for (size_t i = 0; i < size; ++i) {
-            data[i] = i % 100;
+            data[i] = i;  // Unique values
         }
-        target = 99; // Last value in pattern - worst case
+        target = size - 1; // Last element - worst case
     }
 
     void TearDown(const benchmark::State&) override {
@@ -266,13 +266,10 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        auto result = ilp::for_loop_range_idx_ret_simple<std::size_t, 4>(
-            std::span<const uint32_t>(data),
-            [&](auto val, auto idx) -> std::optional<std::size_t> {
-                if (val == target) return idx;
-                return std::nullopt;
-            });
-        benchmark::DoNotOptimize(result);
+        auto idx = ILP_FOR_RET_SIMPLE_AUTO(i, 0uz, data.size()) {
+            return data[i] == target;  // bool mode - returns index
+        } ILP_END;
+        benchmark::DoNotOptimize(idx);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
 }
@@ -315,7 +312,7 @@ BENCHMARK_DEFINE_F(CountFixture, StdCountIf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(CountFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto count = ILP_REDUCE_RANGE_SUM(val, arr, 4) {
+        auto count = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
             return val > 50 ? 1u : 0u;
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(count);
@@ -383,8 +380,8 @@ BENCHMARK_DEFINE_F(MinFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto min_val = ILP_REDUCE_RANGE_SIMPLE([](auto a, auto b){ return a < b ? a : b; },
-            std::numeric_limits<uint32_t>::max(), val, arr, 4) {
+        auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO([](auto a, auto b){ return a < b ? a : b; },
+            std::numeric_limits<uint32_t>::max(), val, arr) {
             return val;
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(min_val);
@@ -408,13 +405,15 @@ BENCHMARK_REGISTER_F(MinFixture, ILP)
 class AnyFixture : public benchmark::Fixture {
 public:
     std::vector<uint32_t> data;
+    uint32_t target;
 
     void SetUp(const benchmark::State& state) override {
         size_t size = state.range(0);
         data.resize(size);
         for (size_t i = 0; i < size; ++i) {
-            data[i] = i % 100;
+            data[i] = i;  // Unique values
         }
+        target = size - 1;  // Last element - worst case
     }
 
     void TearDown(const benchmark::State&) override {
@@ -425,7 +424,7 @@ public:
 
 BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
     for (auto _ : state) {
-        bool found = std::any_of(data.begin(), data.end(), [](uint32_t v) { return v == 99; });
+        bool found = std::any_of(data.begin(), data.end(), [&](uint32_t v) { return v == target; });
         benchmark::DoNotOptimize(found);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -434,8 +433,8 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto count = ILP_REDUCE_RANGE_SUM(val, arr, 4) {
-            return val == 99 ? 1u : 0u;
+        auto count = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
+            return val == target ? 1u : 0u;
         } ILP_END_REDUCE;
         bool found = count > 0;
         benchmark::DoNotOptimize(found);
@@ -481,7 +480,7 @@ BENCHMARK_DEFINE_F(AllFixture, StdAllOf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(AllFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto count = ILP_REDUCE_RANGE_SUM(val, arr, 4) {
+        auto count = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
             return val < 100 ? 1u : 0u;
         } ILP_END_REDUCE;
         bool all = count == data.size();

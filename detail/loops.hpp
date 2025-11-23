@@ -14,6 +14,19 @@ namespace ilp {
 namespace detail {
 
 // =============================================================================
+// Type traits
+// =============================================================================
+
+template<typename T>
+struct is_optional : std::false_type {};
+
+template<typename T>
+struct is_optional<std::optional<T>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_optional_v = is_optional<T>::value;
+
+// =============================================================================
 // Compile-time validation
 // =============================================================================
 
@@ -91,28 +104,66 @@ std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
     return std::move(ctrl.return_value);
 }
 
-template<typename R, std::size_t N, std::integral T, typename F>
+template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
-std::optional<R> for_loop_ret_simple_impl(T start, T end, F&& body) {
+auto for_loop_ret_simple_impl(T start, T end, F&& body) {
     validate_unroll_factor<N>();
-    T i = start;
+    using R = std::invoke_result_t<F, T>;
 
-    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-        std::optional<R> result;
-        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (([&] {
-                result = body(i + static_cast<T>(Is));
-                return result.has_value();
-            }()) || ...);
-        }(std::make_index_sequence<N>{});
-        if (done) return result;
+    if constexpr (std::is_same_v<R, bool>) {
+        // Bool mode - optimized for find, returns index
+        T i = start;
+        for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+            std::array<bool, N> matches;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((matches[Is] = body(i + static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (matches[j]) return i + static_cast<T>(j);
+            }
+        }
+        for (; i < end; ++i) {
+            if (body(i)) return i;
+        }
+        return end;
+    } else if constexpr (is_optional_v<R>) {
+        // Optional mode - return first with value
+        T i = start;
+        for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(i + static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j].has_value()) return results[j];
+            }
+        }
+        for (; i < end; ++i) {
+            R result = body(i);
+            if (result.has_value()) return result;
+        }
+        return R{};
+    } else {
+        // Value mode with sentinel - returns first != end
+        T i = start;
+        for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(i + static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j] != end) return results[j];
+            }
+        }
+        for (; i < end; ++i) {
+            R result = body(i);
+            if (result != end) return result;
+        }
+        return static_cast<R>(end);
     }
-
-    for (; i < end; ++i) {
-        if (auto result = body(i)) return result;
-    }
-
-    return std::nullopt;
 }
 
 // =============================================================================
@@ -195,35 +246,77 @@ std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
     return std::move(ctrl.return_value);
 }
 
-template<typename R, std::size_t N, std::integral T, typename F>
+template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
-std::optional<R> for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
+auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
     validate_unroll_factor<N>();
-    T i = start;
+    using R = std::invoke_result_t<F, T>;
     T last_offset = step * static_cast<T>(N - 1);
 
     auto in_range = [&](T val) {
         return step > 0 ? val < end : val > end;
     };
 
-    while (in_range(i) && in_range(i + last_offset)) {
-        std::optional<R> result;
-        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (([&] {
-                result = body(i + step * static_cast<T>(Is));
-                return result.has_value();
-            }()) || ...);
-        }(std::make_index_sequence<N>{});
-        if (done) return result;
-        i += step * static_cast<T>(N);
-    }
+    if constexpr (std::is_same_v<R, bool>) {
+        // Bool mode - optimized for find, returns index
+        T i = start;
+        while (in_range(i) && in_range(i + last_offset)) {
+            std::array<bool, N> matches;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((matches[Is] = body(i + step * static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
 
-    while (in_range(i)) {
-        if (auto result = body(i)) return result;
-        i += step;
-    }
+            for (std::size_t j = 0; j < N; ++j) {
+                if (matches[j]) return i + step * static_cast<T>(j);
+            }
+            i += step * static_cast<T>(N);
+        }
+        while (in_range(i)) {
+            if (body(i)) return i;
+            i += step;
+        }
+        return end;
+    } else if constexpr (is_optional_v<R>) {
+        // Optional mode - return first with value
+        T i = start;
+        while (in_range(i) && in_range(i + last_offset)) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(i + step * static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
 
-    return std::nullopt;
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j].has_value()) return results[j];
+            }
+            i += step * static_cast<T>(N);
+        }
+        while (in_range(i)) {
+            R result = body(i);
+            if (result.has_value()) return result;
+            i += step;
+        }
+        return R{};
+    } else {
+        // Value mode with sentinel
+        T i = start;
+        while (in_range(i) && in_range(i + last_offset)) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(i + step * static_cast<T>(Is))), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j] != end) return results[j];
+            }
+            i += step * static_cast<T>(N);
+        }
+        while (in_range(i)) {
+            R result = body(i);
+            if (result != end) return result;
+            i += step;
+        }
+        return static_cast<R>(end);
+    }
 }
 
 // =============================================================================
@@ -288,56 +381,136 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
     return std::move(ctrl.return_value);
 }
 
-template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_ret_simple_impl(Range&& range, F&& body) {
+template<std::size_t N, std::ranges::random_access_range Range, typename F>
+auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
+    auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
-    std::size_t i = 0;
 
-    for (; i + N <= size; i += N) {
-        std::optional<R> result;
-        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (([&] {
-                result = body(it[i + Is]);
-                return result.has_value();
-            }()) || ...);
-        }(std::make_index_sequence<N>{});
-        if (done) return result;
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+
+    if constexpr (std::is_same_v<R, bool>) {
+        // Bool mode - return iterator to first match
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<bool, N> matches;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((matches[Is] = body(it[i + Is])), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (matches[j]) return it + (i + j);
+            }
+        }
+        for (; i < size; ++i) {
+            if (body(it[i])) return it + i;
+        }
+        return end_it;
+    } else if constexpr (is_optional_v<R>) {
+        // Optional mode - return first with value
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(it[i + Is])), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j].has_value()) return results[j];
+            }
+        }
+        for (; i < size; ++i) {
+            R result = body(it[i]);
+            if (result.has_value()) return result;
+        }
+        return R{};
+    } else {
+        // Value mode with sentinel
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(it[i + Is])), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j] != end_it) return results[j];
+            }
+        }
+        for (; i < size; ++i) {
+            R result = body(it[i]);
+            if (result != end_it) return result;
+        }
+        return static_cast<R>(end_it);
     }
-
-    for (; i < size; ++i) {
-        if (auto result = body(it[i])) return result;
-    }
-
-    return std::nullopt;
 }
 
 // Range-based early-return with index (simple - no control flow)
-template<std::size_t N, typename R, std::ranges::random_access_range Range, typename F>
+template<std::size_t N, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
-std::optional<R> for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
+auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
+    auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
-    std::size_t i = 0;
 
-    for (; i + N <= size; i += N) {
-        std::optional<R> result;
-        bool done = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (([&] {
-                result = body(it[i + Is], i + Is);
-                return result.has_value();
-            }()) || ...);
-        }(std::make_index_sequence<N>{});
-        if (done) return result;
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, std::size_t>;
+
+    if constexpr (std::is_same_v<R, bool>) {
+        // Bool mode - return iterator to first match
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<bool, N> matches;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((matches[Is] = body(it[i + Is], i + Is)), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (matches[j]) return it + (i + j);
+            }
+        }
+        for (; i < size; ++i) {
+            if (body(it[i], i)) return it + i;
+        }
+        return end_it;
+    } else if constexpr (is_optional_v<R>) {
+        // Optional mode - return first with value
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(it[i + Is], i + Is)), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j].has_value()) return results[j];
+            }
+        }
+        for (; i < size; ++i) {
+            R result = body(it[i], i);
+            if (result.has_value()) return result;
+        }
+        return R{};
+    } else {
+        // Value mode with sentinel
+        std::size_t i = 0;
+        for (; i + N <= size; i += N) {
+            std::array<R, N> results;
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                ((results[Is] = body(it[i + Is], i + Is)), ...);
+            }(std::make_index_sequence<N>{});
+
+            for (std::size_t j = 0; j < N; ++j) {
+                if (results[j] != end_it) return results[j];
+            }
+        }
+        for (; i < size; ++i) {
+            R result = body(it[i], i);
+            if (result != end_it) return result;
+        }
+        return static_cast<R>(end_it);
     }
-
-    for (; i < size; ++i) {
-        if (auto result = body(it[i], i)) return result;
-    }
-
-    return std::nullopt;
 }
 
 // =============================================================================

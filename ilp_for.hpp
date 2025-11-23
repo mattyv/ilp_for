@@ -48,10 +48,18 @@ std::optional<R> for_loop_ret(T start, T end, F&& body) {
     return detail::for_loop_ret_impl<R, N>(start, end, std::forward<F>(body));
 }
 
-template<typename R, std::size_t N = 4, std::integral T, typename F>
+template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
-std::optional<R> for_loop_ret_simple(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<R, N>(start, end, std::forward<F>(body));
+auto for_loop_ret_simple(T start, T end, F&& body) {
+    return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
+}
+
+// Auto-selecting version for search operations
+template<std::integral T, typename F>
+    requires std::invocable<F, T>
+auto for_loop_ret_simple_auto(T start, T end, F&& body) {
+    // Use Search optimal N - assumes 4-byte elements for index-based
+    return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<F>(body));
 }
 
 // =============================================================================
@@ -75,10 +83,10 @@ std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
     return detail::for_loop_step_ret_impl<R, N>(start, end, step, std::forward<F>(body));
 }
 
-template<typename R, std::size_t N = 4, std::integral T, typename F>
+template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
-std::optional<R> for_loop_step_ret_simple(T start, T end, T step, F&& body) {
-    return detail::for_loop_step_ret_simple_impl<R, N>(start, end, step, std::forward<F>(body));
+auto for_loop_step_ret_simple(T start, T end, T step, F&& body) {
+    return detail::for_loop_step_ret_simple_impl<N>(start, end, step, std::forward<F>(body));
 }
 
 // =============================================================================
@@ -100,14 +108,14 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
     return detail::for_loop_range_ret_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
-template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_ret_simple(Range&& range, F&& body) {
-    return detail::for_loop_range_ret_simple_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+auto for_loop_range_ret_simple(Range&& range, F&& body) {
+    return detail::for_loop_range_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
-template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_idx_ret_simple(Range&& range, F&& body) {
-    return detail::for_loop_range_idx_ret_simple_impl<N, R>(std::forward<Range>(range), std::forward<F>(body));
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+auto for_loop_range_idx_ret_simple(Range&& range, F&& body) {
+    return detail::for_loop_range_idx_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 // =============================================================================
@@ -205,6 +213,14 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
     return reduce_range_simple<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), init, op, std::forward<F>(body));
 }
 
+// Range-based search with auto N
+template<std::ranges::random_access_range Range, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
+    using T = std::ranges::range_value_t<Range>;
+    return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
+}
+
 } // namespace ilp
 
 // =============================================================================
@@ -223,26 +239,23 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
     ::ilp::for_loop_range_simple<N>(range, [&](auto&& loop_var_name)
 
 // ----- Simple loops with return (no control flow) -----
+// Returns sentinel value (end for index, end iterator for range) when not found
 
-#define ILP_FOR_RET_SIMPLE(ret_type, loop_var_name, start, end, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_ret_simple<ret_type, N>(start, end, \
-            [&](auto loop_var_name) -> std::optional<ret_type>
+#define ILP_FOR_RET_SIMPLE(loop_var_name, start, end, N) \
+    ::ilp::for_loop_ret_simple<N>(start, end, \
+        [&, _ilp_end_ = end](auto loop_var_name)
 
-#define ILP_FOR_STEP_RET_SIMPLE(ret_type, loop_var_name, start, end, step, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_step_ret_simple<ret_type, N>(start, end, step, \
-            [&](auto loop_var_name) -> std::optional<ret_type>
+#define ILP_FOR_STEP_RET_SIMPLE(loop_var_name, start, end, step, N) \
+    ::ilp::for_loop_step_ret_simple<N>(start, end, step, \
+        [&, _ilp_end_ = end](auto loop_var_name)
 
-#define ILP_FOR_RANGE_RET_SIMPLE(ret_type, loop_var_name, range, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_range_ret_simple<ret_type, N>(range, \
-            [&](auto&& loop_var_name) -> std::optional<ret_type>
+#define ILP_FOR_RANGE_RET_SIMPLE(loop_var_name, range, N) \
+    ::ilp::for_loop_range_ret_simple<N>(range, \
+        [&, _ilp_end_ = std::ranges::end(range)](auto&& loop_var_name)
 
-#define ILP_FOR_RANGE_IDX_RET_SIMPLE(ret_type, loop_var_name, idx_var_name, range, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_range_idx_ret_simple<ret_type, N>(range, \
-            [&](auto&& loop_var_name, auto idx_var_name) -> std::optional<ret_type>
+#define ILP_FOR_RANGE_IDX_RET_SIMPLE(loop_var_name, idx_var_name, range, N) \
+    ::ilp::for_loop_range_idx_ret_simple<N>(range, \
+        [&, _ilp_end_ = std::ranges::end(range)](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name)
 
 // ----- Index-based loops with control flow -----
 
@@ -276,6 +289,7 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
 
 #define ILP_END )
 
+// For control-flow RET macros (returns from enclosing function)
 #define ILP_END_RET ); !_ilp_done_; _ilp_done_ = true) \
     if (_ilp_r_) return *_ilp_r_
 
@@ -334,3 +348,11 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
 
 #define ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, loop_var_name, range) \
     ::ilp::reduce_range_simple_auto(range, init, op, [&](auto&& loop_var_name)
+
+#define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_name, idx_var_name, range) \
+    ::ilp::for_loop_range_idx_ret_simple_auto(range, \
+        [&, _ilp_end_ = std::ranges::end(range)](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name)
+
+#define ILP_FOR_RET_SIMPLE_AUTO(loop_var_name, start, end) \
+    ::ilp::for_loop_ret_simple_auto(start, end, \
+        [&, _ilp_end_ = end](auto loop_var_name)

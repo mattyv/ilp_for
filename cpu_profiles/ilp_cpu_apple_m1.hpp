@@ -1,16 +1,19 @@
 #pragma once
 
 // ILP CPU Profile: Apple M1 (Firestorm P-cores)
-// Sources: Dougall Johnson's microarchitecture docs, LLVM/XNU sources
+//
+// Sources:
+// - Dougall Johnson: https://dougallj.github.io/applecpu/firestorm.html
+// - ocxtal benchmarks: https://github.com/ocxtal/insn_bench_aarch64
 //
 // Firestorm characteristics:
 // - 6 integer ALU units
 // - 4 SIMD/FP units
-// - 4 load/store units (can do 4 loads or 2 loads + 2 stores)
+// - 4 load/store units (3 loads/cycle throughput)
 // - Integer add: 1c latency, 6/cycle throughput
 // - FP add: 2c latency, 4/cycle throughput
 // - FP multiply: 3c latency, 4/cycle throughput
-// - FMA: 4c latency, 4/cycle throughput
+// - FMA: 3c latency, 4/cycle throughput
 // - L1 load: 3c scalar, 5c SIMD
 
 #include <cstddef>
@@ -38,8 +41,8 @@ template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 2> = 8;  // int
 template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 4> = 8;  // int32/float
 template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 8> = 8;  // double
 
-// DotProduct: FMA 4c latency * 4/cycle = 16, but load-limited
-// 4 load ports means we can sustain 2 dot products per cycle
+// DotProduct: FMA 3c latency * 4/cycle = 12, but load-limited
+// 3 loads/cycle for 2 operands = ~6 FMAs worth of data
 // Use 8 for balance between latency hiding and code size
 template<> inline constexpr std::size_t optimal_N<LoopType::DotProduct, 4> = 8;
 template<> inline constexpr std::size_t optimal_N<LoopType::DotProduct, 8> = 8;

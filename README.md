@@ -109,6 +109,61 @@ Performance comparison with 10M elements:
 
 ---
 
+## Early Return Performance
+
+The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type:
+
+### Bool Mode (Fastest)
+
+Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
+
+```cpp
+// 15% faster than std::find
+auto idx = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
+    return data[i] == target;  // returns bool
+} ILP_END;
+// Returns: index if found, end if not found
+```
+
+### Optional Mode (General Purpose)
+
+Return `std::optional<T>` for computed values:
+
+```cpp
+auto result = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
+    if (expensive_check(data[i])) {
+        return std::optional(compute(data[i]));
+    }
+    return std::nullopt;
+} ILP_END;
+// Returns: std::optional<T>
+```
+
+### Why Bool Mode is Faster
+
+When your lambda does `if (cond) return value; return sentinel;`, the compiler generates `csel` instructions:
+
+```cpp
+// ⚠️ Slower - generates csel dependency chain
+return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
+    if (data[i] == target) return i;
+    return _ilp_end_;
+} ILP_END;
+```
+
+Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
+
+With bool mode, comparisons run in parallel without dependencies:
+
+```cpp
+// ✅ Fast - parallel comparisons, no csel
+return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
+    return data[i] == target;
+} ILP_END;
+```
+
+---
+
 ## Macros - Preferred Interface
 
 > **Note:** In all macros, the `loop_var_name` parameter (e.g., `i`) is **defined by the macro** - you do not need to declare it beforehand. The type is deduced from `start` (e.g., `0` → `int`, `0uz` → `size_t`). Similarly, `val` in range-based macros is defined by the macro with type deduced from the range's value type.
@@ -352,8 +407,40 @@ int sum = ILP_REDUCE_STEP_SUM(i, 0, (int)data.size(), 2, 4) {
 | Macro | Use With |
 |-------|----------|
 | `ILP_END` | All loops without return |
-| `ILP_END_RET` | `ILP_FOR_RET`, `ILP_FOR_RET_SIMPLE` |
+| `ILP_END_RET` | `ILP_FOR_RET` (control flow variants) |
+| `ILP_END_RET_SIMPLE` | `ILP_FOR_*_RET_SIMPLE` (returns `std::optional`) |
 | `ILP_END_REDUCE` | All reduce macros |
+
+---
+
+### Auto-Selecting Macros
+
+These macros automatically select the optimal unroll factor `N` based on element size:
+
+```cpp
+#define ILP_REDUCE_SUM_AUTO(loop_var_name, start, end) /* ... */
+#define ILP_REDUCE_SIMPLE_AUTO(op, init, loop_var_name, start, end) /* ... */
+#define ILP_REDUCE_RANGE_SUM_AUTO(var, range) /* ... */
+#define ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, var, range) /* ... */
+```
+
+**Example**
+```cpp
+std::vector<uint32_t> data(1000);
+
+// Auto-selects N based on sizeof(uint32_t)
+auto sum = ILP_REDUCE_RANGE_SUM_AUTO(val, data) {
+    return val;
+} ILP_END_REDUCE;
+
+// Custom operation with auto N
+auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
+    [](auto a, auto b) { return a < b ? a : b; },
+    UINT32_MAX, val, data
+) {
+    return val;
+} ILP_END_REDUCE;
+```
 
 ---
 
