@@ -111,20 +111,23 @@ Performance comparison with 10M elements:
 
 ## Macros - Preferred Interface
 
+> **Note:** In all macros, the `loop_var_name` parameter (e.g., `i`) is **defined by the macro** - you do not need to declare it beforehand. The type is deduced from `start` (e.g., `0` → `int`, `0uz` → `size_t`). Similarly, `val` in range-based macros is defined by the macro with type deduced from the range's value type.
+
 ### Loop Macros
 
 #### ILP_FOR_SIMPLE
 
 ```cpp
-#define ILP_FOR_SIMPLE(var, start, end, N) /* ... */
+#define ILP_FOR_SIMPLE(loop_var_name, start, end, N) /* ... */
 ```
 
 Simple loop macro without control flow.
 
 **Example**
 ```cpp
+std::vector<int> data(100);
 // Transform in place (no dependency chain)
-ILP_FOR_SIMPLE(i, 0, 100, 4) {
+ILP_FOR_SIMPLE(i, 0, (int)data.size(), 4) {
     data[i] = data[i] * 2 + 1;
 } ILP_END;
 
@@ -136,14 +139,15 @@ ILP_FOR_SIMPLE(i, 0, 100, 4) {
 #### ILP_FOR
 
 ```cpp
-#define ILP_FOR(var, start, end, N) /* ... */
+#define ILP_FOR(loop_var_name, start, end, N) /* ... */
 ```
 
 Loop macro with break/continue support.
 
 **Example**
 ```cpp
-ILP_FOR(i, 0, 100, 4) {
+std::vector<int> data(100);
+ILP_FOR(i, 0, (int)data.size(), 4) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
@@ -155,14 +159,16 @@ ILP_FOR(i, 0, 100, 4) {
 #### ILP_FOR_RET
 
 ```cpp
-#define ILP_FOR_RET(ret_type, var, start, end, N) /* ... */
+#define ILP_FOR_RET(ret_type, loop_var_name, start, end, N) /* ... */
 ```
 
 Loop macro with return value support.
 
 **Example**
 ```cpp
-ILP_FOR_RET(int, i, 0, 100, 4) {
+std::vector<int> data(100);
+int target = 42;
+ILP_FOR_RET(int, i, 0, (int)data.size(), 4) {
     if (data[i] == target) {
         ILP_RETURN(i);
     }
@@ -194,14 +200,15 @@ ILP_FOR_RANGE_SIMPLE(val, v, 4) {
 #### ILP_FOR_STEP_SIMPLE
 
 ```cpp
-#define ILP_FOR_STEP_SIMPLE(var, start, end, step, N) /* ... */
+#define ILP_FOR_STEP_SIMPLE(loop_var_name, start, end, step, N) /* ... */
 ```
 
 Step loop without control flow.
 
 **Example**
 ```cpp
-ILP_FOR_STEP_SIMPLE(i, 0, 100, 2, 4) {
+std::vector<int> data(100);
+ILP_FOR_STEP_SIMPLE(i, 0, (int)data.size(), 2, 4) {
     data[i] = data[i] * 2;  // every 2nd element
 } ILP_END;
 // For sums, use ILP_REDUCE_STEP_SUM instead
@@ -258,14 +265,16 @@ int count = ILP_REDUCE_RANGE_SIMPLE(std::plus<>{}, 0, val, data, 4) {
 #### ILP_REDUCE
 
 ```cpp
-#define ILP_REDUCE(op, init, var, start, end, N) /* ... */
+#define ILP_REDUCE(op, init, loop_var_name, start, end, N) /* ... */
 ```
 
 Index-based reduce with break support.
 
 **Example**
 ```cpp
-int sum = ILP_REDUCE(std::plus<>{}, 0, i, 0, n, 4) {
+std::vector<int> data(1000);
+int stop_at = 500;
+int sum = ILP_REDUCE(std::plus<>{}, 0, i, 0, (int)data.size(), 4) {
     if (i >= stop_at) {
         ILP_BREAK_RET(0);  // break and return neutral element
     }
@@ -278,14 +287,15 @@ int sum = ILP_REDUCE(std::plus<>{}, 0, i, 0, n, 4) {
 #### ILP_REDUCE_SUM
 
 ```cpp
-#define ILP_REDUCE_SUM(var, start, end, N) /* ... */
+#define ILP_REDUCE_SUM(loop_var_name, start, end, N) /* ... */
 ```
 
 Index-based sum.
 
 **Example**
 ```cpp
-int sum = ILP_REDUCE_SUM(i, 0, n, 4) {
+std::vector<int> data(1000);
+int sum = ILP_REDUCE_SUM(i, 0, (int)data.size(), 4) {
     return data[i];
 } ILP_END_REDUCE;
 ```
@@ -295,14 +305,15 @@ int sum = ILP_REDUCE_SUM(i, 0, n, 4) {
 #### ILP_REDUCE_STEP_SUM
 
 ```cpp
-#define ILP_REDUCE_STEP_SUM(var, start, end, step, N) /* ... */
+#define ILP_REDUCE_STEP_SUM(loop_var_name, start, end, step, N) /* ... */
 ```
 
 Step-based sum.
 
 **Example**
 ```cpp
-int sum = ILP_REDUCE_STEP_SUM(i, 0, n, 2, 4) {
+std::vector<int> data(1000);
+int sum = ILP_REDUCE_STEP_SUM(i, 0, (int)data.size(), 2, 4) {
     return data[i];  // every 2nd element
 } ILP_END_REDUCE;
 ```
@@ -355,8 +366,9 @@ Result of reducing all contributions with `op`.
 
 **Example**
 ```cpp
+std::vector<int> data(1000);
 // Find minimum
-int min_val = ilp::reduce_simple<4>(0, n, INT_MAX,
+int min_val = ilp::reduce_simple<4>(0, (int)data.size(), INT_MAX,
     [](int a, int b) { return std::min(a, b); },
     [&](int i) { return data[i]; });
 ```
@@ -382,7 +394,9 @@ Multi-accumulator reduce with break support.
 
 **Example**
 ```cpp
-int sum = ilp::reduce<4>(0, n, 0, std::plus<>{},
+std::vector<int> data(1000);
+int stop_at = 500;
+int sum = ilp::reduce<4>(0, (int)data.size(), 0, std::plus<>{},
     [&](int i, auto& ctrl) {
         if (i >= stop_at) {
             ctrl.break_loop();
@@ -433,8 +447,9 @@ Executes `body` for each value in `[start, end)` with unroll factor `N`.
 
 **Example**
 ```cpp
+std::vector<int> data(100);
 // Transform in place
-ilp::for_loop_simple<4>(0, 100, [&](int i) {
+ilp::for_loop_simple<4>(0, (int)data.size(), [&](int i) {
     data[i] = data[i] * 2 + 1;
 });
 // For sums, use reduce_* functions instead
@@ -459,7 +474,8 @@ Executes `body` with control flow support (break/continue).
 
 **Example**
 ```cpp
-ilp::for_loop<4>(0, 100, [&](int i, auto& ctrl) {
+std::vector<int> data(100);
+ilp::for_loop<4>(0, (int)data.size(), [&](int i, auto& ctrl) {
     if (data[i] < 0) ctrl.break_loop();
 });
 ```
@@ -486,7 +502,9 @@ Executes `body` with early return support.
 
 **Example**
 ```cpp
-auto result = ilp::for_loop_ret<int, 4>(0, 100, [&](int i, auto& ctrl) {
+std::vector<int> data(100);
+int target = 42;
+auto result = ilp::for_loop_ret<int, 4>(0, (int)data.size(), [&](int i, auto& ctrl) {
     if (data[i] == target) {
         ctrl.return_with(i);
     }
@@ -512,6 +530,8 @@ Range-based loop with index and early return.
 
 **Example**
 ```cpp
+std::vector<int> data(100);
+int target = 42;
 auto idx = ilp::for_loop_range_idx_ret_simple<size_t, 4>(data,
     [&](auto val, auto i) -> std::optional<size_t> {
         if (val == target) return i;
