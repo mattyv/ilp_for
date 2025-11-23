@@ -109,6 +109,7 @@ auto reduce_step_sum(T start, T end, T step, F&& body);
 ## When to Use ILP
 
 ### Use ILP for: Early-exit and conditional operations
+(results may vary with compiler and standard lib implementation)
 
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
