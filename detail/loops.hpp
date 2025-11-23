@@ -14,12 +14,25 @@ namespace ilp {
 namespace detail {
 
 // =============================================================================
+// Compile-time validation
+// =============================================================================
+
+template<std::size_t N>
+constexpr void validate_unroll_factor() {
+    static_assert(N >= 1, "Unroll factor N must be at least 1");
+    static_assert(N <= 16, "Unroll factor N > 16 is likely counterproductive: "
+                          "exceeds CPU execution port throughput and causes instruction cache bloat. "
+                          "Typical optimal values are 4-8.");
+}
+
+// =============================================================================
 // Index-based loops
 // =============================================================================
 
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_simple_impl(T start, T end, F&& body) {
+    validate_unroll_factor<N>();
     T i = start;
 
     for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
@@ -36,6 +49,7 @@ void for_loop_simple_impl(T start, T end, F&& body) {
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop_impl(T start, T end, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<void> ctrl;
     T i = start;
 
@@ -51,7 +65,9 @@ void for_loop_impl(T start, T end, F&& body) {
 }
 
 template<typename R, std::size_t N, std::integral T, typename F>
+    requires std::invocable<F, T, LoopCtrl<R>&>
 std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<R> ctrl;
     T i = start;
 
@@ -71,6 +87,7 @@ std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
 template<typename R, std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
 std::optional<R> for_loop_ret_simple_impl(T start, T end, F&& body) {
+    validate_unroll_factor<N>();
     T i = start;
 
     for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
@@ -98,6 +115,7 @@ std::optional<R> for_loop_ret_simple_impl(T start, T end, F&& body) {
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_step_simple_impl(T start, T end, T step, F&& body) {
+    validate_unroll_factor<N>();
     T i = start;
     T last_offset = step * static_cast<T>(N - 1);
 
@@ -121,6 +139,7 @@ void for_loop_step_simple_impl(T start, T end, T step, F&& body) {
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, LoopCtrl<void>&>
 void for_loop_step_impl(T start, T end, T step, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<void> ctrl;
     T i = start;
     T last_offset = step * static_cast<T>(N - 1);
@@ -143,7 +162,9 @@ void for_loop_step_impl(T start, T end, T step, F&& body) {
 }
 
 template<typename R, std::size_t N, std::integral T, typename F>
+    requires std::invocable<F, T, LoopCtrl<R>&>
 std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<R> ctrl;
     T i = start;
     T last_offset = step * static_cast<T>(N - 1);
@@ -170,6 +191,7 @@ std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
 template<typename R, std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T>
 std::optional<R> for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
+    validate_unroll_factor<N>();
     T i = start;
     T last_offset = step * static_cast<T>(N - 1);
 
@@ -203,6 +225,7 @@ std::optional<R> for_loop_step_ret_simple_impl(T start, T end, T step, F&& body)
 
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
 void for_loop_range_simple_impl(Range&& range, F&& body) {
+    validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -220,6 +243,7 @@ void for_loop_range_simple_impl(Range&& range, F&& body) {
 
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
 void for_loop_range_impl(Range&& range, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<void> ctrl;
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
@@ -238,6 +262,7 @@ void for_loop_range_impl(Range&& range, F&& body) {
 
 template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
 std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
+    validate_unroll_factor<N>();
     LoopCtrl<R> ctrl;
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
@@ -258,6 +283,7 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
 
 template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
 std::optional<R> for_loop_range_ret_simple_impl(Range&& range, F&& body) {
+    validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -284,6 +310,7 @@ std::optional<R> for_loop_range_ret_simple_impl(Range&& range, F&& body) {
 template<std::size_t N, typename R, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
 std::optional<R> for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
+    validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -313,6 +340,7 @@ std::optional<R> for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T, LoopCtrl<void>&>
 auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T, LoopCtrl<void>&>;
 
     std::array<R, N> accs;
@@ -350,6 +378,7 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
 auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T>;
 
     std::array<R, N> accs;
@@ -381,6 +410,7 @@ auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, LoopCtrl<void>&>
 auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, LoopCtrl<void>&>;
 
     std::array<R, N> accs;
@@ -420,6 +450,7 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
 template<std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
     std::array<R, N> accs;
@@ -453,6 +484,7 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires (!std::ranges::contiguous_range<Range>) && std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
     std::array<R, N> accs;
@@ -486,6 +518,7 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
 auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&& body) {
+    validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T>;
 
     std::array<R, N> accs;
