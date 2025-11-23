@@ -131,19 +131,21 @@ Modern compilers auto-vectorize simple sums effectively. Use `ILP_REDUCE_SUM` on
 
 ```cpp
 // ✅ Use ILP - parallel comparisons, no dependency chain
-int min = ILP_REDUCE_RANGE_SIMPLE([](int a, int b) { return std::min(a, b); },
-                                   INT_MAX, val, data, 4) {
+int min = ILP_REDUCE_RANGE_SIMPLE_AUTO([](int a, int b) { return std::min(a, b); },
+                                        INT_MAX, val, data) {
     return val;
 } ILP_END_REDUCE;
 
 // ✅ Use ILP - early exit benefits from multi-accumulator
-auto idx = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
+auto idx = ILP_FOR_RET_SIMPLE_AUTO(i, 0uz, data.size()) {
     return data[i] == target;
 } ILP_END;
 
 // ⚠️ Skip ILP - compiler auto-vectorizes better
 int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
+
+The `*_AUTO` macros select the optimal unroll factor based on CPU profile and element size. Prefer these over hardcoded N values.
 
 ### Why Not Just Use `#pragma unroll`?
 
@@ -474,9 +476,14 @@ int sum = ILP_REDUCE_STEP_SUM(i, 0, (int)data.size(), 2, 4) {
 
 ### Auto-Selecting Macros
 
-These macros automatically select the optimal unroll factor `N` based on element size:
+These macros automatically select the optimal unroll factor `N` based on CPU profile and element size. **Prefer these over hardcoded N values.**
 
 ```cpp
+// Loop macros
+#define ILP_FOR_RET_SIMPLE_AUTO(loop_var_name, start, end) /* ... */
+#define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_name, idx_var_name, range) /* ... */
+
+// Reduce macros
 #define ILP_REDUCE_SUM_AUTO(loop_var_name, start, end) /* ... */
 #define ILP_REDUCE_SIMPLE_AUTO(op, init, loop_var_name, start, end) /* ... */
 #define ILP_REDUCE_RANGE_SUM_AUTO(var, range) /* ... */
@@ -485,17 +492,23 @@ These macros automatically select the optimal unroll factor `N` based on element
 
 **Example**
 ```cpp
-std::vector<uint32_t> data(1000);
+std::vector<int> data(1000);
+int target = 42;
 
-// Auto-selects N based on sizeof(uint32_t)
+// Find first match - auto-selects optimal N
+auto idx = ILP_FOR_RET_SIMPLE_AUTO(i, 0uz, data.size()) {
+    return data[i] == target;
+} ILP_END;
+
+// Sum with auto N
 auto sum = ILP_REDUCE_RANGE_SUM_AUTO(val, data) {
     return val;
 } ILP_END_REDUCE;
 
-// Custom operation with auto N
+// Min with auto N
 auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
     [](auto a, auto b) { return a < b ? a : b; },
-    UINT32_MAX, val, data
+    INT_MAX, val, data
 ) {
     return val;
 } ILP_END_REDUCE;
