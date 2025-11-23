@@ -5,70 +5,70 @@
 #include <optional>
 
 // Hand-rolled declarations
-int sum_range_handrolled(std::span<const int> data);
+unsigned sum_range_handrolled(std::span<const unsigned> data);
 std::optional<std::size_t> find_value_handrolled(std::span<const int> data, int target);
 std::optional<std::size_t> find_value_no_ctrl_handrolled(std::span<const int> data, int target);
 
 // ILP declarations
-int sum_range_ilp(std::span<const int> data);
+unsigned sum_range_ilp(std::span<const unsigned> data);
 std::optional<std::size_t> find_value_ilp(std::span<const int> data, int target);
 std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, int target);
 
 TEST_CASE("Range-based sum", "[range]") {
     SECTION("typical values") {
-        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        std::vector<unsigned> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         REQUIRE(sum_range_ilp(data) == sum_range_handrolled(data));
     }
 
     SECTION("edge cases") {
-        std::vector<int> empty = {};
+        std::vector<unsigned> empty = {};
         REQUIRE(sum_range_ilp(empty) == sum_range_handrolled(empty));
 
-        std::vector<int> one = {42};
+        std::vector<unsigned> one = {42};
         REQUIRE(sum_range_ilp(one) == sum_range_handrolled(one));
 
-        std::vector<int> three = {1, 2, 3};
+        std::vector<unsigned> three = {1, 2, 3};
         REQUIRE(sum_range_ilp(three) == sum_range_handrolled(three));
 
-        std::vector<int> four = {1, 2, 3, 4};
+        std::vector<unsigned> four = {1, 2, 3, 4};
         REQUIRE(sum_range_ilp(four) == sum_range_handrolled(four));
 
-        std::vector<int> five = {1, 2, 3, 4, 5};
+        std::vector<unsigned> five = {1, 2, 3, 4, 5};
         REQUIRE(sum_range_ilp(five) == sum_range_handrolled(five));
     }
 
-    SECTION("negative values") {
-        std::vector<int> mixed = {-5, -3, 0, 2, 4, -1, 3};
+    SECTION("large values") {
+        std::vector<unsigned> mixed = {100, 200, 0, 50, 150, 10, 300};
         REQUIRE(sum_range_ilp(mixed) == sum_range_handrolled(mixed));
     }
 
     SECTION("partial ranges via span") {
-        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        std::vector<unsigned> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
         // Middle portion
-        std::span<const int> middle(data.data() + 2, 5);  // {3, 4, 5, 6, 7}
+        std::span<const unsigned> middle(data.data() + 2, 5);  // {3, 4, 5, 6, 7}
         REQUIRE(sum_range_ilp(middle) == sum_range_handrolled(middle));
 
         // Skip first elements
-        std::span<const int> skip_first(data.data() + 3, data.size() - 3);  // {4, 5, 6, 7, 8, 9, 10}
+        std::span<const unsigned> skip_first(data.data() + 3, data.size() - 3);  // {4, 5, 6, 7, 8, 9, 10}
         REQUIRE(sum_range_ilp(skip_first) == sum_range_handrolled(skip_first));
 
         // Skip last elements
-        std::span<const int> skip_last(data.data(), data.size() - 3);  // {1, 2, 3, 4, 5, 6, 7}
+        std::span<const unsigned> skip_last(data.data(), data.size() - 3);  // {1, 2, 3, 4, 5, 6, 7}
         REQUIRE(sum_range_ilp(skip_last) == sum_range_handrolled(skip_last));
 
         // Single element subset
-        std::span<const int> single(data.data() + 4, 1);  // {5}
+        std::span<const unsigned> single(data.data() + 4, 1);  // {5}
         REQUIRE(sum_range_ilp(single) == sum_range_handrolled(single));
 
         // Boundary cases (N-1, N, N+1 where N=4)
-        std::span<const int> three_elem(data.data() + 1, 3);  // {2, 3, 4}
+        std::span<const unsigned> three_elem(data.data() + 1, 3);  // {2, 3, 4}
         REQUIRE(sum_range_ilp(three_elem) == sum_range_handrolled(three_elem));
 
-        std::span<const int> four_elem(data.data() + 1, 4);  // {2, 3, 4, 5}
+        std::span<const unsigned> four_elem(data.data() + 1, 4);  // {2, 3, 4, 5}
         REQUIRE(sum_range_ilp(four_elem) == sum_range_handrolled(four_elem));
 
-        std::span<const int> five_elem(data.data() + 1, 5);  // {2, 3, 4, 5, 6}
+        std::span<const unsigned> five_elem(data.data() + 1, 5);  // {2, 3, 4, 5, 6}
         REQUIRE(sum_range_ilp(five_elem) == sum_range_handrolled(five_elem));
     }
 }

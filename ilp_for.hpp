@@ -173,6 +173,38 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
     return detail::reduce_step_simple_impl<N>(start, end, step, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
+// =============================================================================
+// Auto-selecting functions (use optimal_N based on element size)
+// =============================================================================
+
+// Reduce with auto N
+template<std::integral T, typename F>
+    requires std::invocable<F, T>
+auto reduce_sum_auto(T start, T end, F&& body) {
+    return reduce_sum<optimal_N<LoopType::Sum, sizeof(T)>>(start, end, std::forward<F>(body));
+}
+
+template<std::integral T, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, T>
+auto reduce_simple_auto(T start, T end, Init init, BinaryOp op, F&& body) {
+    return reduce_simple<optimal_N<LoopType::Sum, sizeof(T)>>(start, end, init, op, std::forward<F>(body));
+}
+
+// Range-based reduce with auto N
+template<std::ranges::random_access_range Range, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>>
+auto reduce_range_sum_auto(Range&& range, F&& body) {
+    using T = std::ranges::range_value_t<Range>;
+    return reduce_range_sum<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+template<std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>>
+auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
+    using T = std::ranges::range_value_t<Range>;
+    return reduce_range_simple<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), init, op, std::forward<F>(body));
+}
+
 } // namespace ilp
 
 // =============================================================================
@@ -288,3 +320,17 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
     ::ilp::reduce_step_sum<N>(start, end, step, [&](auto var)
 
 #define ILP_END_REDUCE )
+
+// ----- Auto-selecting macros (use optimal_N) -----
+
+#define ILP_REDUCE_SUM_AUTO(var, start, end) \
+    ::ilp::reduce_sum_auto(start, end, [&](auto var)
+
+#define ILP_REDUCE_SIMPLE_AUTO(op, init, var, start, end) \
+    ::ilp::reduce_simple_auto(start, end, init, op, [&](auto var)
+
+#define ILP_REDUCE_RANGE_SUM_AUTO(var, range) \
+    ::ilp::reduce_range_sum_auto(range, [&](auto&& var)
+
+#define ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, var, range) \
+    ::ilp::reduce_range_simple_auto(range, init, op, [&](auto&& var)
