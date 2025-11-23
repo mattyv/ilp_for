@@ -1,6 +1,6 @@
 # ILP_FOR
 
-Compile-time loop unrolling with multi-accumulator ILP support.
+Compile-time loop unrolling specifly designed for early exit. Break;, continue;, return;.
 
 Defined in header `<ilp_for.hpp>`
 
