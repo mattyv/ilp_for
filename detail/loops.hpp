@@ -17,12 +17,19 @@ namespace detail {
 // Compile-time validation
 // =============================================================================
 
+// Warning helper for large unroll factors
+template<std::size_t N>
+[[deprecated("Unroll factor N > 16 is likely counterproductive: "
+             "exceeds CPU execution port throughput and causes instruction cache bloat. "
+             "Typical optimal values are 4-8.")]]
+constexpr void warn_large_unroll_factor() {}
+
 template<std::size_t N>
 constexpr void validate_unroll_factor() {
     static_assert(N >= 1, "Unroll factor N must be at least 1");
-    static_assert(N <= 16, "Unroll factor N > 16 is likely counterproductive: "
-                          "exceeds CPU execution port throughput and causes instruction cache bloat. "
-                          "Typical optimal values are 4-8.");
+    if constexpr (N > 16) {
+        warn_large_unroll_factor<N>();
+    }
 }
 
 // =============================================================================
