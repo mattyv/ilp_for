@@ -162,8 +162,7 @@ namespace ilp::detail {
 #define ILP_REDUCE_STEP_SUM(loop_var_name, start, end, step, N) \
     ::ilp::reduce_step_sum<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name)
 
-#define ILP_END_REDUCE \
-    ; (void)::ilp::detail::check_reduce_end(_ilp_ctx); })
+#define ILP_END_REDUCE )
 
 // ----- Auto-selecting macros (use optimal_N) -----
 

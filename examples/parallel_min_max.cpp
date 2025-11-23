@@ -18,7 +18,7 @@ MinMax find_min_max(const std::vector<int>& data) {
 
     return ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, val, data) {
         return MinMax{val, val};
-    ILP_END_REDUCE;
+    } ILP_END_REDUCE;
 }
 
 int main() {
