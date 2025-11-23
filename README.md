@@ -1,8 +1,23 @@
 # ILP_FOR
 
-Compile-time loop unrolling specifly designed for early exit. Break;, continue;, return;.
+Compile-time loop unrolling specifically designed for early exit: `break`, `continue`, `return`.
 
 Defined in header `<ilp_for.hpp>`
+
+---
+
+## Contents
+
+- [Synopsis](#synopsis)
+- [When to Use ILP](#when-to-use-ilp)
+- [Early Return Performance](#early-return-performance)
+- [Macros - Preferred Interface](#macros---preferred-interface)
+- [Member Functions](#member-functions)
+- [CPU Architecture Selection](#cpu-architecture-selection)
+- [Debugging](#debugging)
+- [optimal_N](#optimal_n)
+- [LoopCtrl](#loopctrl)
+- [Requirements](#requirements)
 
 ---
 
@@ -697,6 +712,22 @@ clang++ -std=c++23 -DILP_CPU=skylake    # Intel Skylake
 clang++ -std=c++23 -DILP_CPU=apple_m1   # Apple M1
 clang++ -std=c++23                       # Default (conservative)
 ```
+
+---
+
+## Debugging
+
+When debugging, the multi-accumulator ILP pattern can make it harder to step through code. Use simple mode to revert all loops to plain sequential for loops:
+
+```bash
+# Compile with simple mode for debugging
+clang++ -std=c++23 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
+
+# Or in CMake
+target_compile_definitions(myapp PRIVATE ILP_MODE_SIMPLE)
+```
+
+All ILP macros (`ILP_FOR`, `ILP_REDUCE`, etc.) will expand to simple `for` loops with the same semantics but without parallelization. This makes debugging straightforward while keeping your code unchanged.
 
 ---
 
