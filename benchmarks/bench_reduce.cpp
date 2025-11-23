@@ -83,7 +83,7 @@ BENCHMARK_REGISTER_F(SumFixture, Simple)
     ->Arg(100000)
     ->Arg(1000000)
     ->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumFixture, StdAccumulate)
     ->Arg(1000)
@@ -91,7 +91,7 @@ BENCHMARK_REGISTER_F(SumFixture, StdAccumulate)
     ->Arg(100000)
     ->Arg(1000000)
     ->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumFixture, Handrolled)
     ->Arg(1000)
@@ -99,7 +99,7 @@ BENCHMARK_REGISTER_F(SumFixture, Handrolled)
     ->Arg(100000)
     ->Arg(1000000)
     ->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumFixture, ILP)
     ->Arg(1000)
@@ -107,7 +107,7 @@ BENCHMARK_REGISTER_F(SumFixture, ILP)
     ->Arg(100000)
     ->Arg(1000000)
     ->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== SUM STEP 2 BENCHMARKS ====================
 class SumStep2Fixture : public benchmark::Fixture {
@@ -171,15 +171,15 @@ BENCHMARK_DEFINE_F(SumStep2Fixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(SumStep2Fixture, Simple)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumStep2Fixture, Handrolled)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumStep2Fixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== SUM WITH BREAK BENCHMARKS ====================
 class SumBreakFixture : public benchmark::Fixture {
@@ -229,11 +229,11 @@ BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(SumBreakFixture, Simple)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(SumBreakFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== FIND BENCHMARKS ====================
 class FindFixture : public benchmark::Fixture {
@@ -276,11 +276,11 @@ BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(FindFixture, StdFind)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(FindFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== COUNT BENCHMARKS ====================
 class CountFixture : public benchmark::Fixture {
@@ -322,11 +322,11 @@ BENCHMARK_DEFINE_F(CountFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(CountFixture, StdCountIf)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(CountFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== MIN BENCHMARKS ====================
 class MinFixture : public benchmark::Fixture {
@@ -391,15 +391,15 @@ BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(MinFixture, StdMinElement)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(MinFixture, Handrolled)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(MinFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== ANY BENCHMARKS ====================
 class AnyFixture : public benchmark::Fixture {
@@ -444,11 +444,11 @@ BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(AnyFixture, StdAnyOf)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(AnyFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 // ==================== ALL BENCHMARKS ====================
 class AllFixture : public benchmark::Fixture {
@@ -491,8 +491,8 @@ BENCHMARK_DEFINE_F(AllFixture, ILP)(benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(AllFixture, StdAllOf)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(AllFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kNanosecond);
