@@ -112,6 +112,22 @@ Performance comparison with 10M elements:
 ## Macros - Preferred Interface
 
 > **Note:** In all macros, the `loop_var_name` parameter (e.g., `i`) is **defined by the macro** - you do not need to declare it beforehand. The type is deduced from `start` (e.g., `0` → `int`, `0uz` → `size_t`). Similarly, `val` in range-based macros is defined by the macro with type deduced from the range's value type.
+>
+> **Using external variables:**
+> ```cpp
+> // Track progress externally
+> int processed = 0;
+> ILP_FOR_SIMPLE(i, 0, (int)data.size(), 4) {
+>     data[i] = data[i] * 2;
+>     processed = i + 1;
+> } ILP_END;
+>
+> // Start from external counter
+> int start_from = 50;
+> ILP_FOR_SIMPLE(i, start_from, (int)data.size(), 4) {
+>     data[i] = data[i] * 2;
+> } ILP_END;
+> ```
 
 ### Loop Macros
 
