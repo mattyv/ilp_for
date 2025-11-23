@@ -98,3 +98,11 @@ add_custom_target(test-asm
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Running assembly size tests"
 )
+
+# Test all ILP modes (default, SIMPLE, PRAGMA)
+add_custom_target(test-all-modes
+    COMMAND ${CMAKE_COMMAND} -E echo "Testing all ILP modes..."
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_all_modes.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running tests for all ILP modes"
+)

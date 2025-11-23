@@ -25,25 +25,6 @@ public:
     }
 };
 
-// Simple for loop
-BENCHMARK_DEFINE_F(SumFixture, Simple)(benchmark::State& state) {
-    for (auto _ : state) {
-        uint32_t sum = 0;
-        for (auto val : data) sum += val;
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-// std::accumulate
-BENCHMARK_DEFINE_F(SumFixture, StdAccumulate)(benchmark::State& state) {
-    for (auto _ : state) {
-        uint32_t sum = std::accumulate(data.begin(), data.end(), 0u);
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
 // Handrolled 4 accumulators
 BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
     for (auto _ : state) {
@@ -77,22 +58,7 @@ BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
 }
 
 // Register benchmarks with different sizes
-BENCHMARK_REGISTER_F(SumFixture, Simple)
-    ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000)
-    ->Arg(1000000)
-    ->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(SumFixture, StdAccumulate)
-    ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000)
-    ->Arg(1000000)
-    ->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
+#if !defined(ILP_MODE_PRAGMA)
 BENCHMARK_REGISTER_F(SumFixture, Handrolled)
     ->Arg(1000)
     ->Arg(10000)
@@ -100,6 +66,7 @@ BENCHMARK_REGISTER_F(SumFixture, Handrolled)
     ->Arg(1000000)
     ->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
+#endif
 
 BENCHMARK_REGISTER_F(SumFixture, ILP)
     ->Arg(1000)
@@ -107,78 +74,6 @@ BENCHMARK_REGISTER_F(SumFixture, ILP)
     ->Arg(100000)
     ->Arg(1000000)
     ->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-// ==================== SUM STEP 2 BENCHMARKS ====================
-class SumStep2Fixture : public benchmark::Fixture {
-public:
-    std::vector<uint32_t> data;
-
-    void SetUp(const benchmark::State& state) override {
-        size_t size = state.range(0);
-        data.resize(size);
-        for (size_t i = 0; i < size; ++i) {
-            data[i] = i % 100;
-        }
-    }
-
-    void TearDown(const benchmark::State&) override {
-        data.clear();
-        data.shrink_to_fit();
-    }
-};
-
-BENCHMARK_DEFINE_F(SumStep2Fixture, Simple)(benchmark::State& state) {
-    for (auto _ : state) {
-        benchmark::DoNotOptimize(data.data());
-        uint32_t sum = 0;
-        for (size_t i = 0; i < data.size(); i += 2) sum += data[i];
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size() / 2);
-}
-
-BENCHMARK_DEFINE_F(SumStep2Fixture, Handrolled)(benchmark::State& state) {
-    for (auto _ : state) {
-        benchmark::DoNotOptimize(data.data());
-        uint32_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
-        const uint32_t* ptr = data.data();
-        size_t n = data.size();
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            sum0 += ptr[i];
-            sum1 += ptr[i + 2];
-            sum2 += ptr[i + 4];
-            sum3 += ptr[i + 6];
-        }
-        for (; i < n; i += 2) sum0 += ptr[i];
-        uint32_t sum = sum0 + sum1 + sum2 + sum3;
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size() / 2);
-}
-
-BENCHMARK_DEFINE_F(SumStep2Fixture, ILP)(benchmark::State& state) {
-    for (auto _ : state) {
-        benchmark::DoNotOptimize(data.data());
-        uint32_t sum = ILP_REDUCE_STEP_SUM(i, 0u, (unsigned)data.size(), 2u, 4) {
-            return data[i];
-        } ILP_END_REDUCE;
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size() / 2);
-}
-
-BENCHMARK_REGISTER_F(SumStep2Fixture, Simple)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(SumStep2Fixture, Handrolled)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(SumStep2Fixture, ILP)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
 // ==================== SUM WITH BREAK BENCHMARKS ====================
@@ -279,52 +174,6 @@ BENCHMARK_REGISTER_F(FindFixture, StdFind)
     ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(FindFixture, ILP)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-// ==================== COUNT BENCHMARKS ====================
-class CountFixture : public benchmark::Fixture {
-public:
-    std::vector<uint32_t> data;
-
-    void SetUp(const benchmark::State& state) override {
-        size_t size = state.range(0);
-        data.resize(size);
-        for (size_t i = 0; i < size; ++i) {
-            data[i] = i % 100;
-        }
-    }
-
-    void TearDown(const benchmark::State&) override {
-        data.clear();
-        data.shrink_to_fit();
-    }
-};
-
-BENCHMARK_DEFINE_F(CountFixture, StdCountIf)(benchmark::State& state) {
-    for (auto _ : state) {
-        auto count = std::count_if(data.begin(), data.end(), [](uint32_t v) { return v > 50; });
-        benchmark::DoNotOptimize(count);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-BENCHMARK_DEFINE_F(CountFixture, ILP)(benchmark::State& state) {
-    for (auto _ : state) {
-        std::span<const uint32_t> arr(data);
-        auto count = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
-            return val > 50 ? 1u : 0u;
-        } ILP_END_REDUCE;
-        benchmark::DoNotOptimize(count);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-BENCHMARK_REGISTER_F(CountFixture, StdCountIf)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(CountFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
@@ -447,52 +296,5 @@ BENCHMARK_REGISTER_F(AnyFixture, StdAnyOf)
     ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(AnyFixture, ILP)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-// ==================== ALL BENCHMARKS ====================
-class AllFixture : public benchmark::Fixture {
-public:
-    std::vector<uint32_t> data;
-
-    void SetUp(const benchmark::State& state) override {
-        size_t size = state.range(0);
-        data.resize(size);
-        for (size_t i = 0; i < size; ++i) {
-            data[i] = i % 100;
-        }
-    }
-
-    void TearDown(const benchmark::State&) override {
-        data.clear();
-        data.shrink_to_fit();
-    }
-};
-
-BENCHMARK_DEFINE_F(AllFixture, StdAllOf)(benchmark::State& state) {
-    for (auto _ : state) {
-        bool all = std::all_of(data.begin(), data.end(), [](uint32_t v) { return v < 100; });
-        benchmark::DoNotOptimize(all);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-BENCHMARK_DEFINE_F(AllFixture, ILP)(benchmark::State& state) {
-    for (auto _ : state) {
-        std::span<const uint32_t> arr(data);
-        auto count = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
-            return val < 100 ? 1u : 0u;
-        } ILP_END_REDUCE;
-        bool all = count == data.size();
-        benchmark::DoNotOptimize(all);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-BENCHMARK_REGISTER_F(AllFixture, StdAllOf)
-    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(AllFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);

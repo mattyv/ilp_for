@@ -11,8 +11,10 @@ std::optional<std::size_t> find_value_no_ctrl_handrolled(std::span<const int> da
 
 // ILP declarations
 unsigned sum_range_ilp(std::span<const unsigned> data);
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 std::optional<std::size_t> find_value_ilp(std::span<const int> data, int target);
 std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, int target);
+#endif
 
 TEST_CASE("Range-based sum", "[range]") {
     SECTION("typical values") {
@@ -73,6 +75,7 @@ TEST_CASE("Range-based sum", "[range]") {
     }
 }
 
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 TEST_CASE("Find value (early return)", "[range][return]") {
     std::vector<int> data = {10, 20, 30, 40, 50, 60, 70, 80};
 
@@ -118,7 +121,9 @@ TEST_CASE("Find value (early return)", "[range][return]") {
         REQUIRE(find_value_ilp(three_elem, 99) == find_value_handrolled(three_elem, 99));  // not found
     }
 }
+#endif
 
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 TEST_CASE("Find value no ctrl (return-only, no control flow)", "[range][return]") {
     std::vector<int> data = {10, 20, 30, 40, 50, 60, 70, 80};
 
@@ -168,3 +173,4 @@ TEST_CASE("Find value no ctrl (return-only, no control flow)", "[range][return]"
         }
     }
 }
+#endif

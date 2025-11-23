@@ -91,21 +91,65 @@ auto reduce_step_sum(T start, T end, T step, F&& body);
 
 ---
 
-## Benchmark Results
+## When to Use ILP
 
-Performance comparison with 10M elements:
+### Use ILP for: Early-exit and conditional operations
 
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
-| Min | 2.9G/s | 16.0G/s | **5.5x** |
-| All-of | 2.0G/s | 13.2G/s | **6.8x** |
-| Count | 7.5G/s | 12.5G/s | **1.7x** |
-| Sum with break | 2.8G/s | 4.5G/s | **1.6x** |
-| Simple sum | 18.1G/s | 16.7G/s | 0.9x |
+| Min | 3.4ms | 0.58ms | **5.9x** |
+| Any-of | 4.0ms | 0.75ms | **5.3x** |
+| Find | 1.9ms | 1.6ms | **1.2x** |
+| Sum with break | 1.8ms | 1.1ms | **1.6x** |
 
-**Use ILP for:** min/max, product, count, all-of, loops with early exit
+The multi-accumulator pattern enables parallel comparisons that break dependency chains.
 
-**Skip ILP for:** simple sums (compiler auto-vectorizes better)
+### Skip ILP for: Simple reductions
+
+| Operation | std/simple | ILP | Result |
+|-----------|------------|-----|--------|
+| Sum | 0.54ms | 0.58ms | **ILP ~7% slower** |
+
+Modern compilers auto-vectorize simple sums effectively. Use `ILP_REDUCE_SUM` only when you need break/return support.
+
+### Summary
+
+```cpp
+// ✅ Use ILP - parallel comparisons, no dependency chain
+int min = ILP_REDUCE_RANGE_SIMPLE([](int a, int b) { return std::min(a, b); },
+                                   INT_MAX, val, data, 4) {
+    return val;
+} ILP_END_REDUCE;
+
+// ✅ Use ILP - early exit benefits from multi-accumulator
+auto idx = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
+    return data[i] == target;
+} ILP_END;
+
+// ⚠️ Skip ILP - compiler auto-vectorizes better
+int sum = std::accumulate(data.begin(), data.end(), 0);
+```
+
+### Why Not Just Use `#pragma unroll`?
+
+Pragma unroll duplicates loop bodies but doesn't parallelize conditional checks:
+
+```cpp
+// #pragma unroll generates sequential dependency chain:
+for (int i = 0; i < n; i++) {
+    if (data[i] == target) return i;  // check 0
+    if (data[i+1] == target) return i+1;  // waits for check 0
+    if (data[i+2] == target) return i+2;  // waits for check 1
+    if (data[i+3] == target) return i+3;  // waits for check 2
+}
+
+// ILP multi-accumulator runs checks in parallel:
+bool found0 = data[i] == target;    // parallel
+bool found1 = data[i+1] == target;  // parallel
+bool found2 = data[i+2] == target;  // parallel
+bool found3 = data[i+3] == target;  // parallel
+if (found0 | found1 | found2 | found3) { /* find which */ }
+```
 
 ---
 
@@ -715,6 +759,7 @@ Control object passed to loop body for flow control.
 
 ## See also
 
-- `std::accumulate` - sequential reduction
-- `std::min_element` - sequential min (ILP is 5.5x faster)
-- `std::count_if` - sequential count (ILP is 1.7x faster)
+- `std::accumulate` - sequential reduction (skip ILP for simple sums)
+- `std::min_element` - sequential min (ILP is 5.9x faster)
+- `std::any_of` - sequential any-of (ILP is 5.3x faster)
+- `std::find` - sequential find (ILP is 1.2x faster)

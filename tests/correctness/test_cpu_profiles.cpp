@@ -129,6 +129,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         REQUIRE(sum == 5050);
     }
 
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
     SECTION("for_loop_ret search") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
@@ -169,4 +170,5 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
 
         REQUIRE_FALSE(result.has_value());
     }
+#endif
 }

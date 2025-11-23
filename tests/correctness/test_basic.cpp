@@ -12,7 +12,9 @@ unsigned sum_step2_handrolled(unsigned n);
 
 // ILP declarations
 unsigned sum_plain_ilp(unsigned n);
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 unsigned sum_with_break_ilp(unsigned n, unsigned stop_at);
+#endif
 unsigned sum_odd_ilp(unsigned n);
 int sum_negative_ilp(int start, int end);
 int sum_backward_ilp(int start, int end);
@@ -35,6 +37,7 @@ TEST_CASE("Plain accumulation", "[basic]") {
     }
 }
 
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 TEST_CASE("Break on condition", "[control]") {
     SECTION("breaks early") {
         REQUIRE(sum_with_break_ilp(100, 50) == sum_with_break_handrolled(100, 50));
@@ -50,6 +53,7 @@ TEST_CASE("Break on condition", "[control]") {
         REQUIRE(sum_with_break_ilp(1, 0) == sum_with_break_handrolled(1, 0));
     }
 }
+#endif
 
 TEST_CASE("Continue (skip even)", "[control]") {
     SECTION("typical values") {

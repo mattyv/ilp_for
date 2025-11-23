@@ -1,3 +1,4 @@
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -10,3 +11,4 @@ std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, int
     } ILP_END_RET;
     return std::nullopt;
 }
+#endif

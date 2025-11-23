@@ -1,25 +1,23 @@
-# Build artifacts
+# Build directories
+build/
+benchmarks/build*/
+benchmarks/results/
+tests/correctness/test_runner
+
+# Compiled objects
 *.o
-*.s
 *.a
 *.so
 *.dylib
 
-# Test binaries
-tests/correctness/test_runner
-
-# Build directories
-build/
-benchmarks/build/
+# Generated assembly
+tests/asm_compare/**/*.s
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
+*~
 
-# OS
+# macOS
 .DS_Store
-Thumbs.db
-
-CLAUDE.md

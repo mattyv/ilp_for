@@ -1,3 +1,4 @@
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 #include <cstddef>
 #include <functional>
 #include "ilp_for.hpp"
@@ -12,3 +13,4 @@ unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
         return i;
     } ILP_END_REDUCE;
 }
+#endif

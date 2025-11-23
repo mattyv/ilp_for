@@ -25,7 +25,6 @@ add_executable(bench_reduce
 )
 
 target_link_libraries(bench_reduce
-    benchmark::benchmark
     benchmark::benchmark_main
 )
 
