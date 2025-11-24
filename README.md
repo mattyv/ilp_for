@@ -155,6 +155,8 @@ auto reduce_step_sum(T start, T end, T step, F&& body);
 ### Use ILP for: Early-exit and conditional operations
 (results may vary with compiler and standard lib implementation)
 
+The motivation here is not to create a performance library but to show that the library creates code that is performant
+
 Clang 17 on Apple M2
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
