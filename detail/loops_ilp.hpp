@@ -26,10 +26,11 @@ void for_loop_simple_impl(T start, T end, F&& body) {
     validate_unroll_factor<N>();
     T i = start;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(i + static_cast<T>(Is)), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            body(i + static_cast<T>(j));
+        }
     }
 
     for (; i < end; ++i) {
@@ -44,10 +45,11 @@ void for_loop_impl(T start, T end, F&& body) {
     LoopCtrl<void> ctrl;
     T i = start;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(i + static_cast<T>(j), ctrl);
+        }
     }
 
     for (; i < end && ctrl.ok; ++i) {
@@ -62,10 +64,11 @@ std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
     LoopCtrl<R> ctrl;
     T i = start;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(i + static_cast<T>(j), ctrl);
+        }
     }
 
     for (; i < end && ctrl.ok; ++i) {
@@ -86,9 +89,9 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         T i = start;
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<bool, N> matches;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((matches[Is] = body(i + static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                matches[j] = body(i + static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (matches[j]) return i + static_cast<T>(j);
@@ -103,9 +106,9 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         T i = start;
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(i + static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(i + static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j].has_value()) return results[j];
@@ -121,9 +124,9 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         T i = start;
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(i + static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(i + static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j] != end) return results[j];
@@ -153,9 +156,9 @@ void for_loop_step_simple_impl(T start, T end, T step, F&& body) {
     };
 
     while (in_range(i) && in_range(i + last_offset)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(i + step * static_cast<T>(Is)), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            body(i + step * static_cast<T>(j));
+        }
         i += step * static_cast<T>(N);
     }
 
@@ -178,9 +181,9 @@ void for_loop_step_impl(T start, T end, T step, F&& body) {
     };
 
     while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(i + step * static_cast<T>(j), ctrl);
+        }
         i += step * static_cast<T>(N);
     }
 
@@ -203,9 +206,9 @@ std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
     };
 
     while (in_range(i) && in_range(i + last_offset) && ctrl.ok) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(i + step * static_cast<T>(Is), ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(i + step * static_cast<T>(j), ctrl);
+        }
         i += step * static_cast<T>(N);
     }
 
@@ -233,9 +236,9 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         T i = start;
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<bool, N> matches;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((matches[Is] = body(i + step * static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                matches[j] = body(i + step * static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (matches[j]) return i + step * static_cast<T>(j);
@@ -252,9 +255,9 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         T i = start;
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(i + step * static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(i + step * static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j].has_value()) return results[j];
@@ -272,9 +275,9 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         T i = start;
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(i + step * static_cast<T>(Is))), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(i + step * static_cast<T>(j));
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j] != end) return results[j];
@@ -301,10 +304,11 @@ void for_loop_range_simple_impl(Range&& range, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            (body(it[i + Is]), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            body(it[i + j]);
+        }
     }
 
     for (; i < size; ++i) {
@@ -320,10 +324,11 @@ void for_loop_range_impl(Range&& range, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size && ctrl.ok; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(it[i + j], ctrl);
+        }
     }
 
     for (; i < size && ctrl.ok; ++i) {
@@ -339,10 +344,11 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size && ctrl.ok; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] { body(it[i + Is], ctrl); return ctrl.ok; }() && ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            body(it[i + j], ctrl);
+        }
     }
 
     for (; i < size && ctrl.ok; ++i) {
@@ -366,9 +372,9 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<bool, N> matches;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((matches[Is] = body(it[i + Is])), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                matches[j] = body(it[i + j]);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (matches[j]) return it + (i + j);
@@ -383,9 +389,9 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(it[i + Is])), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(it[i + j]);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j].has_value()) return results[j];
@@ -401,9 +407,9 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(it[i + Is])), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(it[i + j]);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j] != end_it) return results[j];
@@ -433,9 +439,9 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<bool, N> matches;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((matches[Is] = body(it[i + Is], i + Is)), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                matches[j] = body(it[i + j], i + j);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (matches[j]) return it + (i + j);
@@ -450,9 +456,9 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(it[i + Is], i + Is)), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(it[i + j], i + j);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j].has_value()) return results[j];
@@ -468,9 +474,9 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         std::size_t i = 0;
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((results[Is] = body(it[i + Is], i + Is)), ...);
-            }(std::make_index_sequence<N>{});
+            for (std::size_t j = 0; j < N; ++j) {
+                results[j] = body(it[i + j], i + j);
+            }
 
             for (std::size_t j = 0; j < N; ++j) {
                 if (results[j] != end_it) return results[j];
@@ -500,17 +506,11 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
     LoopCtrl<void> ctrl;
     T i = start;
 
-    // Main unrolled loop - each position feeds different accumulator
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] {
-                if (ctrl.ok) {
-                    accs[Is] = op(accs[Is], body(i + static_cast<T>(Is), ctrl));
-                }
-                return ctrl.ok;
-            }() && ...);
-        }(std::make_index_sequence<N>{});
-        if (!ctrl.ok) { break; }
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            accs[j] = op(accs[j], body(i + static_cast<T>(j), ctrl));
+        }
     }
 
     // Remainder - all go to accumulator 0
@@ -538,11 +538,11 @@ auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
 
     T i = start;
 
-    // Main unrolled loop
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((accs[Is] = op(accs[Is], body(i + static_cast<T>(Is)))), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            accs[j] = op(accs[j], body(i + static_cast<T>(j)));
+        }
     }
 
     // Remainder
@@ -573,17 +573,11 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
-    // Main unrolled loop
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size && ctrl.ok; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ([&] {
-                if (ctrl.ok) {
-                    accs[Is] = op(accs[Is], body(it[i + Is], ctrl));
-                }
-                return ctrl.ok;
-            }() && ...);
-        }(std::make_index_sequence<N>{});
-        if (!ctrl.ok) { break; }
+        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+            accs[j] = op(accs[j], body(it[i + j], ctrl));
+        }
     }
 
     // Remainder
@@ -684,11 +678,11 @@ auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&&
         return step > 0 ? val < end : val > end;
     };
 
-    // Main unrolled loop
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     while (in_range(i) && in_range(i + last_offset)) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((accs[Is] = op(accs[Is], body(i + step * static_cast<T>(Is)))), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            accs[j] = op(accs[j], body(i + step * static_cast<T>(j)));
+        }
         i += step * static_cast<T>(N);
     }
 
