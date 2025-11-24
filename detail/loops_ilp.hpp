@@ -611,11 +611,11 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
-    // Main unrolled loop
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((accs[Is] = op(accs[Is], body(ptr[i + Is]))), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            accs[j] = op(accs[j], body(ptr[i + j]));
+        }
     }
 
     // Remainder
@@ -645,11 +645,11 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
-    // Main unrolled loop
+    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
     for (; i + N <= size; i += N) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((accs[Is] = op(accs[Is], body(it[i + Is]))), ...);
-        }(std::make_index_sequence<N>{});
+        for (std::size_t j = 0; j < N; ++j) {
+            accs[j] = op(accs[j], body(it[i + j]));
+        }
     }
 
     // Remainder
