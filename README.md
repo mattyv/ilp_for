@@ -6,8 +6,51 @@ Defined in header `<ilp_for.hpp>`
 
 ---
 
+## Motivation
+
+Manual loop unrolling for ILP (Instruction Level Parallelism) is error-prone and verbose:
+
+```cpp
+// Hand-rolled unrolled loop
+unsigned foo2(unsigned x, unsigned total) {
+    unsigned ret = 0;
+    unsigned i = 0;
+    for (; (i + 4) < x; i += 4) {
+        ret += i;
+        if (ret > total) break;
+        ret += i + 1;
+        if (ret > total) break;
+        ret += i + 2;
+        if (ret > total) break;
+        ret += i + 3;
+        if (ret > total) break;
+    }
+    for (; i < x; ++i) {
+        ret += i;
+        if (ret > total) break;
+    }
+    return ret;
+}
+```
+
+This library provides a DSL that generates as close to identical assembly as possible:
+
+```cpp
+unsigned foo3(unsigned x, unsigned total) {
+    unsigned ret = 0;
+    ILP_FOR_RET(unsigned, i, 0, x, 4) {
+        ret += i;
+        if (ret > total) ILP_RETURN(ret);
+    } ILP_END_RET;
+    return ret;
+}
+```
+
+---
+
 ## Contents
 
+- [Motivation](#motivation)
 - [Synopsis](#synopsis)
 - [When to Use ILP](#when-to-use-ilp)
 - [Early Return Performance](#early-return-performance)
