@@ -17,6 +17,34 @@ namespace ilp {
 namespace detail {
 
 // =============================================================================
+// Identity element inference for common operations
+// =============================================================================
+
+template<typename Op, typename T>
+constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T init) {
+    if constexpr (std::is_same_v<std::decay_t<Op>, std::plus<>> ||
+                  std::is_same_v<std::decay_t<Op>, std::plus<T>>) {
+        return T{};
+    } else if constexpr (std::is_same_v<std::decay_t<Op>, std::multiplies<>> ||
+                         std::is_same_v<std::decay_t<Op>, std::multiplies<T>>) {
+        return T{1};
+    } else if constexpr (std::is_same_v<std::decay_t<Op>, std::bit_and<>> ||
+                         std::is_same_v<std::decay_t<Op>, std::bit_and<T>>) {
+        return ~T{};  // All 1s
+    } else if constexpr (std::is_same_v<std::decay_t<Op>, std::bit_or<>> ||
+                         std::is_same_v<std::decay_t<Op>, std::bit_or<T>>) {
+        return T{};
+    } else if constexpr (std::is_same_v<std::decay_t<Op>, std::bit_xor<>> ||
+                         std::is_same_v<std::decay_t<Op>, std::bit_xor<T>>) {
+        return T{};
+    } else {
+        // For unknown operations (lambdas, etc.), fall back to using init as identity
+        // This is only correct if init is actually the identity element
+        return init;
+    }
+}
+
+// =============================================================================
 // Index-based loops
 // =============================================================================
 
@@ -500,8 +528,11 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T, LoopCtrl<void>&>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     LoopCtrl<void> ctrl;
     T i = start;
@@ -518,12 +549,12 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
         accs[0] = op(accs[0], body(i, ctrl));
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // Simple version without break support
@@ -533,8 +564,11 @@ auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     T i = start;
 
@@ -550,12 +584,12 @@ auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
         accs[0] = op(accs[0], body(i));
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // Range-based reduce
@@ -565,8 +599,11 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, LoopCtrl<void>&>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     LoopCtrl<void> ctrl;
     auto it = std::ranges::begin(range);
@@ -585,12 +622,12 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
         accs[0] = op(accs[0], body(it[i], ctrl));
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // Simple range reduce - optimized for contiguous ranges
@@ -600,8 +637,11 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     auto* ptr = std::ranges::data(range);
     auto size = std::ranges::size(range);
@@ -619,12 +659,12 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
         accs[0] = op(accs[0], body(ptr[i]));
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // Simple range reduce - fallback for random access ranges
@@ -634,8 +674,11 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
@@ -653,12 +696,12 @@ auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
         accs[0] = op(accs[0], body(it[i]));
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // Step-based reduce
@@ -668,8 +711,11 @@ auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&&
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T>;
 
+    // Get identity element for this operation
+    R identity = operation_identity(op, static_cast<R>(init));
+
     std::array<R, N> accs;
-    accs.fill(init);
+    accs.fill(identity);
 
     T i = start;
     T last_offset = step * static_cast<T>(N - 1);
@@ -692,12 +738,12 @@ auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&&
         i += step;
     }
 
-    // Final reduction (unrolled via fold expression)
+    // Final reduction - apply init exactly once (unrolled via fold expression)
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        R result = accs[0];
-        ((result = op(result, accs[Is + 1])), ...);
+        R result = init;
+        ((result = op(result, accs[Is])), ...);
         return result;
-    }(std::make_index_sequence<N - 1>{});
+    }(std::make_index_sequence<N>{});
 }
 
 // =============================================================================

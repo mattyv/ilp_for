@@ -60,6 +60,7 @@ unsigned foo3(unsigned x, unsigned total) {
 - [Debugging](#debugging)
 - [optimal_N](#optimal_n)
 - [LoopCtrl](#loopctrl)
+- [Important Notes](#important-notes)
 - [Requirements](#requirements)
 
 ---
@@ -850,6 +851,86 @@ Control object passed to loop body for flow control.
 **Member functions**
 - `break_loop()` - exit loop immediately
 - `return_with(val)` - exit loop and return value (requires `R != void`)
+
+---
+
+## Important Notes
+
+### Return Type Overflow
+
+The return type for `reduce_range_sum` and similar functions is inferred from the body's return type. For large sums, this can cause silent integer overflow:
+
+```cpp
+std::vector<int> data(100000);
+std::iota(data.begin(), data.end(), 0);
+
+// ⚠️ Overflow! Sum = 4,999,950,000 but int max = 2,147,483,647
+auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+    return val;  // Returns int, causes overflow
+} ILP_END_REDUCE;
+
+// ✅ Fix: Cast to larger type
+auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+    return static_cast<int64_t>(val);  // Returns int64_t
+} ILP_END_REDUCE;
+```
+
+### Non-Associative Operations
+
+Operations like subtraction and division produce implementation-defined results because accumulator combination order is not guaranteed:
+
+```cpp
+// ⚠️ Undefined behavior - subtraction is not associative
+auto result = ILP_REDUCE_RANGE_SIMPLE(std::minus<>{}, 100, val, data, 4) {
+    return val;
+} ILP_END_REDUCE;
+
+// ✅ Use only associative operations: +, *, min, max, &, |, ^
+```
+
+### ILP_FOR_UNTIL Return Type
+
+`ILP_FOR_UNTIL*` macros return `std::optional<T>` (where T is the index type), not `bool`:
+
+```cpp
+auto result = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+    return val == target;
+} ILP_END_UNTIL;
+
+// result is std::optional<size_t>, not bool
+if (result) {
+    std::cout << "Found at index " << *result << "\n";
+}
+```
+
+### Init Values for Reduce Operations
+
+For reduce operations with custom `init` values, the library automatically infers the identity element for known operations (`std::plus`, `std::multiplies`, etc.). For custom operations (lambdas), the `init` value is used as the identity, which is only correct if `init` is actually the identity element:
+
+```cpp
+// ✅ Works correctly - std::plus identity (0) is inferred
+auto sum = ILP_REDUCE_RANGE_SIMPLE(std::plus<>{}, 100, val, data, 4) {
+    return val;
+} ILP_END_REDUCE;
+// Returns: 100 + sum(data)
+
+// ⚠️ For custom lambdas, init must be the identity element
+auto result = ILP_REDUCE_RANGE_SIMPLE(
+    [](int a, int b) { return a + b; },  // Custom lambda
+    0,  // Must be 0 (identity for addition), not a non-zero offset
+    val, data, 4
+) {
+    return val;
+} ILP_END_REDUCE;
+
+// To add an offset with a custom lambda, add it after:
+auto result = 100 + ILP_REDUCE_RANGE_SIMPLE(
+    [](int a, int b) { return a + b; },
+    0, val, data, 4
+) {
+    return val;
+} ILP_END_REDUCE;
+```
 
 ---
 
