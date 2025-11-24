@@ -101,4 +101,127 @@ TEST_CASE("Simple Reduce", "[reduce]") {
     }
 }
 
+TEST_CASE("Bitwise Reduce Operations", "[reduce][bitwise]") {
+    SECTION("Bitwise AND reduction") {
+        // Test bit_and with a range
+        std::vector<unsigned> data = {0xFF, 0xF0, 0x3F, 0x0F};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_and<>(), 0xFF, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        unsigned expected = 0xFF;
+        for(auto v : data) expected &= v;
+
+        REQUIRE(result == expected);
+        REQUIRE(result == 0x00);  // All bits should be cleared
+    }
+
+    SECTION("Bitwise OR reduction") {
+        // Test bit_or with a range
+        std::vector<unsigned> data = {0x01, 0x02, 0x04, 0x08};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_or<>(), 0, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        unsigned expected = 0;
+        for(auto v : data) expected |= v;
+
+        REQUIRE(result == expected);
+        REQUIRE(result == 0x0F);  // All lower nibble bits set
+    }
+
+    SECTION("Bitwise XOR reduction") {
+        // Test bit_xor - useful for parity checks
+        std::vector<unsigned> data = {0xFF, 0xFF, 0x0F, 0x0F};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_xor<>(), 0, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        unsigned expected = 0;
+        for(auto v : data) expected ^= v;
+
+        REQUIRE(result == expected);
+        REQUIRE(result == 0x00);  // XOR of pairs cancels out
+    }
+
+    SECTION("Bitwise AND with index-based loop") {
+        // Create a bitmask by ANDing values
+        auto result = ILP_REDUCE_SIMPLE(std::bit_and<>(), 0xFFFFFFFF, i, 0, 10, 4) {
+            return ~(1u << i);  // Clear bit i
+        } ILP_END_REDUCE;
+
+        unsigned expected = 0xFFFFFFFF;
+        for(unsigned i = 0; i < 10; ++i) {
+            expected &= ~(1u << i);
+        }
+
+        REQUIRE(result == expected);
+    }
+}
+
+TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
+    SECTION("Range reduce with remainder hits cleanup") {
+        // 9 elements with unroll 4: hits cleanup loop for last element
+        std::vector<int> data = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+        auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 9);
+    }
+
+    SECTION("Index reduce with remainder") {
+        // 11 iterations with unroll 4: 11 = 2*4 + 3
+        auto result = ILP_REDUCE_SUM(i, 0, 11, 4) {
+            return 1;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 11);
+    }
+
+    SECTION("Step reduce with remainder") {
+        // 0 to 11 step 2 with unroll 4: visits 0,2,4,6,8,10 (6 values, 4+2)
+        auto result = ILP_REDUCE_STEP_SUM(i, 0, 11, 2, 4) {
+            return 1;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 6);
+    }
+
+    SECTION("Reduce with break in cleanup loop") {
+        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        auto result = ILP_REDUCE_RANGE(std::plus<>(), 0, val, data, 4) {
+            if (val == 9) {  // Last element, in cleanup
+                ILP_BREAK_RET(0);
+            }
+            return val;
+        } ILP_END_REDUCE;
+
+        // Sum 1+2+3+4+5+6+7+8 = 36
+        REQUIRE(result == 36);
+    }
+
+    SECTION("FOR_RANGE_RET cleanup loop") {
+        // Test lines 383-384: range-based FOR_RET with remainder
+        auto helper = [](const std::vector<int>& data) -> std::optional<int> {
+            ILP_FOR_RANGE_RET(int, val, data, 4) {
+                if (val == 7) {  // Last element in cleanup loop
+                    ILP_RETURN(val * 10);
+                }
+            } ILP_END_RET;
+        };
+
+        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};  // 7 elements, unroll 4
+        auto result = helper(data);
+
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == 70);
+    }
+}
+
 #endif

@@ -6,6 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
 
+# Coverage option
+option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
+
+if(ENABLE_COVERAGE)
+    message(STATUS "Code coverage enabled")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+endif()
+
 # Include parent directory for ilp_for.hpp
 include_directories(..)
 
@@ -106,3 +115,48 @@ add_custom_target(test-all-modes
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Running tests for all ILP modes"
 )
+
+# Coverage targets (only available when ENABLE_COVERAGE is ON)
+if(ENABLE_COVERAGE)
+    # Clean coverage data
+    add_custom_target(coverage-clean
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR} -name "*.gcda" -delete
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR} -name "*.gcov" -delete
+        COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/coverage.info
+        COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/coverage_html
+        COMMENT "Cleaning coverage data"
+    )
+
+    # Run tests with coverage
+    add_custom_target(coverage-run
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner
+        DEPENDS test_runner
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Running tests with coverage instrumentation"
+    )
+
+    # Generate lcov report
+    add_custom_target(coverage-report
+        COMMAND lcov --capture --directory ${CMAKE_CURRENT_BINARY_DIR} --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors inconsistent,unused,mismatch,negative,format --rc branch_coverage=0
+        COMMAND lcov --remove ${CMAKE_CURRENT_BINARY_DIR}/coverage.info '/usr/*' '*/catch.hpp' '*/tests/*' --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors unused
+        COMMAND lcov --list ${CMAKE_CURRENT_BINARY_DIR}/coverage.info
+        DEPENDS coverage-run
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating lcov coverage report"
+    )
+
+    # Generate HTML coverage report
+    add_custom_target(coverage-html
+        COMMAND genhtml ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --output-directory ${CMAKE_CURRENT_BINARY_DIR}/coverage_html
+        COMMAND ${CMAKE_COMMAND} -E echo "Coverage report generated at: ${CMAKE_CURRENT_BINARY_DIR}/coverage_html/index.html"
+        DEPENDS coverage-report
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating HTML coverage report"
+    )
+
+    # All-in-one coverage target
+    add_custom_target(coverage
+        DEPENDS coverage-html
+        COMMENT "Generate complete coverage report"
+    )
+endif()
