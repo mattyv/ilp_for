@@ -174,6 +174,60 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
         REQUIRE(result == 9);
     }
 
+    SECTION("Range reduce SIMPLE with std::plus<>") {
+        std::vector<int> data = {1, 2, 3, 4, 5};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 15);
+    }
+
+    SECTION("Index reduce SIMPLE with std::plus<>") {
+        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0, i, 0, 10, 4) {
+            return i;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 45);
+    }
+
+    SECTION("Vector<double> reduce SIMPLE with std::plus<>") {
+        std::vector<double> data = {1.5, 2.5, 3.5, 4.5, 5.5};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0.0, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 17.5);
+    }
+
+    SECTION("Array<int, 7> reduce SIMPLE with std::plus<>") {
+        std::array<int, 7> data = {1, 2, 3, 4, 5, 6, 7};
+
+        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0, val, data, 4) {
+            return val;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 28);
+    }
+
+    SECTION("Unsigned int reduce SIMPLE with std::plus<> and N=4") {
+        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0u, i, 0u, 10u, 4) {
+            return i;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 45u);
+    }
+
+    SECTION("Int reduce SIMPLE with std::plus<> and N=1") {
+        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0, i, 0, 10, 1) {
+            return i;
+        } ILP_END_REDUCE;
+
+        REQUIRE(result == 45);
+    }
+
     SECTION("Index reduce with remainder") {
         // 11 iterations with unroll 4: 11 = 2*4 + 3
         auto result = ILP_REDUCE_SUM(i, 0, 11, 4) {

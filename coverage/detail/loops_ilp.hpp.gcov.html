@@ -37,12 +37,12 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2025-11-25 09:39:58</td>
+            <td class="headerValue">2025-11-25 10:07:07</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">99.5&nbsp;%</td>
-            <td class="headerCovTableEntry">988</td>
-            <td class="headerCovTableEntry">983</td>
+            <td class="headerCovTableEntry">1006</td>
+            <td class="headerCovTableEntry">1001</td>
           </tr>
                   <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -83,10 +83,10 @@
 <span id="L21"><span class="lineNum">      21</span>              : // =============================================================================</span>
 <span id="L22"><span class="lineNum">      22</span>              : </span>
 <span id="L23"><span class="lineNum">      23</span>              : template&lt;typename Op, typename T&gt;</span>
-<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">         237 : constexpr T operation_identity([[maybe_unused]] const Op&amp; op, [[maybe_unused]] T init) {</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">         243 : constexpr T operation_identity([[maybe_unused]] const Op&amp; op, [[maybe_unused]] T init) {</span></span>
 <span id="L25"><span class="lineNum">      25</span>              :     if constexpr (std::is_same_v&lt;std::decay_t&lt;Op&gt;, std::plus&lt;&gt;&gt; ||</span>
 <span id="L26"><span class="lineNum">      26</span>              :                   std::is_same_v&lt;std::decay_t&lt;Op&gt;, std::plus&lt;T&gt;&gt;) {</span>
-<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">         198 :         return T{};</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">         204 :         return T{};</span></span>
 <span id="L28"><span class="lineNum">      28</span>              :     } else if constexpr (std::is_same_v&lt;std::decay_t&lt;Op&gt;, std::multiplies&lt;&gt;&gt; ||</span>
 <span id="L29"><span class="lineNum">      29</span>              :                          std::is_same_v&lt;std::decay_t&lt;Op&gt;, std::multiplies&lt;T&gt;&gt;) {</span>
 <span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">          11 :         return T{1};</span></span>
@@ -622,37 +622,37 @@
 <span id="L560"><span class="lineNum">     560</span>              : // Simple version without break support</span>
 <span id="L561"><span class="lineNum">     561</span>              : template&lt;std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F&gt;</span>
 <span id="L562"><span class="lineNum">     562</span>              :     requires std::invocable&lt;F, T&gt;</span>
-<span id="L563"><span class="lineNum">     563</span> <span class="tlaGNC">         144 : auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
-<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">         144 :     validate_unroll_factor&lt;N&gt;();</span></span>
+<span id="L563"><span class="lineNum">     563</span> <span class="tlaGNC">         147 : auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
+<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">         147 :     validate_unroll_factor&lt;N&gt;();</span></span>
 <span id="L565"><span class="lineNum">     565</span>              :     using R = std::invoke_result_t&lt;F, T&gt;;</span>
 <span id="L566"><span class="lineNum">     566</span>              : </span>
 <span id="L567"><span class="lineNum">     567</span>              :     // Get identity element for this operation</span>
-<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">         144 :     R identity = operation_identity(op, static_cast&lt;R&gt;(init));</span></span>
+<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">         147 :     R identity = operation_identity(op, static_cast&lt;R&gt;(init));</span></span>
 <span id="L569"><span class="lineNum">     569</span>              : </span>
-<span id="L570"><span class="lineNum">     570</span> <span class="tlaGNC">         144 :     std::array&lt;R, N&gt; accs;</span></span>
-<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">         144 :     accs.fill(identity);</span></span>
+<span id="L570"><span class="lineNum">     570</span> <span class="tlaGNC">         147 :     std::array&lt;R, N&gt; accs;</span></span>
+<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">         147 :     accs.fill(identity);</span></span>
 <span id="L572"><span class="lineNum">     572</span>              : </span>
-<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">         144 :     T i = start;</span></span>
+<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">         147 :     T i = start;</span></span>
 <span id="L574"><span class="lineNum">     574</span>              : </span>
 <span id="L575"><span class="lineNum">     575</span>              :     // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)</span>
-<span id="L576"><span class="lineNum">     576</span> <span class="tlaGNC">      281553 :     for (; i + static_cast&lt;T&gt;(N) &lt;= end; i += static_cast&lt;T&gt;(N)) {</span></span>
-<span id="L577"><span class="lineNum">     577</span> <span class="tlaGNC">     1407091 :         for (std::size_t j = 0; j &lt; N; ++j) {</span></span>
-<span id="L578"><span class="lineNum">     578</span> <span class="tlaGNC">     1125682 :             accs[j] = op(accs[j], body(i + static_cast&lt;T&gt;(j)));</span></span>
-<span id="L579"><span class="lineNum">     579</span> <span class="tlaGNC">     1125682 :         }</span></span>
-<span id="L580"><span class="lineNum">     580</span> <span class="tlaGNC">      281409 :     }</span></span>
+<span id="L576"><span class="lineNum">     576</span> <span class="tlaGNC">      281570 :     for (; i + static_cast&lt;T&gt;(N) &lt;= end; i += static_cast&lt;T&gt;(N)) {</span></span>
+<span id="L577"><span class="lineNum">     577</span> <span class="tlaGNC">     1407131 :         for (std::size_t j = 0; j &lt; N; ++j) {</span></span>
+<span id="L578"><span class="lineNum">     578</span> <span class="tlaGNC">     1125708 :             accs[j] = op(accs[j], body(i + static_cast&lt;T&gt;(j)));</span></span>
+<span id="L579"><span class="lineNum">     579</span> <span class="tlaGNC">     1125708 :         }</span></span>
+<span id="L580"><span class="lineNum">     580</span> <span class="tlaGNC">      281423 :     }</span></span>
 <span id="L581"><span class="lineNum">     581</span>              : </span>
 <span id="L582"><span class="lineNum">     582</span>              :     // Remainder</span>
-<span id="L583"><span class="lineNum">     583</span> <span class="tlaGNC">         343 :     for (; i &lt; end; ++i) {</span></span>
-<span id="L584"><span class="lineNum">     584</span> <span class="tlaGNC">         199 :         accs[0] = op(accs[0], body(i));</span></span>
-<span id="L585"><span class="lineNum">     585</span> <span class="tlaGNC">         199 :     }</span></span>
+<span id="L583"><span class="lineNum">     583</span> <span class="tlaGNC">         350 :     for (; i &lt; end; ++i) {</span></span>
+<span id="L584"><span class="lineNum">     584</span> <span class="tlaGNC">         203 :         accs[0] = op(accs[0], body(i));</span></span>
+<span id="L585"><span class="lineNum">     585</span> <span class="tlaGNC">         203 :     }</span></span>
 <span id="L586"><span class="lineNum">     586</span>              : </span>
 <span id="L587"><span class="lineNum">     587</span>              :     // Final reduction - apply init exactly once (unrolled via fold expression)</span>
-<span id="L588"><span class="lineNum">     588</span> <span class="tlaGNC">         431 :     return [&amp;]&lt;std::size_t... Is&gt;(std::index_sequence&lt;Is...&gt;) {</span></span>
-<span id="L589"><span class="lineNum">     589</span> <span class="tlaGNC">         144 :         R result = init;</span></span>
-<span id="L590"><span class="lineNum">     590</span> <span class="tlaGNC">         144 :         ((result = op(result, accs[Is])), ...);</span></span>
-<span id="L591"><span class="lineNum">     591</span> <span class="tlaGNC">         287 :         return result;</span></span>
-<span id="L592"><span class="lineNum">     592</span> <span class="tlaGNC">         144 :     }(std::make_index_sequence&lt;N&gt;{});</span></span>
-<span id="L593"><span class="lineNum">     593</span> <span class="tlaGNC">         144 : }</span></span>
+<span id="L588"><span class="lineNum">     588</span> <span class="tlaGNC">         440 :     return [&amp;]&lt;std::size_t... Is&gt;(std::index_sequence&lt;Is...&gt;) {</span></span>
+<span id="L589"><span class="lineNum">     589</span> <span class="tlaGNC">         147 :         R result = init;</span></span>
+<span id="L590"><span class="lineNum">     590</span> <span class="tlaGNC">         147 :         ((result = op(result, accs[Is])), ...);</span></span>
+<span id="L591"><span class="lineNum">     591</span> <span class="tlaGNC">         293 :         return result;</span></span>
+<span id="L592"><span class="lineNum">     592</span> <span class="tlaGNC">         147 :     }(std::make_index_sequence&lt;N&gt;{});</span></span>
+<span id="L593"><span class="lineNum">     593</span> <span class="tlaGNC">         147 : }</span></span>
 <span id="L594"><span class="lineNum">     594</span>              : </span>
 <span id="L595"><span class="lineNum">     595</span>              : // Range-based reduce</span>
 <span id="L596"><span class="lineNum">     596</span>              : template&lt;std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F&gt;</span>
@@ -695,39 +695,39 @@
 <span id="L633"><span class="lineNum">     633</span>              : // Simple range reduce - optimized for contiguous ranges</span>
 <span id="L634"><span class="lineNum">     634</span>              : template&lt;std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F&gt;</span>
 <span id="L635"><span class="lineNum">     635</span>              :     requires std::invocable&lt;F, std::ranges::range_reference_t&lt;Range&gt;&gt;</span>
-<span id="L636"><span class="lineNum">     636</span> <span class="tlaGNC">          58 : auto reduce_range_simple_impl(Range&amp;&amp; range, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
-<span id="L637"><span class="lineNum">     637</span> <span class="tlaGNC">          58 :     validate_unroll_factor&lt;N&gt;();</span></span>
+<span id="L636"><span class="lineNum">     636</span> <span class="tlaGNC">          61 : auto reduce_range_simple_impl(Range&amp;&amp; range, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
+<span id="L637"><span class="lineNum">     637</span> <span class="tlaGNC">          61 :     validate_unroll_factor&lt;N&gt;();</span></span>
 <span id="L638"><span class="lineNum">     638</span>              :     using R = std::invoke_result_t&lt;F, std::ranges::range_reference_t&lt;Range&gt;&gt;;</span>
 <span id="L639"><span class="lineNum">     639</span>              : </span>
 <span id="L640"><span class="lineNum">     640</span>              :     // Get identity element for this operation</span>
-<span id="L641"><span class="lineNum">     641</span> <span class="tlaGNC">          58 :     R identity = operation_identity(op, static_cast&lt;R&gt;(init));</span></span>
+<span id="L641"><span class="lineNum">     641</span> <span class="tlaGNC">          61 :     R identity = operation_identity(op, static_cast&lt;R&gt;(init));</span></span>
 <span id="L642"><span class="lineNum">     642</span>              : </span>
-<span id="L643"><span class="lineNum">     643</span> <span class="tlaGNC">          58 :     std::array&lt;R, N&gt; accs;</span></span>
-<span id="L644"><span class="lineNum">     644</span> <span class="tlaGNC">          58 :     accs.fill(identity);</span></span>
+<span id="L643"><span class="lineNum">     643</span> <span class="tlaGNC">          61 :     std::array&lt;R, N&gt; accs;</span></span>
+<span id="L644"><span class="lineNum">     644</span> <span class="tlaGNC">          61 :     accs.fill(identity);</span></span>
 <span id="L645"><span class="lineNum">     645</span>              : </span>
-<span id="L646"><span class="lineNum">     646</span> <span class="tlaGNC">          58 :     auto* ptr = std::ranges::data(range);</span></span>
-<span id="L647"><span class="lineNum">     647</span> <span class="tlaGNC">          58 :     auto size = std::ranges::size(range);</span></span>
-<span id="L648"><span class="lineNum">     648</span> <span class="tlaGNC">          58 :     std::size_t i = 0;</span></span>
+<span id="L646"><span class="lineNum">     646</span> <span class="tlaGNC">          61 :     auto* ptr = std::ranges::data(range);</span></span>
+<span id="L647"><span class="lineNum">     647</span> <span class="tlaGNC">          61 :     auto size = std::ranges::size(range);</span></span>
+<span id="L648"><span class="lineNum">     648</span> <span class="tlaGNC">          61 :     std::size_t i = 0;</span></span>
 <span id="L649"><span class="lineNum">     649</span>              : </span>
 <span id="L650"><span class="lineNum">     650</span>              :     // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)</span>
-<span id="L651"><span class="lineNum">     651</span> <span class="tlaGNC">       28457 :     for (; i + N &lt;= size; i += N) {</span></span>
-<span id="L652"><span class="lineNum">     652</span> <span class="tlaGNC">      142211 :         for (std::size_t j = 0; j &lt; N; ++j) {</span></span>
-<span id="L653"><span class="lineNum">     653</span> <span class="tlaGNC">      113812 :             accs[j] = op(accs[j], body(ptr[i + j]));</span></span>
-<span id="L654"><span class="lineNum">     654</span> <span class="tlaGNC">      113812 :         }</span></span>
-<span id="L655"><span class="lineNum">     655</span> <span class="tlaGNC">       28399 :     }</span></span>
+<span id="L651"><span class="lineNum">     651</span> <span class="tlaGNC">       28463 :     for (; i + N &lt;= size; i += N) {</span></span>
+<span id="L652"><span class="lineNum">     652</span> <span class="tlaGNC">      142226 :         for (std::size_t j = 0; j &lt; N; ++j) {</span></span>
+<span id="L653"><span class="lineNum">     653</span> <span class="tlaGNC">      113824 :             accs[j] = op(accs[j], body(ptr[i + j]));</span></span>
+<span id="L654"><span class="lineNum">     654</span> <span class="tlaGNC">      113824 :         }</span></span>
+<span id="L655"><span class="lineNum">     655</span> <span class="tlaGNC">       28402 :     }</span></span>
 <span id="L656"><span class="lineNum">     656</span>              : </span>
 <span id="L657"><span class="lineNum">     657</span>              :     // Remainder</span>
-<span id="L658"><span class="lineNum">     658</span> <span class="tlaGNC">         136 :     for (; i &lt; size; ++i) {</span></span>
-<span id="L659"><span class="lineNum">     659</span> <span class="tlaGNC">          78 :         accs[0] = op(accs[0], body(ptr[i]));</span></span>
-<span id="L660"><span class="lineNum">     660</span> <span class="tlaGNC">          78 :     }</span></span>
+<span id="L658"><span class="lineNum">     658</span> <span class="tlaGNC">         144 :     for (; i &lt; size; ++i) {</span></span>
+<span id="L659"><span class="lineNum">     659</span> <span class="tlaGNC">          83 :         accs[0] = op(accs[0], body(ptr[i]));</span></span>
+<span id="L660"><span class="lineNum">     660</span> <span class="tlaGNC">          83 :     }</span></span>
 <span id="L661"><span class="lineNum">     661</span>              : </span>
 <span id="L662"><span class="lineNum">     662</span>              :     // Final reduction - apply init exactly once (unrolled via fold expression)</span>
-<span id="L663"><span class="lineNum">     663</span> <span class="tlaGNC">         174 :     return [&amp;]&lt;std::size_t... Is&gt;(std::index_sequence&lt;Is...&gt;) {</span></span>
-<span id="L664"><span class="lineNum">     664</span> <span class="tlaGNC">          58 :         R result = init;</span></span>
-<span id="L665"><span class="lineNum">     665</span> <span class="tlaGNC">          58 :         ((result = op(result, accs[Is])), ...);</span></span>
-<span id="L666"><span class="lineNum">     666</span> <span class="tlaGNC">         116 :         return result;</span></span>
-<span id="L667"><span class="lineNum">     667</span> <span class="tlaGNC">          58 :     }(std::make_index_sequence&lt;N&gt;{});</span></span>
-<span id="L668"><span class="lineNum">     668</span> <span class="tlaGNC">          58 : }</span></span>
+<span id="L663"><span class="lineNum">     663</span> <span class="tlaGNC">         183 :     return [&amp;]&lt;std::size_t... Is&gt;(std::index_sequence&lt;Is...&gt;) {</span></span>
+<span id="L664"><span class="lineNum">     664</span> <span class="tlaGNC">          61 :         R result = init;</span></span>
+<span id="L665"><span class="lineNum">     665</span> <span class="tlaGNC">          61 :         ((result = op(result, accs[Is])), ...);</span></span>
+<span id="L666"><span class="lineNum">     666</span> <span class="tlaGNC">         122 :         return result;</span></span>
+<span id="L667"><span class="lineNum">     667</span> <span class="tlaGNC">          61 :     }(std::make_index_sequence&lt;N&gt;{});</span></span>
+<span id="L668"><span class="lineNum">     668</span> <span class="tlaGNC">          61 : }</span></span>
 <span id="L669"><span class="lineNum">     669</span>              : </span>
 <span id="L670"><span class="lineNum">     670</span>              : // Simple range reduce - fallback for random access ranges</span>
 <span id="L671"><span class="lineNum">     671</span>              : template&lt;std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F&gt;</span>
@@ -955,8 +955,8 @@
 <span id="L893"><span class="lineNum">     893</span>              : </span>
 <span id="L894"><span class="lineNum">     894</span>              : template&lt;std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F&gt;</span>
 <span id="L895"><span class="lineNum">     895</span>              :     requires std::invocable&lt;F, T&gt;</span>
-<span id="L896"><span class="lineNum">     896</span> <span class="tlaGNC">          48 : auto reduce_simple(T start, T end, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
-<span id="L897"><span class="lineNum">     897</span> <span class="tlaGNC">          48 :     return detail::reduce_simple_impl&lt;N&gt;(start, end, init, op, std::forward&lt;F&gt;(body));</span></span>
+<span id="L896"><span class="lineNum">     896</span> <span class="tlaGNC">          51 : auto reduce_simple(T start, T end, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
+<span id="L897"><span class="lineNum">     897</span> <span class="tlaGNC">          51 :     return detail::reduce_simple_impl&lt;N&gt;(start, end, init, op, std::forward&lt;F&gt;(body));</span></span>
 <span id="L898"><span class="lineNum">     898</span>              : }</span>
 <span id="L899"><span class="lineNum">     899</span>              : </span>
 <span id="L900"><span class="lineNum">     900</span>              : template&lt;std::size_t N = 4, std::integral T, typename F&gt;</span>
@@ -974,8 +974,8 @@
 <span id="L912"><span class="lineNum">     912</span>              : </span>
 <span id="L913"><span class="lineNum">     913</span>              : template&lt;std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F&gt;</span>
 <span id="L914"><span class="lineNum">     914</span>              :     requires std::invocable&lt;F, std::ranges::range_reference_t&lt;Range&gt;&gt;</span>
-<span id="L915"><span class="lineNum">     915</span> <span class="tlaGNC">          20 : auto reduce_range_simple(Range&amp;&amp; range, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
-<span id="L916"><span class="lineNum">     916</span> <span class="tlaGNC">          20 :     return detail::reduce_range_simple_impl&lt;N&gt;(std::forward&lt;Range&gt;(range), init, op, std::forward&lt;F&gt;(body));</span></span>
+<span id="L915"><span class="lineNum">     915</span> <span class="tlaGNC">          23 : auto reduce_range_simple(Range&amp;&amp; range, Init init, BinaryOp op, F&amp;&amp; body) {</span></span>
+<span id="L916"><span class="lineNum">     916</span> <span class="tlaGNC">          23 :     return detail::reduce_range_simple_impl&lt;N&gt;(std::forward&lt;Range&gt;(range), init, op, std::forward&lt;F&gt;(body));</span></span>
 <span id="L917"><span class="lineNum">     917</span>              : }</span>
 <span id="L918"><span class="lineNum">     918</span>              : </span>
 <span id="L919"><span class="lineNum">     919</span>              : template&lt;std::size_t N = 4, std::ranges::random_access_range Range, typename F&gt;</span>
