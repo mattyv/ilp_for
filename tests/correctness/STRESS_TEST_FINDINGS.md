@@ -78,7 +78,33 @@ Option 3: Post-process to subtract (N-1)×init (hacky, not recommended)
 
 ---
 
-## Other Findings
+## Issue 2: Return Type Inference Overflow (Medium Priority)
+
+### Description
+When using `reduce_range_sum`, the return type is inferred from the vector element type. For large sums, this causes silent integer overflow.
+
+### Example
+```cpp
+std::vector<int> data(100000);  // Fill with 0..99999
+auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+    return val;  // Returns int
+} ILP_END_REDUCE;
+// Sum should be 4,999,950,000 but int max is 2,147,483,647
+// Result: 704,982,704 (overflow!)
+```
+
+### Workaround
+Explicitly cast to a larger type in the body:
+```cpp
+return static_cast<int64_t>(val);
+```
+
+### Recommended Fix
+Document this behavior clearly or provide a template parameter for explicit return type.
+
+---
+
+## Documentation Gaps
 
 ### 1. Large N Warning (Expected Behavior)
 Using N > 16 produces a deprecation warning - this is intentional and helpful.
@@ -86,11 +112,11 @@ Using N > 16 produces a deprecation warning - this is intentional and helpful.
 ### 2. Inverted Ranges (Expected Behavior)
 Inverted ranges (start > end) correctly produce 0 iterations.
 
-### 3. Non-Associative Operations (Expected, Needs Documentation)
-Subtraction, division, and other non-associative operations produce implementation-defined results due to parallel accumulator combination order. This should be documented.
+### 3. Non-Associative Operations (Needs Documentation)
+Subtraction, division, and other non-associative operations produce implementation-defined results due to parallel accumulator combination order.
 
-### 4. For-Until Return Type (Documentation Issue)
-`ILP_FOR_UNTIL` returns `std::optional<T>`, not `bool`. Users may be confused by this.
+### 4. For-Until Return Type (Needs Documentation)
+`ILP_FOR_UNTIL` returns `std::optional<T>`, not `bool`. Users may expect boolean.
 
 ---
 
@@ -102,6 +128,7 @@ Subtraction, division, and other non-associative operations produce implementati
 4. **test_extreme_cases.cpp** - Accumulator bug investigation
 5. **test_deep_nesting.cpp** - Deep loop nesting (up to 6 levels)
 6. **test_accumulator_bugs.cpp** - Focused accumulator bug tests
+7. **test_more_edge_cases.cpp** - Additional edge cases and overflow testing
 
 ---
 
