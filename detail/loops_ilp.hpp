@@ -700,6 +700,41 @@ auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&&
     }(std::make_index_sequence<N - 1>{});
 }
 
+// =============================================================================
+// For-until loops - optimized early exit with predicate baked into loop condition
+// =============================================================================
+
+// Index-based for_until - returns index of first match
+template<std::size_t N, std::integral T, typename Pred>
+    requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
+std::optional<T> for_until_impl(T start, T end, Pred&& pred) {
+    validate_unroll_factor<N>();
+
+    // Use pragma unroll like std::find - GCC optimizes this pattern best
+    _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
+    for (T i = start; i < end; ++i) {
+        if (pred(i)) return i;
+    }
+
+    return std::nullopt;
+}
+
+// Range-based for_until - returns index of first match
+template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
+std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
+    validate_unroll_factor<N>();
+    auto* data = std::ranges::data(range);
+    std::size_t n = std::ranges::size(range);
+
+    // Use pragma unroll like std::find - GCC optimizes this pattern best
+    _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
+    for (std::size_t i = 0; i < n; ++i) {
+        if (pred(data[i])) return i;
+    }
+
+    return std::nullopt;
+}
+
 } // namespace detail
 
 // =============================================================================
@@ -783,6 +818,21 @@ auto for_loop_range_ret_simple(Range&& range, F&& body) {
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 auto for_loop_range_idx_ret_simple(Range&& range, F&& body) {
     return detail::for_loop_range_idx_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+// =============================================================================
+// Public API - For-until loops (optimized early exit)
+// =============================================================================
+
+template<std::size_t N = 8, std::integral T, typename Pred>
+    requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
+std::optional<T> for_until(T start, T end, Pred&& pred) {
+    return detail::for_until_impl<N>(start, end, std::forward<Pred>(pred));
+}
+
+template<std::size_t N = 8, std::ranges::random_access_range Range, typename Pred>
+std::optional<std::size_t> for_until_range(Range&& range, Pred&& pred) {
+    return detail::for_until_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
 }
 
 // =============================================================================
@@ -874,6 +924,18 @@ template<std::ranges::random_access_range Range, typename Init, typename BinaryO
 auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
     using T = std::ranges::range_value_t<Range>;
     return reduce_range_simple<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), init, op, std::forward<F>(body));
+}
+
+template<std::integral T, typename Pred>
+    requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
+std::optional<T> for_until_auto(T start, T end, Pred&& pred) {
+    return detail::for_until_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<Pred>(pred));
+}
+
+template<std::ranges::random_access_range Range, typename Pred>
+std::optional<std::size_t> for_until_range_auto(Range&& range, Pred&& pred) {
+    using T = std::ranges::range_value_t<Range>;
+    return detail::for_until_range_impl<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<Pred>(pred));
 }
 
 template<std::ranges::random_access_range Range, typename F>

@@ -39,10 +39,11 @@ namespace ilp::detail {
 }
 
 // CPU profile selection via -DILP_CPU=xxx
-// Available: default, skylake, apple_m1
+// Available: default, skylake, apple_m1, zen5
 #define ILP_STRINGIFY_(x) #x
 #define ILP_STRINGIFY(x) ILP_STRINGIFY_(x)
-#define ILP_CPU_HEADER(cpu) ILP_STRINGIFY(cpu_profiles/ilp_cpu_##cpu.hpp)
+#define ILP_CPU_HEADER_(cpu) ILP_STRINGIFY(cpu_profiles/ilp_cpu_##cpu.hpp)
+#define ILP_CPU_HEADER(cpu) ILP_CPU_HEADER_(cpu)
 
 #ifdef ILP_CPU
     #include ILP_CPU_HEADER(ILP_CPU)
@@ -135,6 +136,26 @@ namespace ilp::detail {
 
 #define ILP_RETURN(x) \
     do { _ilp_ctrl.ok = false; _ilp_ctrl.return_value = x; return; } while(0)
+
+// ----- For-until macros (optimized early exit with predicate) -----
+
+// Index-based for_until - body returns bool (true = stop)
+#define ILP_FOR_UNTIL(loop_var_name, start, end, N) \
+    ::ilp::for_until<N>(start, end, [&](auto loop_var_name) -> bool
+
+// Range-based for_until - body returns bool (true = stop)
+#define ILP_FOR_UNTIL_RANGE(loop_var_name, range, N) \
+    ::ilp::for_until_range<N>(range, [&](auto&& loop_var_name) -> bool
+
+// Auto-selecting versions
+#define ILP_FOR_UNTIL_AUTO(loop_var_name, start, end) \
+    ::ilp::for_until_auto(start, end, [&](auto loop_var_name) -> bool
+
+#define ILP_FOR_UNTIL_RANGE_AUTO(loop_var_name, range) \
+    ::ilp::for_until_range_auto(range, [&](auto&& loop_var_name) -> bool
+
+// End marker for for_until macros
+#define ILP_END_UNTIL )
 
 // ----- Reduce macros (multi-accumulator ILP) -----
 

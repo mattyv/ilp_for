@@ -437,4 +437,43 @@ auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
     return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
+// =============================================================================
+// For-until loops (optimized early exit)
+// =============================================================================
+
+template<std::size_t N = 8, std::integral T, typename Pred>
+    requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
+std::optional<T> for_until(T start, T end, Pred&& pred) {
+    T i = start;
+    _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
+    for (; i < end; ++i) {
+        if (pred(i)) return i;
+    }
+    return std::nullopt;
+}
+
+template<std::size_t N = 8, std::ranges::random_access_range Range, typename Pred>
+std::optional<std::size_t> for_until_range(Range&& range, Pred&& pred) {
+    auto it = std::ranges::begin(range);
+    std::size_t n = std::ranges::size(range);
+    std::size_t i = 0;
+    _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
+    for (; i < n; ++i) {
+        if (pred(it[i])) return i;
+    }
+    return std::nullopt;
+}
+
+template<std::integral T, typename Pred>
+    requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
+std::optional<T> for_until_auto(T start, T end, Pred&& pred) {
+    return for_until<optimal_N<LoopType::Search, 4>>(start, end, std::forward<Pred>(pred));
+}
+
+template<std::ranges::random_access_range Range, typename Pred>
+std::optional<std::size_t> for_until_range_auto(Range&& range, Pred&& pred) {
+    using T = std::ranges::range_value_t<Range>;
+    return for_until_range<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<Pred>(pred));
+}
+
 } // namespace ilp
