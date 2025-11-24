@@ -42,7 +42,7 @@ unsigned foo3(unsigned x, unsigned total) {
         ret += i;
         if (ret > total) ILP_RETURN(ret);
     } ILP_END_RET;
-    return ret;
+    return ret; //handles case where return inside is not executed. just like a regular for loop
 }
 ```
 
