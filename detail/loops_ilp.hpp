@@ -510,6 +510,7 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
                 return ctrl.ok;
             }() && ...);
         }(std::make_index_sequence<N>{});
+        if (!ctrl.ok) { break; }
     }
 
     // Remainder - all go to accumulator 0
@@ -582,6 +583,7 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
                 return ctrl.ok;
             }() && ...);
         }(std::make_index_sequence<N>{});
+        if (!ctrl.ok) { break; }
     }
 
     // Remainder
