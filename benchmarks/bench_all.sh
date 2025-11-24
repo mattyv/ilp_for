@@ -5,6 +5,15 @@ set -e
 
 cd "$(dirname "$0")"
 
+# On Windows (MSYS2/Git Bash), ensure MSYS2 runtime is found first to avoid DLL conflicts
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    if [[ -d "/c/msys64/ucrt64/bin" ]]; then
+        export PATH="/c/msys64/ucrt64/bin:$PATH"
+    elif [[ -d "/c/msys64/mingw64/bin" ]]; then
+        export PATH="/c/msys64/mingw64/bin:$PATH"
+    fi
+fi
+
 # Output directory for results
 RESULTS_DIR="results"
 mkdir -p "$RESULTS_DIR"
@@ -31,11 +40,15 @@ run_benchmark() {
         -DCMAKE_CXX_COMPILER="$compiler" \
         -DCMAKE_CXX_FLAGS="$cxx_flags"
 
-    make -j
+    cmake --build . --config Release -j
 
     # Run benchmark and save results
     local result_file="../${RESULTS_DIR}/${name}_${TIMESTAMP}.json"
-    ./bench_reduce --benchmark_out="$result_file" --benchmark_out_format=json
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+        ./bench_reduce.exe --benchmark_out="$result_file" --benchmark_out_format=json
+    else
+        ./bench_reduce --benchmark_out="$result_file" --benchmark_out_format=json
+    fi
 
     echo ""
     echo "Results saved to: $result_file"
