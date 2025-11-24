@@ -159,7 +159,7 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// Optimized for_until - 35-40% faster than std::find
+// Optimized for_until - matches std::find performance
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);

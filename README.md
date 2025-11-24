@@ -473,6 +473,7 @@ int sum = ILP_REDUCE_STEP_SUM(i, 0, (int)data.size(), 2, 4) {
 | `ILP_END_RET` | `ILP_FOR_RET` (control flow variants) |
 | `ILP_END_RET_SIMPLE` | `ILP_FOR_*_RET_SIMPLE` (returns `std::optional`) |
 | `ILP_END_REDUCE` | All reduce macros |
+| `ILP_END_UNTIL` | `ILP_FOR_UNTIL*` macros |
 
 ---
 
@@ -484,6 +485,10 @@ These macros automatically select the optimal unroll factor `N` based on CPU pro
 // Loop macros
 #define ILP_FOR_RET_SIMPLE_AUTO(loop_var_name, start, end) /* ... */
 #define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_name, idx_var_name, range) /* ... */
+
+// For-until macros (optimized early exit)
+#define ILP_FOR_UNTIL_RANGE_AUTO(var, range) /* ... */
+#define ILP_FOR_UNTIL_AUTO(loop_var_name, start, end) /* ... */
 
 // Reduce macros
 #define ILP_REDUCE_SUM_AUTO(loop_var_name, start, end) /* ... */
@@ -514,6 +519,12 @@ auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
 ) {
     return val;
 } ILP_END_REDUCE;
+
+// Find with for_until - matches std::find performance
+auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+    return val == target;
+} ILP_END_UNTIL;
+// Returns std::optional<size_t> - index if found, nullopt if not
 ```
 
 ---
@@ -725,6 +736,7 @@ Specify at compile time:
 ```bash
 clang++ -std=c++23 -DILP_CPU=skylake    # Intel Skylake
 clang++ -std=c++23 -DILP_CPU=apple_m1   # Apple M1
+clang++ -std=c++23 -DILP_CPU=zen5       # AMD Zen 5
 clang++ -std=c++23                       # Default (conservative)
 ```
 
@@ -808,4 +820,4 @@ Control object passed to loop body for flow control.
 - `std::accumulate` - sequential reduction (skip ILP for simple sums)
 - `std::min_element` - sequential min (ILP is 5.9x faster)
 - `std::any_of` - sequential any-of (ILP is 5.3x faster)
-- `std::find` - sequential find (ILP is 1.2x faster)
+- `std::find` - sequential find (use `ILP_FOR_UNTIL_RANGE_AUTO`)
