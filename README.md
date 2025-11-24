@@ -181,11 +181,11 @@ The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type:
 Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
 
 ```cpp
-// 15% faster than std::find
-auto idx = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
-    return data[i] == target;  // returns bool
-} ILP_END;
-// Returns: index if found, end if not found
+// Matches std::find performance - use ILP_FOR_UNTIL for find operations
+auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+    return val == target;  // returns bool
+} ILP_END_UNTIL;
+// Returns: std::optional<size_t> - index if found, nullopt if not
 ```
 
 ### Optional Mode (General Purpose)
