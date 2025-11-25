@@ -12,6 +12,7 @@
 
 #include "loops_common.hpp"
 #include "ctrl.hpp"
+#include "lambda_check.hpp"
 
 namespace ilp {
 namespace detail {
@@ -328,6 +329,10 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
 void for_loop_range_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
+
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -389,6 +394,10 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
 auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
+
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
@@ -457,6 +466,10 @@ template<std::size_t N, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
+
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
@@ -637,6 +650,10 @@ template<std::size_t N, std::ranges::contiguous_range Range, typename Init, type
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
+
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
     // Get identity element for this operation
@@ -674,6 +691,10 @@ template<std::size_t N, std::ranges::random_access_range Range, typename Init, t
     requires (!std::ranges::contiguous_range<Range>) && std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
+
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
 
     // Get identity element for this operation
@@ -771,6 +792,10 @@ std::optional<T> for_until_impl(T start, T end, Pred&& pred) {
 template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
 std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
     validate_unroll_factor<N>();
+
+    // Check if lambda parameter is by-value (performance warning)
+    check_range_lambda_param<Pred, std::ranges::range_reference_t<Range>>();
+
     auto* data = std::ranges::data(range);
     std::size_t n = std::ranges::size(range);
 

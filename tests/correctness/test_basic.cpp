@@ -120,7 +120,7 @@ TEST_CASE("Step of 2", "[step]") {
 TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("FOR_RET_SIMPLE with optional and remainder") {
         // 7 elements with unroll 4: hits cleanup for last 3 elements
-        auto result = ILP_FOR_RET_SIMPLE(i, 0, 7, 4) -> std::optional<int> {
+        auto result = ILP_FOR_RET_SIMPLE(auto i, 0, 7, 4) -> std::optional<int> {
             if (i == 6) return std::optional<int>(i);  // Last element in cleanup
             return std::nullopt;
         } ILP_END;
@@ -131,7 +131,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
 
     SECTION("FOR_STEP_RET_SIMPLE with remainder - found") {
         // Step 2 from 0 to 11: visits 0,2,4,6,8,10 (6 values with unroll 4)
-        auto result = ILP_FOR_STEP_RET_SIMPLE(i, 0, 11, 2, 4) {
+        auto result = ILP_FOR_STEP_RET_SIMPLE(auto i, 0, 11, 2, 4) {
             if (i == 10) return i;  // Last in cleanup
             return _ilp_end_;
         } ILP_END;
@@ -141,7 +141,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
 
     SECTION("FOR_STEP_RET_SIMPLE with remainder - not found") {
         // Test line 320: nothing found, returns end
-        auto result = ILP_FOR_STEP_RET_SIMPLE(i, 0, 11, 2, 4) {
+        auto result = ILP_FOR_STEP_RET_SIMPLE(auto i, 0, 11, 2, 4) {
             if (i == 999) return i;  // Never found
             return _ilp_end_;
         } ILP_END;
@@ -152,7 +152,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("FOR_RANGE_IDX_RET_SIMPLE with bool and remainder - found") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};  // 9 elements
 
-        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(val, idx, data, 4) {
+        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(auto&& val, auto idx, data, 4) {
             return idx == 8;  // Last index in cleanup
         } ILP_END;
 
@@ -164,7 +164,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
         // Test line 480: cleanup loop when nothing found
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(val, idx, data, 4) {
+        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(auto&& val, auto idx, data, 4) {
             return idx == 999;  // Never found
         } ILP_END;
 
@@ -175,7 +175,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
         // Test lines 446-450: cleanup for range sentinel pattern
         std::vector<int> data = {10, 20, 30, 40, 50, 60, 70};  // 7 elements
 
-        auto it = ILP_FOR_RANGE_RET_SIMPLE(val, data, 4) {
+        auto it = ILP_FOR_RANGE_RET_SIMPLE(auto&& val, data, 4) {
             if (val == 999) {  // Never matches
                 return std::ranges::begin(data);
             }

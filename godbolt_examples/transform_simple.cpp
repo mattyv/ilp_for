@@ -49,8 +49,8 @@ void for_loop_simple(T start, T end, F&& body) {
 
 } // namespace ilp
 
-#define ILP_FOR_SIMPLE(loop_var_name, start, end, N) \
-    ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name)
+#define ILP_FOR_SIMPLE(loop_var_decl, start, end, N) \
+    ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
 
 #define ILP_END )
 
@@ -59,7 +59,7 @@ void for_loop_simple(T start, T end, F&& body) {
 // ============================================================
 
 void transform_ilp(std::vector<int>& data) {
-    ILP_FOR_SIMPLE(i, 0uz, data.size(), 4) {
+    ILP_FOR_SIMPLE(auto i, 0uz, data.size(), 4) {
         data[i] = data[i] * 2 + 1;
     } ILP_END;
 }

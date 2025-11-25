@@ -114,7 +114,7 @@ auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
 } // namespace ilp
 
 #define ILP_REDUCE(op, init, loop_var_name, start, end, N) \
-    ::ilp::reduce<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::reduce<N>(start, end, init, op, [[&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl), _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_BREAK_RET(val) \
     do { _ilp_ctrl.break_loop(); return val; } while(0)
@@ -126,7 +126,7 @@ auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
 // ============================================================
 
 int sum_until_threshold_ilp(const std::vector<int>& data, int threshold) {
-    return ILP_REDUCE(std::plus<>{}, 0, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         int val = data[i];
         if (val >= threshold) {
             ILP_BREAK_RET(0);

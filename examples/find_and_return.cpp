@@ -7,7 +7,7 @@
 
 // Search returning index directly (no optional wrapper)
 int find_index(const std::vector<int>& data, int target) {
-    ILP_FOR_RET(int, i, 0, static_cast<int>(data.size()), 4) {
+    ILP_FOR_RET(int, auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] == target) ILP_RETURN(i);
     } ILP_END_RET;
     return -1;  // Not found
@@ -15,7 +15,7 @@ int find_index(const std::vector<int>& data, int target) {
 
 // Search returning the value itself
 int find_first_above_threshold(const std::vector<int>& data, int threshold) {
-    ILP_FOR_RET(int, i, 0, static_cast<int>(data.size()), 4) {
+    ILP_FOR_RET(int, auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] > threshold) ILP_RETURN(data[i]);
     } ILP_END_RET;
     return -1;  // Not found
@@ -25,7 +25,7 @@ int find_first_above_threshold(const std::vector<int>& data, int threshold) {
 struct Point { int x, y; };
 
 Point find_point_in_quadrant(const std::vector<Point>& points, int quadrant) {
-    ILP_FOR_RET(Point, i, 0, static_cast<int>(points.size()), 4) {
+    ILP_FOR_RET(Point, auto i, 0, static_cast<int>(points.size()), 4) {
         bool match = false;
         switch (quadrant) {
             case 1: match = points[i].x > 0 && points[i].y > 0; break;
