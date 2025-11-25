@@ -25,11 +25,7 @@ jobs:
             cc: gcc-14
             cxx: g++-14
 
-          # Linux - Clang
-          - os: ubuntu-24.04
-            compiler: clang-17
-            cc: clang-17
-            cxx: clang++-17
+          # Linux - Clang (17 has C++23 compatibility issues with libstdc++14)
           - os: ubuntu-24.04
             compiler: clang-18
             cc: clang-18

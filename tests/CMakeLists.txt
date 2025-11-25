@@ -26,26 +26,32 @@ endif()
 include_directories(..)
 
 # Collect sources
-file(GLOB HANDROLLED_SRCS asm_compare/handrolled/*.cpp)
-file(GLOB ILP_SRCS asm_compare/ilp/*.cpp)
-file(GLOB SIMPLE_SRCS asm_compare/simple/*.cpp)
-file(GLOB STD_SRCS asm_compare/std/*.cpp)
 file(GLOB TEST_SRCS correctness/*.cpp)
 
-# Object libraries for asm_compare
-add_library(handrolled OBJECT ${HANDROLLED_SRCS})
-add_library(ilp OBJECT ${ILP_SRCS})
-add_library(simple OBJECT ${SIMPLE_SRCS})
-add_library(std_impl OBJECT ${STD_SRCS})
-
 # Test runner executable
-add_executable(test_runner
-    ${TEST_SRCS}
-    $<TARGET_OBJECTS:handrolled>
-    $<TARGET_OBJECTS:ilp>
-    $<TARGET_OBJECTS:simple>
-    $<TARGET_OBJECTS:std_impl>
-)
+if(MSVC)
+    # MSVC: Only build correctness tests (asm_compare uses GCC attributes)
+    add_executable(test_runner ${TEST_SRCS})
+else()
+    # Unix: Include asm_compare object libraries
+    file(GLOB HANDROLLED_SRCS asm_compare/handrolled/*.cpp)
+    file(GLOB ILP_SRCS asm_compare/ilp/*.cpp)
+    file(GLOB SIMPLE_SRCS asm_compare/simple/*.cpp)
+    file(GLOB STD_SRCS asm_compare/std/*.cpp)
+
+    add_library(handrolled OBJECT ${HANDROLLED_SRCS})
+    add_library(ilp OBJECT ${ILP_SRCS})
+    add_library(simple OBJECT ${SIMPLE_SRCS})
+    add_library(std_impl OBJECT ${STD_SRCS})
+
+    add_executable(test_runner
+        ${TEST_SRCS}
+        $<TARGET_OBJECTS:handrolled>
+        $<TARGET_OBJECTS:ilp>
+        $<TARGET_OBJECTS:simple>
+        $<TARGET_OBJECTS:std_impl>
+    )
+endif()
 
 # Custom target to generate assembly files (Unix only - uses GCC/Clang flags)
 if(NOT MSVC)
