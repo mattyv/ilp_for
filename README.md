@@ -12,6 +12,8 @@ Compile-time loop unrolling for early exit: `break`, `continue`, `return`. [What
 
 ## Quick Start
 
+**[View Assembly Examples →](docs/EXAMPLES.md)** - Compare ILP vs hand-rolled code on Compiler Explorer
+
 Use `*_AUTO` macros first - they select optimal unroll factors for your CPU:
 
 ```cpp

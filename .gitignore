@@ -22,6 +22,11 @@ tests/asm_compare/**/*.s
 # macOS
 .DS_Store
 
+# Python
+venv/
+*.pyc
+__pycache__/
+
 # Claude
 CLAUDE.md
 .claude/
