@@ -3,6 +3,7 @@
 #include <vector>
 #include <limits>
 #include <exception>
+#include <bit>
 
 // =============================================================================
 // UNUSUAL PATTERNS - Testing weird/rare use cases
@@ -216,7 +217,7 @@ TEST_CASE("Returning multiple values", "[unusual][multiret]") {
 
 TEST_CASE("Bit counting", "[unusual][bits]") {
     auto popcount = ILP_REDUCE_SUM(i, 0, 256, 4) {
-        return __builtin_popcount(i);
+        return std::popcount(static_cast<unsigned>(i));
     } ILP_END_REDUCE;
 
     // Sum of popcount for 0-255
