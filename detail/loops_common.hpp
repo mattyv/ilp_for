@@ -44,5 +44,58 @@ constexpr void validate_unroll_factor() {
     }
 }
 
+// =============================================================================
+// Overflow risk detection
+// =============================================================================
+
+// Concept to check if a type is a signed integral type
+template<typename T>
+concept signed_integral_type = std::integral<T> && std::signed_integral<T>;
+
+// Concept to check if a type is an unsigned integral type
+template<typename T>
+concept unsigned_integral_type = std::integral<T> && std::unsigned_integral<T>;
+
+// Warning helper for potential overflow in reductions
+template<typename AccumT, typename ElemT>
+[[deprecated("Overflow risk: accumulator type may be too small for sum. "
+             "Consider using a larger type (e.g., int64_t or double) or "
+             "explicitly provide an init value with sufficient range. "
+             "For small, bounded ranges this warning can be safely ignored.")]]
+constexpr void warn_accumulator_overflow() {}
+
+// Check if accumulator might overflow during sum reduction
+template<typename AccumT, typename ElemT>
+constexpr void check_accumulator_overflow() {
+    // Only warn for integral types (floating point has better overflow characteristics)
+    if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
+        // Warn if accumulator is same size or smaller than element type
+        // This is a heuristic - actual overflow depends on range size and values
+        if constexpr (sizeof(AccumT) <= sizeof(ElemT)) {
+            warn_accumulator_overflow<AccumT, ElemT>();
+        }
+        // Also warn if accumulator is only slightly larger than element
+        // and both are signed (e.g., accumulating int16_t into int32_t might still overflow)
+        else if constexpr (std::signed_integral<AccumT> && std::signed_integral<ElemT>) {
+            if constexpr (sizeof(AccumT) == sizeof(ElemT) + sizeof(ElemT)) {
+                // int32_t accumulating int16_t - warn if pattern suggests large accumulation
+                // This is conservative but helps catch common mistakes
+                warn_accumulator_overflow<AccumT, ElemT>();
+            }
+        }
+    }
+}
+
+// Stricter check for when we know this is definitely a sum operation
+template<typename AccumT, typename ElemT>
+constexpr void check_sum_overflow() {
+    if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
+        // For sum operations, be more aggressive with warnings
+        if constexpr (sizeof(AccumT) <= sizeof(ElemT) * 2) {
+            warn_accumulator_overflow<AccumT, ElemT>();
+        }
+    }
+}
+
 } // namespace detail
 } // namespace ilp

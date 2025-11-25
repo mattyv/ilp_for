@@ -73,19 +73,19 @@ namespace ilp::detail {
 
 #define ILP_FOR_RET_SIMPLE(loop_var_name, start, end, N) \
     ::ilp::for_loop_ret_simple<N>(start, end, \
-        [&, _ilp_end_ = end, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_STEP_RET_SIMPLE(loop_var_name, start, end, step, N) \
     ::ilp::for_loop_step_ret_simple<N>(start, end, step, \
-        [&, _ilp_end_ = end, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RANGE_RET_SIMPLE(loop_var_name, range, N) \
     ::ilp::for_loop_range_ret_simple<N>(range, \
-        [&, _ilp_end_ = std::ranges::end(range), _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RANGE_IDX_RET_SIMPLE(loop_var_name, idx_var_name, range, N) \
     ::ilp::for_loop_range_idx_ret_simple<N>(range, \
-        [&, _ilp_end_ = std::ranges::end(range), _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name, [[maybe_unused]] auto _ilp_end_)
 
 // ----- Index-based loops with control flow -----
 
@@ -93,16 +93,16 @@ namespace ilp::detail {
     ::ilp::for_loop<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RET(ret_type, loop_var_name, start, end, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_ret<ret_type, N>(start, end, \
+    do { \
+        auto _ilp_r_ = ::ilp::for_loop_ret<ret_type, N>(start, end, \
             [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP(loop_var_name, start, end, step, N) \
     ::ilp::for_loop_step<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP_RET(ret_type, loop_var_name, start, end, step, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_step_ret<ret_type, N>(start, end, step, \
+    do { \
+        auto _ilp_r_ = ::ilp::for_loop_step_ret<ret_type, N>(start, end, step, \
             [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 // ----- Range-based loops with control flow -----
@@ -111,8 +111,8 @@ namespace ilp::detail {
     ::ilp::for_loop_range<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RANGE_RET(ret_type, loop_var_name, range, N) \
-    if (bool _ilp_done_ = false; !_ilp_done_) \
-        for (auto _ilp_r_ = ::ilp::for_loop_range_ret<ret_type, N>(range, \
+    do { \
+        auto _ilp_r_ = ::ilp::for_loop_range_ret<ret_type, N>(range, \
             [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](auto&& loop_var_name, [[maybe_unused]] auto& _ilp_ctrl)
 
 // ----- Loop endings -----
@@ -120,8 +120,9 @@ namespace ilp::detail {
 #define ILP_END )
 
 // For control-flow RET macros (returns from enclosing function)
-#define ILP_END_RET ); !_ilp_done_; _ilp_done_ = true) \
-    if (_ilp_r_) return *_ilp_r_
+#define ILP_END_RET ); \
+        if (_ilp_r_) return *_ilp_r_; \
+    } while(0)
 
 // ----- Control flow -----
 
@@ -201,8 +202,8 @@ namespace ilp::detail {
 
 #define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_name, idx_var_name, range) \
     ::ilp::for_loop_range_idx_ret_simple_auto(range, \
-        [&, _ilp_end_ = std::ranges::end(range), _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto&& loop_var_name, [[maybe_unused]] auto idx_var_name, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RET_SIMPLE_AUTO(loop_var_name, start, end) \
     ::ilp::for_loop_ret_simple_auto(start, end, \
-        [&, _ilp_end_ = end, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto _ilp_end_)

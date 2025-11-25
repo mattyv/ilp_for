@@ -29,26 +29,26 @@ void for_loop_simple_impl(T start, T end, F&& body) {
 }
 
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple_impl(T start, T end, F&& body) {
-    using R = std::invoke_result_t<F, T>;
+    using R = std::invoke_result_t<F, T, T>;
 
     if constexpr (std::is_same_v<R, bool>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (T i = start; i < end; ++i) {
-            if (body(i)) return i;
+            if (body(i, end)) return i;
         }
         return end;
     } else if constexpr (is_optional_v<R>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (T i = start; i < end; ++i) {
-            if (auto r = body(i)) return r;
+            if (auto r = body(i, end)) return r;
         }
         return R{};
     } else {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (T i = start; i < end; ++i) {
-            if (auto r = body(i); r != end) return r;
+            if (auto r = body(i, end); r != end) return r;
         }
         return static_cast<R>(end);
     }
@@ -71,20 +71,20 @@ void for_loop_step_simple_impl(T start, T end, T step, F&& body) {
 }
 
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
-    using R = std::invoke_result_t<F, T>;
+    using R = std::invoke_result_t<F, T, T>;
 
     if constexpr (std::is_same_v<R, bool>) {
         if (step > 0) {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i < end; i += step) {
-                if (body(i)) return i;
+                if (body(i, end)) return i;
             }
         } else {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i > end; i += step) {
-                if (body(i)) return i;
+                if (body(i, end)) return i;
             }
         }
         return end;
@@ -92,12 +92,12 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         if (step > 0) {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i < end; i += step) {
-                if (auto r = body(i)) return r;
+                if (auto r = body(i, end)) return r;
             }
         } else {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i > end; i += step) {
-                if (auto r = body(i)) return r;
+                if (auto r = body(i, end)) return r;
             }
         }
         return R{};
@@ -105,12 +105,12 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         if (step > 0) {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i < end; i += step) {
-                if (auto r = body(i); r != end) return r;
+                if (auto r = body(i, end); r != end) return r;
             }
         } else {
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
             for (T i = start; i > end; i += step) {
-                if (auto r = body(i); r != end) return r;
+                if (auto r = body(i, end); r != end) return r;
             }
         }
         return static_cast<R>(end);
@@ -136,53 +136,55 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
-    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+    using Sentinel = decltype(end_it);
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, Sentinel>;
 
     if constexpr (std::is_same_v<R, bool>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (body(it[i])) return it + i;
+            if (body(it[i], end_it)) return it + i;
         }
         return end_it;
     } else if constexpr (is_optional_v<R>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (auto r = body(it[i])) return r;
+            if (auto r = body(it[i], end_it)) return r;
         }
         return R{};
     } else {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (auto r = body(it[i]); r != end_it) return r;
+            if (auto r = body(it[i], end_it); r != end_it) return r;
         }
         return static_cast<R>(end_it);
     }
 }
 
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
-    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, std::size_t>;
+    using Sentinel = decltype(end_it);
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, std::size_t, Sentinel>;
 
     if constexpr (std::is_same_v<R, bool>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (body(it[i], i)) return it + i;
+            if (body(it[i], i, end_it)) return it + i;
         }
         return end_it;
     } else if constexpr (is_optional_v<R>) {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (auto r = body(it[i], i)) return r;
+            if (auto r = body(it[i], i, end_it)) return r;
         }
         return R{};
     } else {
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
         for (std::size_t i = 0; i < size; ++i) {
-            if (auto r = body(it[i], i); r != end_it) return r;
+            if (auto r = body(it[i], i, end_it); r != end_it) return r;
         }
         return static_cast<R>(end_it);
     }
@@ -301,7 +303,7 @@ void for_loop_simple(T start, T end, F&& body) {
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple(T start, T end, F&& body) {
     return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
 }
@@ -313,7 +315,7 @@ void for_loop_step_simple(T start, T end, T step, F&& body) {
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_step_ret_simple(T start, T end, T step, F&& body) {
     return detail::for_loop_step_ret_simple_impl<N>(start, end, step, std::forward<F>(body));
 }
@@ -343,6 +345,10 @@ template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 auto reduce_sum(T start, T end, F&& body) {
     using R = std::invoke_result_t<F, T>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, T>();
+
     return detail::reduce_simple_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -356,6 +362,11 @@ template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_sum(Range&& range, F&& body) {
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+    using ElemT = std::ranges::range_value_t<Range>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, ElemT>();
+
     return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -369,6 +380,10 @@ template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 auto reduce_step_sum(T start, T end, T step, F&& body) {
     using R = std::invoke_result_t<F, T>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, T>();
+
     return detail::reduce_step_simple_impl<N>(start, end, step, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -399,7 +414,7 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
 
 // Auto-selecting functions
 template<std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple_auto(T start, T end, F&& body) {
     return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<F>(body));
 }
@@ -431,7 +446,7 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
 }
 
 template<std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
     return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));

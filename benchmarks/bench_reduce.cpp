@@ -28,7 +28,7 @@ public:
 // Handrolled 4 accumulators
 BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
     for (auto _ : state) {
-        uint32_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
+        uint64_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
         const uint32_t* ptr = data.data();
         size_t n = data.size();
         size_t i = 0;
@@ -39,7 +39,7 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
             sum3 += ptr[i + 3];
         }
         for (; i < n; ++i) sum0 += ptr[i];
-        uint32_t sum = sum0 + sum1 + sum2 + sum3;
+        uint64_t sum = sum0 + sum1 + sum2 + sum3;
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -49,8 +49,8 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint32_t sum = ILP_REDUCE_RANGE_SUM_AUTO(val, arr) {
-            return val;
+        uint64_t sum = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0ull, val, arr) {
+            return static_cast<uint64_t>(val);
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
     }
@@ -111,11 +111,11 @@ BENCHMARK_DEFINE_F(SumBreakFixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        uint32_t sum = ILP_REDUCE(std::plus<>{}, 0u, i, 0u, (unsigned)data.size(), 4) {
+        uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, i, 0u, (unsigned)data.size(), 4) {
             if (i >= stop_at) {
-                ILP_BREAK_RET(0u);
+                ILP_BREAK_RET(0ull);
             }
-            return data[i];
+            return static_cast<uint64_t>(data[i]);
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
     }

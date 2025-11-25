@@ -191,10 +191,10 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and detailed analy
 
 ### Return Type Overflow
 
-The return type is inferred from your lambda. Cast to larger types for big sums:
+The return type is inferred from your lambda. Cast to larger types for big sums (compiler will warn about potential overflow):
 
 ```cpp
-// Overflow risk with int
+// Overflow risk with int (compiler warning)
 auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
     return val;
 } ILP_END_REDUCE;

@@ -107,10 +107,10 @@ std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
 }
 
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple_impl(T start, T end, F&& body) {
     validate_unroll_factor<N>();
-    using R = std::invoke_result_t<F, T>;
+    using R = std::invoke_result_t<F, T, T>;
 
     if constexpr (std::is_same_v<R, bool>) {
         // Bool mode - optimized for find, returns index
@@ -118,7 +118,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<bool, N> matches;
             for (std::size_t j = 0; j < N; ++j) {
-                matches[j] = body(i + static_cast<T>(j));
+                matches[j] = body(i + static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -126,7 +126,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
             }
         }
         for (; i < end; ++i) {
-            if (body(i)) return i;
+            if (body(i, end)) return i;
         }
         return end;
     } else if constexpr (is_optional_v<R>) {
@@ -135,7 +135,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(i + static_cast<T>(j));
+                results[j] = body(i + static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -143,7 +143,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
             }
         }
         for (; i < end; ++i) {
-            R result = body(i);
+            R result = body(i, end);
             if (result.has_value()) return result;
         }
         return R{};
@@ -153,7 +153,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(i + static_cast<T>(j));
+                results[j] = body(i + static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -161,7 +161,7 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
             }
         }
         for (; i < end; ++i) {
-            R result = body(i);
+            R result = body(i, end);
             if (result != end) return result;
         }
         return static_cast<R>(end);
@@ -249,10 +249,10 @@ std::optional<R> for_loop_step_ret_impl(T start, T end, T step, F&& body) {
 }
 
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
     validate_unroll_factor<N>();
-    using R = std::invoke_result_t<F, T>;
+    using R = std::invoke_result_t<F, T, T>;
     T last_offset = step * static_cast<T>(N - 1);
 
     auto in_range = [&](T val) {
@@ -265,7 +265,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<bool, N> matches;
             for (std::size_t j = 0; j < N; ++j) {
-                matches[j] = body(i + step * static_cast<T>(j));
+                matches[j] = body(i + step * static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -274,7 +274,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
             i += step * static_cast<T>(N);
         }
         while (in_range(i)) {
-            if (body(i)) return i;
+            if (body(i, end)) return i;
             i += step;
         }
         return end;
@@ -284,7 +284,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(i + step * static_cast<T>(j));
+                results[j] = body(i + step * static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -293,7 +293,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
             i += step * static_cast<T>(N);
         }
         while (in_range(i)) {
-            R result = body(i);
+            R result = body(i, end);
             if (result.has_value()) return result;
             i += step;
         }
@@ -304,7 +304,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
         while (in_range(i) && in_range(i + last_offset)) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(i + step * static_cast<T>(j));
+                results[j] = body(i + step * static_cast<T>(j), end);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -313,7 +313,7 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
             i += step * static_cast<T>(N);
         }
         while (in_range(i)) {
-            R result = body(i);
+            R result = body(i, end);
             if (result != end) return result;
             i += step;
         }
@@ -392,8 +392,9 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
+    using Sentinel = decltype(end_it);
 
-    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, Sentinel>;
 
     if constexpr (std::is_same_v<R, bool>) {
         // Bool mode - return iterator to first match
@@ -401,7 +402,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<bool, N> matches;
             for (std::size_t j = 0; j < N; ++j) {
-                matches[j] = body(it[i + j]);
+                matches[j] = body(it[i + j], end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -409,7 +410,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            if (body(it[i])) return it + i;
+            if (body(it[i], end_it)) return it + i;
         }
         return end_it;
     } else if constexpr (is_optional_v<R>) {
@@ -418,7 +419,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(it[i + j]);
+                results[j] = body(it[i + j], end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -426,7 +427,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            R result = body(it[i]);
+            R result = body(it[i], end_it);
             if (result.has_value()) return result;
         }
         return R{};
@@ -436,7 +437,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(it[i + j]);
+                results[j] = body(it[i + j], end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -444,7 +445,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            R result = body(it[i]);
+            R result = body(it[i], end_it);
             if (result != end_it) return result;
         }
         return static_cast<R>(end_it);
@@ -453,14 +454,15 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
 
 // Range-based early-return with index (simple - no control flow)
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
+    using Sentinel = decltype(end_it);
 
-    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, std::size_t>;
+    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, std::size_t, Sentinel>;
 
     if constexpr (std::is_same_v<R, bool>) {
         // Bool mode - return iterator to first match
@@ -468,7 +470,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<bool, N> matches;
             for (std::size_t j = 0; j < N; ++j) {
-                matches[j] = body(it[i + j], i + j);
+                matches[j] = body(it[i + j], i + j, end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -476,7 +478,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            if (body(it[i], i)) return it + i;
+            if (body(it[i], i, end_it)) return it + i;
         }
         return end_it;
     } else if constexpr (is_optional_v<R>) {
@@ -485,7 +487,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(it[i + j], i + j);
+                results[j] = body(it[i + j], i + j, end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -493,7 +495,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            R result = body(it[i], i);
+            R result = body(it[i], i, end_it);
             if (result.has_value()) return result;
         }
         return R{};
@@ -503,7 +505,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
         for (; i + N <= size; i += N) {
             std::array<R, N> results;
             for (std::size_t j = 0; j < N; ++j) {
-                results[j] = body(it[i + j], i + j);
+                results[j] = body(it[i + j], i + j, end_it);
             }
 
             for (std::size_t j = 0; j < N; ++j) {
@@ -511,7 +513,7 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
             }
         }
         for (; i < size; ++i) {
-            R result = body(it[i], i);
+            R result = body(it[i], i, end_it);
             if (result != end_it) return result;
         }
         return static_cast<R>(end_it);
@@ -805,7 +807,7 @@ std::optional<R> for_loop_ret(T start, T end, F&& body) {
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple(T start, T end, F&& body) {
     return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
 }
@@ -832,7 +834,7 @@ std::optional<R> for_loop_step_ret(T start, T end, T step, F&& body) {
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_step_ret_simple(T start, T end, T step, F&& body) {
     return detail::for_loop_step_ret_simple_impl<N>(start, end, step, std::forward<F>(body));
 }
@@ -901,6 +903,10 @@ template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 auto reduce_sum(T start, T end, F&& body) {
     using R = std::invoke_result_t<F, T>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, T>();
+
     return detail::reduce_simple_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -920,6 +926,11 @@ template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_sum(Range&& range, F&& body) {
     using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
+    using ElemT = std::ranges::range_value_t<Range>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, ElemT>();
+
     return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -933,6 +944,10 @@ template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 auto reduce_step_sum(T start, T end, T step, F&& body) {
     using R = std::invoke_result_t<F, T>;
+
+    // Check for potential overflow
+    detail::check_sum_overflow<R, T>();
+
     return detail::reduce_step_simple_impl<N>(start, end, step, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
@@ -941,7 +956,7 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
 // =============================================================================
 
 template<std::integral T, typename F>
-    requires std::invocable<F, T>
+    requires std::invocable<F, T, T>
 auto for_loop_ret_simple_auto(T start, T end, F&& body) {
     return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<F>(body));
 }
@@ -985,7 +1000,7 @@ std::optional<std::size_t> for_until_range_auto(Range&& range, Pred&& pred) {
 }
 
 template<std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t>
+    requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
     return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
