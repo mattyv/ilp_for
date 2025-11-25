@@ -87,9 +87,9 @@ auto for_loop_ret_simple(T start, T end, F&& body) {
 
 } // namespace ilp
 
-#define ILP_FOR_RET_SIMPLE(loop_var_name, start, end, N) \
+#define ILP_FOR_RET_SIMPLE(loop_var_decl, start, end, N) \
     ::ilp::for_loop_ret_simple<N>(start, end, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](auto loop_var_name, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_END )
 
@@ -98,7 +98,7 @@ auto for_loop_ret_simple(T start, T end, F&& body) {
 // ============================================================
 
 std::optional<size_t> find_first_above_ilp(const std::vector<int>& data, int threshold) {
-    size_t result = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
+    size_t result = ILP_FOR_RET_SIMPLE(auto i, 0uz, data.size(), 4) {
         return data[i] > threshold;
     } ILP_END;
 

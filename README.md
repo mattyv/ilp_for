@@ -18,20 +18,20 @@ Use `*_AUTO` macros first - they select optimal unroll factors for your CPU:
 
 ```cpp
 // Find element
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+auto idx = ILP_FOR_UNTIL_RANGE_AUTO(auto&& val, data) {
     return val == target;
 } ILP_END_UNTIL;
 // Returns std::optional<size_t> - index if found
 
 // Sum
-auto sum = ILP_REDUCE_RANGE_SUM_AUTO(val, data) {
+auto sum = ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
     return val;
 } ILP_END_REDUCE;
 
-// Min 
+// Min
 auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
     [](auto a, auto b) { return a < b ? a : b; },
-    INT_MAX, val, data
+    INT_MAX, auto&& val, data
 ) {
     return val;
 } ILP_END_REDUCE;
@@ -40,10 +40,31 @@ auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
 Need more control? Specify N manually:
 
 ```cpp
-ILP_FOR_RET(int, i, 0, n, 8) {
+ILP_FOR_RET(int, auto i, 0, n, 8) {
     if (data[i] == target) ILP_RETURN(i);
 } ILP_END_RET;
 ```
+
+### ⚠️ Important: Use `auto&&` for Range Loops
+
+**For range-based macros**, always use `auto&&` for the loop variable to avoid copying:
+
+```cpp
+// ✅ CORRECT - Uses reference (fast)
+ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) { return val; } ILP_END_REDUCE;
+
+// ❌ WRONG - Copies each element (slow!)
+ILP_REDUCE_RANGE_SUM_AUTO(auto val, data) { return val; } ILP_END_REDUCE;
+```
+
+**For index-based macros**, use `auto` since indices are trivial to copy:
+
+```cpp
+// ✅ CORRECT - Index is just an integer
+ILP_FOR_RET_SIMPLE_AUTO(auto i, 0, data.size()) { ... } ILP_END;
+```
+
+The library will issue a deprecation warning if you accidentally use `auto` (by-value) with range macros.
 
 ---
 
@@ -63,7 +84,7 @@ ILP_FOR_RET(int, i, 0, n, 8) {
 
 These macros use CPU profiles defined in the header to select optimal unroll factors based on loop type and element size. Defaults to conservative values; set `ILP_CPU` at compile time to match your target architecture (see [Advanced](#cpu-architecture)).
 
-Loop variable names (e.g., `i`, `val`) are defined by the macro - don't declare them beforehand.
+**Variable declarations:** You must specify the type in the macro parameter (e.g., `auto i`, `auto&& val`). The variable is defined by the macro - don't declare it beforehand. Use `auto&&` for range elements, `auto` for indices.
 
 ### Loop Macros
 
