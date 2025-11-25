@@ -1,0 +1,105 @@
+# Instruction-Level Parallelism (ILP)
+
+Modern CPUs execute multiple instructions simultaneously through **superscalar execution**. Understanding this is key to writing high-performance code.
+
+## Skylake Microarchitecture
+
+![Skylake Block Diagram](https://en.wikichip.org/w/images/7/7e/skylake_block_diagram.svg)
+
+*Source: [WikiChip](https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(client))*
+
+## Key Concepts
+
+### Execution Ports
+
+A Skylake core has **8 execution ports** that can operate in parallel:
+
+| Port | Operations |
+|------|------------|
+| 0 | ALU, Vector ALU, FMA, DIV |
+| 1 | ALU, Vector ALU, FMA |
+| 2 | Load, Store AGU |
+| 3 | Load, Store AGU |
+| 4 | Store Data |
+| 5 | ALU, Vector ALU, Shuffle |
+| 6 | ALU, Branch |
+| 7 | Store AGU |
+
+### The Problem: Data Dependencies
+
+```cpp
+// Sequential - each add waits for the previous result
+int sum = 0;
+for (int i = 0; i < n; i++) {
+    sum += data[i];  // Must wait for previous sum
+}
+```
+
+The CPU can only issue one add per ~3-4 cycles because each iteration depends on the previous result. This is called a **loop-carried dependency**.
+
+### The Solution: Multiple Accumulators
+
+```cpp
+// Parallel - 4 independent chains
+int sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
+for (int i = 0; i < n; i += 4) {
+    sum0 += data[i];      // Independent
+    sum1 += data[i + 1];  // Independent
+    sum2 += data[i + 2];  // Independent
+    sum3 += data[i + 3];  // Independent
+}
+int sum = sum0 + sum1 + sum2 + sum3;
+```
+
+Now the CPU can execute all 4 adds in parallel, achieving ~4x throughput.
+
+## Pipeline Latency vs Throughput
+
+| Operation | Latency (cycles) | Throughput (per cycle) |
+|-----------|------------------|------------------------|
+| Integer ADD | 1 | 4 |
+| FP ADD | 4 | 2 |
+| FP MUL | 4 | 2 |
+| FP FMA | 4 | 2 |
+
+**Latency** = cycles until result is ready
+**Throughput** = operations per cycle when independent
+
+With 4-cycle latency and 2/cycle throughput, you need **8 independent operations** in flight to saturate the FP units.
+
+## Why ILP_FOR Works
+
+This library automatically generates the multi-accumulator pattern:
+
+```cpp
+// You write:
+auto sum = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+    return val;
+} ILP_END_REDUCE;
+
+// Library generates (conceptually):
+std::array<T, 4> accs = {0, 0, 0, 0};
+for (i = 0; i + 4 <= n; i += 4) {
+    accs[0] += body(data[i]);
+    accs[1] += body(data[i+1]);
+    accs[2] += body(data[i+2]);
+    accs[3] += body(data[i+3]);
+}
+return accs[0] + accs[1] + accs[2] + accs[3];
+```
+
+## Choosing N (Unroll Factor)
+
+| Type | Recommended N | Rationale |
+|------|---------------|-----------|
+| Integer ops | 4-8 | 4 ALU ports, 1-cycle latency |
+| FP add/mul | 8-16 | 4-cycle latency × 2 throughput |
+| Memory bound | 4 | Limited by load ports |
+
+The `_AUTO` macros select optimal N based on the operation type and CPU profile.
+
+## Further Reading
+
+- [Agner Fog's Optimization Manuals](https://www.agner.org/optimize/)
+- [Intel Intrinsics Guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html)
+- [uops.info](https://uops.info/) - Instruction latency tables

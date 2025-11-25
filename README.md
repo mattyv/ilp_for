@@ -1,6 +1,6 @@
 # ILP_FOR
 
-Compile-time loop unrolling for early exit: `break`, `continue`, `return`.
+Compile-time loop unrolling for early exit: `break`, `continue`, `return`. [What is ILP?](docs/ILP.md)
 
 ```cpp
 #include <ilp_for.hpp>
