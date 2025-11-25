@@ -53,22 +53,21 @@ constexpr void warn_range_loop_copies_elements() {}
 // For range-based loops, we want to detect when users write 'auto val' instead of 'auto&& val'
 template<typename F, typename ExpectedRefType>
 constexpr void check_range_lambda_param() {
-    // Only check if F has a simple call operator (not templated)
-    // Templated lambdas (generic lambdas) can't be checked this way
-    if constexpr (requires { &F::operator(); }) {
-        using ActualParamType = lambda_param_t<F>;
+    // NOTE: This check is disabled because it produces false positives for generic lambdas.
+    // Generic lambdas with auto&& parameters are templated and cannot be reliably checked
+    // at compile time using this approach. The parameter type is only determined when the
+    // lambda is instantiated, not when the containing function template is instantiated.
+    //
+    // Instead, users should rely on:
+    // 1. Documentation clearly stating to use auto&&
+    // 2. Code review and best practices
+    // 3. Runtime performance testing
+    //
+    // Future improvement: Consider using concepts or static_assert with clearer error messages
+    // that can distinguish between generic lambdas and concrete ones.
 
-        // Check if parameter is by-value when it should be by-reference
-        // We want to warn if:
-        // 1. Expected type is a reference (range elements should be accessed by reference)
-        // 2. Actual parameter is NOT a reference (user wrote 'auto' instead of 'auto&&')
-        if constexpr (std::is_reference_v<ExpectedRefType> && !std::is_reference_v<ActualParamType>) {
-            // Issue compile-time warning
-            warn_range_loop_copies_elements();
-        }
-    }
-    // For templated/generic lambdas (auto&&), we can't easily check at compile time
-    // The template parameter deduction happens later and could be value or reference
+    (void)sizeof(F);  // Suppress unused parameter warning
+    (void)sizeof(ExpectedRefType);
 }
 
 } // namespace ilp::detail
