@@ -20,7 +20,7 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 
     SECTION("Empty range - should return init unchanged") {
         auto result = ILP_REDUCE_SIMPLE(
-            std::plus<>(), 100, i, 0, 0, 4
+            std::plus<>(), 100, auto i, 0, 0, 4
         ) {
             return i;
         } ILP_END_REDUCE;
@@ -30,7 +30,7 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 
     SECTION("Single element with init") {
         auto result = ILP_REDUCE_SIMPLE(
-            std::plus<>(), 100, i, 0, 1, 4
+            std::plus<>(), 100, auto i, 0, 1, 4
         ) {
             return i;
         } ILP_END_REDUCE;
@@ -42,7 +42,7 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
-    auto result = ILP_REDUCE(std::plus<>(), 100, i, 0, 100, 4) {
+    auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
         ILP_BREAK_RET(0);  // Immediately break
         return i;
     } ILP_END_REDUCE;
@@ -64,10 +64,10 @@ TEST_CASE("Zero elements with various N values", "[extreme][zero]") {
         (void)n;
     }
 
-    int count1 = 0; ILP_FOR_SIMPLE(i, 0, 0, 1) { count1++; } ILP_END;
-    int count2 = 0; ILP_FOR_SIMPLE(i, 0, 0, 2) { count2++; } ILP_END;
-    int count4 = 0; ILP_FOR_SIMPLE(i, 0, 0, 4) { count4++; } ILP_END;
-    int count8 = 0; ILP_FOR_SIMPLE(i, 0, 0, 8) { count8++; } ILP_END;
+    int count1 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 1) { count1++; } ILP_END;
+    int count2 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 2) { count2++; } ILP_END;
+    int count4 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 4) { count4++; } ILP_END;
+    int count8 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 8) { count8++; } ILP_END;
 
     REQUIRE(count1 == 0);
     REQUIRE(count2 == 0);
@@ -85,7 +85,7 @@ TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativit
     // But parallel accumulators might give different result
 
     auto result = ILP_REDUCE_SIMPLE(
-        std::minus<>(), 100, i, 1, 6, 4
+        std::minus<>(), 100, auto i, 1, 6, 4
     ) {
         return i;
     } ILP_END_REDUCE;
@@ -104,7 +104,7 @@ TEST_CASE("Float reduce accumulation", "[extreme][float]") {
     std::vector<float> data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f};
 
     auto result = ILP_REDUCE_RANGE_SIMPLE(
-        std::plus<>(), 0.0f, val, data, 4
+        std::plus<>(), 0.0f, auto&& val, data, 4
     ) {
         return val;
     } ILP_END_REDUCE;
@@ -116,7 +116,7 @@ TEST_CASE("Double precision edge case", "[extreme][float]") {
     std::vector<double> data(100, 0.1);
 
     auto result = ILP_REDUCE_RANGE_SIMPLE(
-        std::plus<>(), 0.0, val, data, 4
+        std::plus<>(), 0.0, auto&& val, data, 4
     ) {
         return val;
     } ILP_END_REDUCE;
@@ -130,7 +130,7 @@ TEST_CASE("Double precision edge case", "[extreme][float]") {
 
 TEST_CASE("N=16 with small range", "[extreme][unroll]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(i, 0, 3, 16) {  // Range 3 < N=16
+    ILP_FOR_SIMPLE(auto i, 0, 3, 16) {  // Range 3 < N=16
         sum += i;
     } ILP_END;
     REQUIRE(sum == 3);  // 0+1+2
@@ -138,7 +138,7 @@ TEST_CASE("N=16 with small range", "[extreme][unroll]") {
 
 TEST_CASE("N=32 with medium range", "[extreme][unroll]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(i, 0, 50, 16) {
+    ILP_FOR_SIMPLE(auto i, 0, 50, 16) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 1225);
@@ -150,7 +150,7 @@ TEST_CASE("N=32 with medium range", "[extreme][unroll]") {
 
 TEST_CASE("Step 1 forward", "[extreme][step]") {
     std::vector<int> vals;
-    ILP_FOR_STEP_SIMPLE(i, 0, 5, 1, 4) {
+    ILP_FOR_STEP_SIMPLE(auto i, 0, 5, 1, 4) {
         vals.push_back(i);
     } ILP_END;
     REQUIRE(vals == std::vector<int>{0, 1, 2, 3, 4});
@@ -158,7 +158,7 @@ TEST_CASE("Step 1 forward", "[extreme][step]") {
 
 TEST_CASE("Step 2 forward", "[extreme][step]") {
     std::vector<int> vals;
-    ILP_FOR_STEP_SIMPLE(i, 0, 10, 2, 4) {
+    ILP_FOR_STEP_SIMPLE(auto i, 0, 10, 2, 4) {
         vals.push_back(i);
     } ILP_END;
     REQUIRE(vals == std::vector<int>{0, 2, 4, 6, 8});
@@ -166,7 +166,7 @@ TEST_CASE("Step 2 forward", "[extreme][step]") {
 
 TEST_CASE("Step -1 backward", "[extreme][step]") {
     std::vector<int> vals;
-    ILP_FOR_STEP_SIMPLE(i, 4, 0, -1, 4) {
+    ILP_FOR_STEP_SIMPLE(auto i, 4, 0, -1, 4) {
         vals.push_back(i);
     } ILP_END;
     REQUIRE(vals == std::vector<int>{4, 3, 2, 1});
@@ -174,7 +174,7 @@ TEST_CASE("Step -1 backward", "[extreme][step]") {
 
 TEST_CASE("Step -2 backward", "[extreme][step]") {
     std::vector<int> vals;
-    ILP_FOR_STEP_SIMPLE(i, 8, 0, -2, 4) {
+    ILP_FOR_STEP_SIMPLE(auto i, 8, 0, -2, 4) {
         vals.push_back(i);
     } ILP_END;
     REQUIRE(vals == std::vector<int>{8, 6, 4, 2});
@@ -194,7 +194,7 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 
     SECTION("Last element via index") {
         int sum = 0;
-        ILP_FOR_SIMPLE(i, 0, 10, 4) {
+        ILP_FOR_SIMPLE(auto i, 0, 10, 4) {
             sum += arr[i];
         } ILP_END;
         REQUIRE(sum == 45);
@@ -208,7 +208,7 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 TEST_CASE("std::array iteration", "[extreme][container]") {
     std::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
 
-    auto result = ILP_REDUCE_RANGE_SUM(val, arr, 4) {
+    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, arr, 4) {
         return val;
     } ILP_END_REDUCE;
 
@@ -222,9 +222,9 @@ TEST_CASE("std::array iteration", "[extreme][container]") {
 TEST_CASE("Triple nested loops", "[extreme][nested]") {
     int total = 0;
 
-    ILP_FOR_SIMPLE(i, 0, 5, 4) {
-        ILP_FOR_SIMPLE(j, 0, 5, 4) {
-            ILP_FOR_SIMPLE(k, 0, 5, 4) {
+    ILP_FOR_SIMPLE(auto i, 0, 5, 4) {
+        ILP_FOR_SIMPLE(auto j, 0, 5, 4) {
+            ILP_FOR_SIMPLE(auto k, 0, 5, 4) {
                 total++;
             } ILP_END;
         } ILP_END;
@@ -236,8 +236,8 @@ TEST_CASE("Triple nested loops", "[extreme][nested]") {
 TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
     int total = 0;
 
-    ILP_FOR_SIMPLE(i, 0, 5, 4) {
-        ILP_FOR_SIMPLE(j, 0, 5, 4) {
+    ILP_FOR_SIMPLE(auto i, 0, 5, 4) {
+        ILP_FOR_SIMPLE(auto j, 0, 5, 4) {
             total += i * j;
         } ILP_END;
     } ILP_END;
@@ -257,7 +257,7 @@ TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
 
 TEST_CASE("For-until at positions 0 through 15", "[extreme][until]") {
     for (int target = 0; target <= 15; ++target) {
-        auto result = ILP_FOR_UNTIL(i, 0, 100, 4) {
+        auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
             return i == target;
         } ILP_END_UNTIL;
 
@@ -273,7 +273,7 @@ TEST_CASE("For-until at positions 0 through 15", "[extreme][until]") {
 TEST_CASE("XOR reduction", "[extreme][reduce]") {
     auto result = ILP_REDUCE_SIMPLE(
         [](int a, int b) { return a ^ b; },
-        0, i, 0, 16, 4
+        0, auto i, 0, 16, 4
     ) {
         return i;
     } ILP_END_REDUCE;
@@ -288,7 +288,7 @@ TEST_CASE("AND reduction", "[extreme][reduce]") {
 
     auto result = ILP_REDUCE_RANGE_SIMPLE(
         [](int a, int b) { return a & b; },
-        0xFF, val, data, 4
+        0xFF, auto&& val, data, 4
     ) {
         return val;
     } ILP_END_REDUCE;
@@ -301,7 +301,7 @@ TEST_CASE("OR reduction", "[extreme][reduce]") {
 
     auto result = ILP_REDUCE_RANGE_SIMPLE(
         [](int a, int b) { return a | b; },
-        0, val, data, 4
+        0, auto&& val, data, 4
     ) {
         return val;
     } ILP_END_REDUCE;
@@ -314,7 +314,7 @@ TEST_CASE("OR reduction", "[extreme][reduce]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Find first negative", "[extreme][find]") {
-    auto result = ILP_FOR_RET_SIMPLE(i, -10, 10, 4) {
+    auto result = ILP_FOR_RET_SIMPLE(auto i, -10, 10, 4) {
         if (i >= 0) return i;
         return _ilp_end_;
     } ILP_END;
@@ -324,7 +324,7 @@ TEST_CASE("Find first negative", "[extreme][find]") {
 
 TEST_CASE("Find in reverse order", "[extreme][find]") {
     // Looking for last negative
-    auto result = ILP_FOR_STEP_RET_SIMPLE(i, 9, -10, -1, 4) {
+    auto result = ILP_FOR_STEP_RET_SIMPLE(auto i, 9, -10, -1, 4) {
         if (i < 0) return i;
         return _ilp_end_;
     } ILP_END;
@@ -338,21 +338,21 @@ TEST_CASE("Find in reverse order", "[extreme][find]") {
 
 TEST_CASE("Auto-select with various sizes", "[extreme][auto]") {
     SECTION("Small range") {
-        auto result = ILP_REDUCE_SUM_AUTO(i, 0, 5) {
+        auto result = ILP_REDUCE_SUM_AUTO(auto i, 0, 5) {
             return i;
         } ILP_END_REDUCE;
         REQUIRE(result == 10);
     }
 
     SECTION("Medium range") {
-        auto result = ILP_REDUCE_SUM_AUTO(i, 0, 100) {
+        auto result = ILP_REDUCE_SUM_AUTO(auto i, 0, 100) {
             return i;
         } ILP_END_REDUCE;
         REQUIRE(result == 4950);
     }
 
     SECTION("Large range") {
-        auto result = ILP_REDUCE_SUM_AUTO(i, 0, 10000) {
+        auto result = ILP_REDUCE_SUM_AUTO(auto i, 0, 10000) {
             return i;
         } ILP_END_REDUCE;
         REQUIRE(result == 49995000);
@@ -370,7 +370,7 @@ TEST_CASE("Range-idx finds each index", "[extreme][rangeidx]") {
         int found_val = -1;
         size_t found_idx = SIZE_MAX;
 
-        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(val, idx, data, 4) {
+        auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(auto&& val, auto idx, data, 4) {
             if (idx == target_idx) {
                 found_val = val;
                 found_idx = idx;
@@ -392,7 +392,7 @@ TEST_CASE("Range-idx finds each index", "[extreme][rangeidx]") {
 TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
     // Test crossing from negative to positive
     int sum = 0;
-    ILP_FOR_SIMPLE(i, -5, 5, 4) {
+    ILP_FOR_SIMPLE(auto i, -5, 5, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == -5);  // -5 + -4 + -3 + -2 + -1 + 0 + 1 + 2 + 3 + 4 = -5
@@ -400,7 +400,7 @@ TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
 
 TEST_CASE("Step crossing zero", "[extreme][boundary]") {
     std::vector<int> vals;
-    ILP_FOR_STEP_SIMPLE(i, -4, 5, 2, 4) {
+    ILP_FOR_STEP_SIMPLE(auto i, -4, 5, 2, 4) {
         vals.push_back(i);
     } ILP_END;
     REQUIRE(vals == std::vector<int>{-4, -2, 0, 2, 4});
@@ -411,7 +411,7 @@ TEST_CASE("Step crossing zero", "[extreme][boundary]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Complex math in reduce", "[extreme][math]") {
-    auto result = ILP_REDUCE_SUM(i, 1, 11, 4) {
+    auto result = ILP_REDUCE_SUM(auto i, 1, 11, 4) {
         return i * i;  // Sum of squares
     } ILP_END_REDUCE;
 
@@ -419,7 +419,7 @@ TEST_CASE("Complex math in reduce", "[extreme][math]") {
 }
 
 TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
-    auto result = ILP_REDUCE_SUM(i, 0, 100, 4) {
+    auto result = ILP_REDUCE_SUM(auto i, 0, 100, 4) {
         if (i % 5 == 0) return i;
         return 0;
     } ILP_END_REDUCE;
@@ -436,7 +436,7 @@ TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
 
 TEST_CASE("Volatile accumulator", "[extreme][volatile]") {
     volatile int sum = 0;
-    ILP_FOR_SIMPLE(i, 0, 10, 4) {
+    ILP_FOR_SIMPLE(auto i, 0, 10, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -449,7 +449,7 @@ TEST_CASE("Volatile accumulator", "[extreme][volatile]") {
 TEST_CASE("Multiple captures modified", "[extreme][capture]") {
     int a = 0, b = 0, c = 0;
 
-    ILP_FOR_SIMPLE(i, 0, 12, 4) {
+    ILP_FOR_SIMPLE(auto i, 0, 12, 4) {
         if (i % 3 == 0) a += i;
         else if (i % 3 == 1) b += i;
         else c += i;
@@ -466,7 +466,7 @@ TEST_CASE("Multiple captures modified", "[extreme][capture]") {
 
 TEST_CASE("Range of 2 with N=8", "[extreme][short]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(i, 0, 2, 8) {
+    ILP_FOR_SIMPLE(auto i, 0, 2, 8) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 1);
@@ -474,7 +474,7 @@ TEST_CASE("Range of 2 with N=8", "[extreme][short]") {
 
 TEST_CASE("Range of 1 with N=16", "[extreme][short]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(i, 0, 1, 16) {
+    ILP_FOR_SIMPLE(auto i, 0, 1, 16) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 0);
@@ -491,11 +491,11 @@ TEST_CASE("Range = 2^n for various n", "[extreme][pow2]") {
         return s;
     };
 
-    int s1 = 0; ILP_FOR_SIMPLE(i, 0, 2, 4) { s1 += i; } ILP_END;
-    int s2 = 0; ILP_FOR_SIMPLE(i, 0, 4, 4) { s2 += i; } ILP_END;
-    int s3 = 0; ILP_FOR_SIMPLE(i, 0, 8, 4) { s3 += i; } ILP_END;
-    int s4 = 0; ILP_FOR_SIMPLE(i, 0, 16, 4) { s4 += i; } ILP_END;
-    int s5 = 0; ILP_FOR_SIMPLE(i, 0, 32, 4) { s5 += i; } ILP_END;
+    int s1 = 0; ILP_FOR_SIMPLE(auto i, 0, 2, 4) { s1 += i; } ILP_END;
+    int s2 = 0; ILP_FOR_SIMPLE(auto i, 0, 4, 4) { s2 += i; } ILP_END;
+    int s3 = 0; ILP_FOR_SIMPLE(auto i, 0, 8, 4) { s3 += i; } ILP_END;
+    int s4 = 0; ILP_FOR_SIMPLE(auto i, 0, 16, 4) { s4 += i; } ILP_END;
+    int s5 = 0; ILP_FOR_SIMPLE(auto i, 0, 32, 4) { s5 += i; } ILP_END;
 
     REQUIRE(s1 == sum(2));
     REQUIRE(s2 == sum(4));
