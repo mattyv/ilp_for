@@ -49,7 +49,7 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint64_t sum = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0ull, val, arr) {
+        uint64_t sum = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0ull, auto&& val, arr) {
             return static_cast<uint64_t>(val);
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
@@ -111,7 +111,7 @@ BENCHMARK_DEFINE_F(SumBreakFixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, i, 0u, (unsigned)data.size(), 4) {
+        uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, auto i, 0u, (unsigned)data.size(), 4) {
             if (i >= stop_at) {
                 ILP_BREAK_RET(0ull);
             }
@@ -163,7 +163,7 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(val, arr, 8) {
+        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
             return val == target;
         } ILP_END_UNTIL;
         benchmark::DoNotOptimize(idx);
@@ -232,7 +232,7 @@ BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
         auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO([](auto a, auto b){ return a < b ? a : b; },
-            std::numeric_limits<uint32_t>::max(), val, arr) {
+            std::numeric_limits<uint32_t>::max(), auto&& val, arr) {
             return val;
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(min_val);
@@ -285,7 +285,7 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(val, arr, 8) {
+        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
             return val == target;
         } ILP_END_UNTIL;
         bool found = idx.has_value();

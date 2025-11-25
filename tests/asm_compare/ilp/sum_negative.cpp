@@ -4,7 +4,7 @@
 
 __attribute__((noinline))
 int sum_negative_ilp(int start, int end) {
-    return ILP_REDUCE_SIMPLE(std::plus<>{}, 0, i, start, end, 4) {
+    return ILP_REDUCE_SIMPLE(std::plus<>{}, 0, auto i, start, end, 4) {
         return i;
     } ILP_END_REDUCE;
 }

@@ -28,14 +28,14 @@ std::optional<std::size_t> handrolled_find(std::span<const int> arr, int target)
 
 // ILP find using bool mode (returns index)
 std::size_t ilp_find_bool(std::span<const int> arr, int target) {
-    return ILP_FOR_RET_SIMPLE(i, 0uz, arr.size(), 4) {
+    return ILP_FOR_RET_SIMPLE(auto i, 0uz, arr.size(), 4) {
         return arr[i] == target;  // bool mode
     } ILP_END;
 }
 
 // ILP find using optional mode (returns value)
 std::optional<int> ilp_find_optional(std::span<const int> arr, int target) {
-    return ILP_FOR_RET_SIMPLE(i, 0uz, arr.size(), 4) -> std::optional<int> {
+    return ILP_FOR_RET_SIMPLE(auto i, 0uz, arr.size(), 4) -> std::optional<int> {
         if (arr[i] == target) return arr[i] * 2;  // return computed value
         return std::nullopt;
     } ILP_END;
@@ -43,7 +43,7 @@ std::optional<int> ilp_find_optional(std::span<const int> arr, int target) {
 
 // ILP range-based find using bool mode (returns iterator)
 auto ilp_range_find_bool(std::span<const int> arr, int target) {
-    return ILP_FOR_RANGE_IDX_RET_SIMPLE(val, idx, arr, 4) {
+    return ILP_FOR_RANGE_IDX_RET_SIMPLE(auto&& val, auto idx, arr, 4) {
         return val == target;  // bool mode - returns iterator
     } ILP_END;
 }

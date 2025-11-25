@@ -18,7 +18,7 @@ TEST_CASE("Auto-selecting reduce_sum_auto", "[auto][reduce]") {
     }
 
     SECTION("Macro version") {
-        int sum = ILP_REDUCE_SUM_AUTO(i, 0, (int)data.size()) {
+        int sum = ILP_REDUCE_SUM_AUTO(auto i, 0, (int)data.size()) {
             return data[i];
         } ILP_END_REDUCE;
         REQUIRE(sum == expected);
@@ -38,7 +38,7 @@ TEST_CASE("Auto-selecting reduce_range_sum_auto", "[auto][reduce][range]") {
     }
 
     SECTION("Macro version") {
-        int sum = ILP_REDUCE_RANGE_SUM_AUTO(val, data) {
+        int sum = ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
             return val;
         } ILP_END_REDUCE;
         REQUIRE(sum == expected);
@@ -59,7 +59,7 @@ TEST_CASE("Auto-selecting reduce_simple_auto for min", "[auto][reduce][min]") {
     SECTION("Macro version") {
         int min_val = ILP_REDUCE_SIMPLE_AUTO(
             [](int a, int b) { return std::min(a, b); },
-            INT_MAX, i, 0, (int)data.size()
+            INT_MAX, auto i, 0, (int)data.size()
         ) {
             return data[i];
         } ILP_END_REDUCE;
@@ -74,7 +74,7 @@ TEST_CASE("Auto-selecting reduce_range_simple_auto", "[auto][reduce][range]") {
         int expected = *std::min_element(data.begin(), data.end());
         int min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
             [](int a, int b) { return std::min(a, b); },
-            INT_MAX, val, data
+            INT_MAX, auto&& val, data
         ) {
             return val;
         } ILP_END_REDUCE;
@@ -85,7 +85,7 @@ TEST_CASE("Auto-selecting reduce_range_simple_auto", "[auto][reduce][range]") {
         int expected = *std::max_element(data.begin(), data.end());
         int max_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
             [](int a, int b) { return std::max(a, b); },
-            INT_MIN, val, data
+            INT_MIN, auto&& val, data
         ) {
             return val;
         } ILP_END_REDUCE;
@@ -94,7 +94,7 @@ TEST_CASE("Auto-selecting reduce_range_simple_auto", "[auto][reduce][range]") {
 
     SECTION("Count") {
         int expected = std::count_if(data.begin(), data.end(), [](int x) { return x > 5; });
-        int count = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0, val, data) {
+        int count = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0, auto&& val, data) {
             return (val > 5) ? 1 : 0;
         } ILP_END_REDUCE;
         REQUIRE(count == expected);

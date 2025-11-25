@@ -11,7 +11,7 @@
 
 // Sum first N elements only
 int sum_first_n(const std::vector<int>& data, size_t n) {
-    return ILP_REDUCE(std::plus<>{}, 0, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (i >= n) {
             ILP_BREAK_RET(0);  // Stop, contribute 0 for this iteration
         }
@@ -21,7 +21,7 @@ int sum_first_n(const std::vector<int>& data, size_t n) {
 
 // Sum until sentinel value encountered
 int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
-    return ILP_REDUCE(std::plus<>{}, 0, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (data[i] == sentinel) {
             ILP_BREAK_RET(0);  // Stop at sentinel
         }
@@ -31,7 +31,7 @@ int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
 
 // Count positive values, stop at first negative
 size_t count_positive_until_negative(const std::vector<int>& data) {
-    return ILP_REDUCE(std::plus<>{}, 0uz, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::plus<>{}, 0uz, auto i, 0uz, data.size(), 4) {
         if (data[i] < 0) {
             ILP_BREAK_RET(0uz);  // Negative found, stop
         }
@@ -42,7 +42,7 @@ size_t count_positive_until_negative(const std::vector<int>& data) {
 // Sum with skip and early termination
 // Skip zeros, stop at negative
 int sum_nonzero_until_negative(const std::vector<int>& data) {
-    return ILP_REDUCE(std::plus<>{}, 0, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (data[i] < 0) {
             ILP_BREAK_RET(0);  // Error marker, stop
         }
@@ -55,7 +55,7 @@ int sum_nonzero_until_negative(const std::vector<int>& data) {
 
 // Product with early termination on zero
 int64_t product_until_zero(const std::vector<int>& data) {
-    return ILP_REDUCE(std::multiplies<>{}, 1LL, i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(std::multiplies<>{}, 1LL, auto i, 0uz, data.size(), 4) {
         if (data[i] == 0) {
             ILP_BREAK_RET(1LL);  // Zero found, product is 0 anyway
         }

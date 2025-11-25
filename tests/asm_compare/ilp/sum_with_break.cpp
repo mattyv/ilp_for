@@ -5,7 +5,7 @@
 
 __attribute__((noinline))
 unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
-    return ILP_REDUCE(std::plus<>{}, 0u, i, 0u, n, 4) {
+    return ILP_REDUCE(std::plus<>{}, 0u, auto i, 0u, n, 4) {
         if (i >= stop_at) {
             _ilp_ctrl.break_loop();
             return 0u;  // Return neutral element when breaking

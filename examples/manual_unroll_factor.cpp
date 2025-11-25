@@ -15,7 +15,7 @@ template<size_t Size>
 int sum_small_array(const std::array<int, Size>& arr) {
     // For small arrays, N=2 reduces loop overhead while maintaining ILP
     int sum = 0;
-    ILP_FOR_SIMPLE(i, 0uz, Size, 2) {
+    ILP_FOR_SIMPLE(auto i, 0uz, Size, 2) {
         sum += arr[i];
     } ILP_END;
     return sum;
@@ -24,7 +24,7 @@ int sum_small_array(const std::array<int, Size>& arr) {
 // Known hot path with profiled optimal N
 // After benchmarking, N=8 was determined optimal for this specific workload
 double dot_product_tuned(const double* a, const double* b, size_t n) {
-    return ILP_REDUCE_SIMPLE(std::plus<>{}, 0.0, i, 0uz, n, 8) {
+    return ILP_REDUCE_SIMPLE(std::plus<>{}, 0.0, auto i, 0uz, n, 8) {
         return a[i] * b[i];
     } ILP_END_REDUCE;
 }
@@ -32,17 +32,17 @@ double dot_product_tuned(const double* a, const double* b, size_t n) {
 // Compare AUTO vs manual for demonstration
 void compare_approaches(const std::vector<int>& data) {
     // AUTO: lets the library choose based on CPU profile and element size
-    auto sum_auto = ILP_REDUCE_RANGE_SUM_AUTO(val, data) {
+    auto sum_auto = ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
         return val;
     } ILP_END_REDUCE;
 
     // Manual N=4: explicit control
-    auto sum_manual = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+    auto sum_manual = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
         return val;
     } ILP_END_REDUCE;
 
     // Manual N=16: aggressive unrolling for large data
-    auto sum_aggressive = ILP_REDUCE_RANGE_SUM(val, data, 16) {
+    auto sum_aggressive = ILP_REDUCE_RANGE_SUM(auto&& val, data, 16) {
         return val;
     } ILP_END_REDUCE;
 
@@ -54,7 +54,7 @@ void compare_approaches(const std::vector<int>& data) {
 // Memory-bound operation: smaller N reduces register pressure
 void process_large_structs(std::vector<std::array<double, 8>>& data) {
     // Large struct = memory bound, N=2 is often optimal
-    ILP_FOR_SIMPLE(i, 0uz, data.size(), 2) {
+    ILP_FOR_SIMPLE(auto i, 0uz, data.size(), 2) {
         for (auto& v : data[i]) {
             v *= 2.0;
         }

@@ -14,7 +14,7 @@ struct Record {
 
 // Find first active record
 std::optional<size_t> find_first_active(const std::vector<Record>& records) {
-    return ILP_FOR_UNTIL_RANGE_AUTO(rec, records) {
+    return ILP_FOR_UNTIL_RANGE_AUTO(auto&& rec, records) {
         return rec.active;
     } ILP_END_UNTIL;
 }
@@ -22,7 +22,7 @@ std::optional<size_t> find_first_active(const std::vector<Record>& records) {
 // Find record by name
 std::optional<size_t> find_by_name(const std::vector<Record>& records,
                                     const std::string& target) {
-    return ILP_FOR_UNTIL_RANGE_AUTO(rec, records) {
+    return ILP_FOR_UNTIL_RANGE_AUTO(auto&& rec, records) {
         return rec.name == target;
     } ILP_END_UNTIL;
 }
