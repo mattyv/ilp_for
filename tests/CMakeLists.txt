@@ -4,7 +4,14 @@ project(ilp_for_tests)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
+
+# Platform-specific compiler flags
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /W4 /EHsc")
+    add_compile_options(/Zc:__cplusplus /permissive-)
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
+endif()
 
 # Coverage option
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
@@ -40,73 +47,84 @@ add_executable(test_runner
     $<TARGET_OBJECTS:std_impl>
 )
 
-# Custom target to generate assembly files
-set(ASM_TARGETS)
+# Custom target to generate assembly files (Unix only - uses GCC/Clang flags)
+if(NOT MSVC)
+    set(ASM_TARGETS)
 
-foreach(src ${HANDROLLED_SRCS})
-    get_filename_component(name ${src} NAME_WE)
-    set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/handrolled/${name}.s)
-    add_custom_command(
-        OUTPUT ${asm_file}
-        COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
-        DEPENDS ${src}
-        COMMENT "Generating assembly for handrolled/${name}"
-    )
-    list(APPEND ASM_TARGETS ${asm_file})
-endforeach()
+    foreach(src ${HANDROLLED_SRCS})
+        get_filename_component(name ${src} NAME_WE)
+        set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/handrolled/${name}.s)
+        add_custom_command(
+            OUTPUT ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            DEPENDS ${src}
+            COMMENT "Generating assembly for handrolled/${name}"
+        )
+        list(APPEND ASM_TARGETS ${asm_file})
+    endforeach()
 
-foreach(src ${ILP_SRCS})
-    get_filename_component(name ${src} NAME_WE)
-    set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/ilp/${name}.s)
-    add_custom_command(
-        OUTPUT ${asm_file}
-        COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
-        DEPENDS ${src}
-        COMMENT "Generating assembly for ilp/${name}"
-    )
-    list(APPEND ASM_TARGETS ${asm_file})
-endforeach()
+    foreach(src ${ILP_SRCS})
+        get_filename_component(name ${src} NAME_WE)
+        set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/ilp/${name}.s)
+        add_custom_command(
+            OUTPUT ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            DEPENDS ${src}
+            COMMENT "Generating assembly for ilp/${name}"
+        )
+        list(APPEND ASM_TARGETS ${asm_file})
+    endforeach()
 
-foreach(src ${SIMPLE_SRCS})
-    get_filename_component(name ${src} NAME_WE)
-    set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/simple/${name}.s)
-    add_custom_command(
-        OUTPUT ${asm_file}
-        COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
-        DEPENDS ${src}
-        COMMENT "Generating assembly for simple/${name}"
-    )
-    list(APPEND ASM_TARGETS ${asm_file})
-endforeach()
+    foreach(src ${SIMPLE_SRCS})
+        get_filename_component(name ${src} NAME_WE)
+        set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/simple/${name}.s)
+        add_custom_command(
+            OUTPUT ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            DEPENDS ${src}
+            COMMENT "Generating assembly for simple/${name}"
+        )
+        list(APPEND ASM_TARGETS ${asm_file})
+    endforeach()
 
-foreach(src ${STD_SRCS})
-    get_filename_component(name ${src} NAME_WE)
-    set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/std/${name}.s)
-    add_custom_command(
-        OUTPUT ${asm_file}
-        COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
-        DEPENDS ${src}
-        COMMENT "Generating assembly for std/${name}"
-    )
-    list(APPEND ASM_TARGETS ${asm_file})
-endforeach()
+    foreach(src ${STD_SRCS})
+        get_filename_component(name ${src} NAME_WE)
+        set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/std/${name}.s)
+        add_custom_command(
+            OUTPUT ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            DEPENDS ${src}
+            COMMENT "Generating assembly for std/${name}"
+        )
+        list(APPEND ASM_TARGETS ${asm_file})
+    endforeach()
 
-add_custom_target(asm DEPENDS ${ASM_TARGETS})
+    add_custom_target(asm DEPENDS ${ASM_TARGETS})
+endif()
 
 # Test targets
-add_custom_target(test
-    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner
-    DEPENDS test_runner asm
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Running all tests"
-)
+if(MSVC)
+    add_custom_target(test
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner
+        DEPENDS test_runner
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running all tests"
+    )
+else()
+    add_custom_target(test
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner
+        DEPENDS test_runner asm
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running all tests"
+    )
 
-add_custom_target(test-asm
-    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner "[asm]"
-    DEPENDS test_runner asm
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Running assembly size tests"
-)
+    add_custom_target(test-asm
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/test_runner "[asm]"
+        DEPENDS test_runner asm
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running assembly size tests"
+    )
+endif()
 
 # Test all ILP modes (default, SIMPLE, PRAGMA)
 add_custom_target(test-all-modes

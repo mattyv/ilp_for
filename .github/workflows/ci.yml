@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: ${{ matrix.os }}-${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux - GCC
+          - os: ubuntu-24.04
+            compiler: gcc-13
+            cc: gcc-13
+            cxx: g++-13
+          - os: ubuntu-24.04
+            compiler: gcc-14
+            cc: gcc-14
+            cxx: g++-14
+
+          # Linux - Clang
+          - os: ubuntu-24.04
+            compiler: clang-17
+            cc: clang-17
+            cxx: clang++-17
+          - os: ubuntu-24.04
+            compiler: clang-18
+            cc: clang-18
+            cxx: clang++-18
+
+          # macOS - AppleClang (default)
+          - os: macos-14
+            compiler: appleclang
+            cc: clang
+            cxx: clang++
+
+          # macOS - GCC (via Homebrew)
+          - os: macos-14
+            compiler: gcc-14
+            cc: gcc-14
+            cxx: g++-14
+
+          # Windows - MSVC
+          - os: windows-latest
+            compiler: msvc
+            cc: cl
+            cxx: cl
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GCC (Linux)
+        if: runner.os == 'Linux' && startsWith(matrix.compiler, 'gcc')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.cxx }}
+
+      - name: Install Clang (Linux)
+        if: runner.os == 'Linux' && startsWith(matrix.compiler, 'clang')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.compiler }}
+
+      - name: Install GCC (macOS)
+        if: runner.os == 'macOS' && startsWith(matrix.compiler, 'gcc')
+        run: |
+          brew install gcc@14
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p tests/build
+          cd tests/build
+          cmake .. -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_CXX_STANDARD=23
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir tests\build
+          cd tests\build
+          cmake .. -G "NMake Makefiles" -DCMAKE_CXX_STANDARD=23
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd tests/build
+          make test_runner
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd tests\build
+          nmake test_runner
+
+      - name: Run Tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd tests/build
+          ./test_runner
+
+      - name: Run Tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd tests\build
+          .\test_runner.exe
