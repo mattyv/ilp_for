@@ -300,3 +300,9 @@ All core functionality including cleanup loops, bitwise operations, and edge cas
 
 - C++23
 - Header-only
+
+---
+
+## License
+
+[Boost Software License 1.0](LICENSE)
