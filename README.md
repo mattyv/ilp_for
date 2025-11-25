@@ -216,6 +216,8 @@ Only use associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
 ILP_REDUCE_RANGE_SIMPLE(std::minus<>{}, 100, val, data, 4) { ... }
 ```
 
+**Floating-point note:** IEEE floating-point arithmetic is not strictly associative due to rounding. Parallel reduction may yield results differing by a few ULPs from sequential evaluation. This is inherent to all parallel/unrolled reductions and typically negligible for well-conditioned data.
+
 ### ILP_FOR_UNTIL Return Type
 
 Returns `std::optional<T>` (index), not `bool`:

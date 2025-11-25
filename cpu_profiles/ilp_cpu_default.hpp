@@ -53,9 +53,20 @@ enum class LoopType {
 // =============================================================================
 // Optimal Unroll Factors
 // =============================================================================
-
-// Template on loop type and element size (bytes)
-// Smaller elements benefit from more unrolling (better SIMD packing)
+//
+// Template on loop type and element size (bytes).
+// Smaller elements benefit from more unrolling (better SIMD packing).
+//
+// Default profile values (conservative cross-platform):
+// +-----------+------+------+------+------+
+// | LoopType  |  1B  |  2B  |  4B  |  8B  |
+// +-----------+------+------+------+------+
+// | Sum       |  16  |   8  |   4  |   8  |
+// | DotProduct|   -  |   -  |   8  |   8  |
+// | Search    |   8  |   4  |   4  |   4  |
+// | Copy      |  16  |   8  |   4  |   4  |
+// | Transform |   8  |   4  |   4  |   4  |
+// +-----------+------+------+------+------+
 
 // Primary template - conservative default
 template<LoopType T, std::size_t ElementBytes = 4>
