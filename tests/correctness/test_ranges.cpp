@@ -4,6 +4,9 @@
 #include <span>
 #include <optional>
 
+// These tests compare against asm_compare implementations (Unix only)
+#ifndef _MSC_VER
+
 // Hand-rolled declarations
 unsigned sum_range_handrolled(std::span<const unsigned> data);
 std::optional<std::size_t> find_value_handrolled(std::span<const int> data, int target);
@@ -174,3 +177,5 @@ TEST_CASE("Find value no ctrl (return-only, no control flow)", "[range][return]"
     }
 }
 #endif
+
+#endif // _MSC_VER

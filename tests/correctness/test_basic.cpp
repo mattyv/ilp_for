@@ -1,6 +1,9 @@
 #include "catch.hpp"
 #include "../../ilp_for.hpp"
 
+// ============== ASM Compare Tests (Unix only - requires asm_compare libs) ==============
+#ifndef _MSC_VER
+
 // Hand-rolled declarations
 unsigned sum_plain_handrolled(unsigned n);
 unsigned sum_with_break_handrolled(unsigned n, unsigned stop_at);
@@ -18,8 +21,6 @@ unsigned sum_odd_ilp(unsigned n);
 int sum_negative_ilp(int start, int end);
 int sum_backward_ilp(int start, int end);
 unsigned sum_step2_ilp(unsigned n);
-
-// ============== Basic Tests ==============
 
 TEST_CASE("Plain accumulation", "[basic]") {
     SECTION("typical values") {
@@ -113,6 +114,8 @@ TEST_CASE("Step of 2", "[step]") {
         REQUIRE(sum_step2_ilp(8) == sum_step2_handrolled(8));
     }
 }
+
+#endif // _MSC_VER
 
 TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("FOR_RET_SIMPLE with optional and remainder") {
