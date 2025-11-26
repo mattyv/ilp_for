@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for early exit: `break`, `continue`, `return`. [What is ILP?](docs/ILP.md)
+Compile-time loop unrolling for complex or early exit loops (i.e. contian `break`, `continue`, `return`), where compilers typically cannot unroll. 
+[What is ILP?](docs/ILP.md)
 
 ```cpp
 #include <ilp_for.hpp>
