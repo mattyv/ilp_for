@@ -86,6 +86,79 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
         constexpr auto n_default = optimal_N<LoopType::Sum, ThreeByte>;
         REQUIRE(n_default == 4);
     }
+
+    SECTION("Multiply loop type") {
+        constexpr auto n_float = optimal_N<LoopType::Multiply, float>;
+        constexpr auto n_double = optimal_N<LoopType::Multiply, double>;
+        constexpr auto n_int32 = optimal_N<LoopType::Multiply, int32_t>;
+
+        REQUIRE(n_float >= 2);
+        REQUIRE(n_double >= 2);
+        REQUIRE(n_int32 >= 2);
+
+        INFO("Multiply optimal_N: float=" << n_float << " double=" << n_double << " int32=" << n_int32);
+    }
+
+    SECTION("Divide loop type") {
+        constexpr auto n_float = optimal_N<LoopType::Divide, float>;
+        constexpr auto n_double = optimal_N<LoopType::Divide, double>;
+
+        // Divide is throughput-limited, lower N expected
+        REQUIRE(n_float >= 2);
+        REQUIRE(n_float <= 8);
+        REQUIRE(n_double >= 2);
+
+        INFO("Divide optimal_N: float=" << n_float << " double=" << n_double);
+    }
+
+    SECTION("Sqrt loop type") {
+        constexpr auto n_float = optimal_N<LoopType::Sqrt, float>;
+        constexpr auto n_double = optimal_N<LoopType::Sqrt, double>;
+
+        // Sqrt is throughput-limited like divide
+        REQUIRE(n_float >= 2);
+        REQUIRE(n_float <= 8);
+        REQUIRE(n_double >= 2);
+
+        INFO("Sqrt optimal_N: float=" << n_float << " double=" << n_double);
+    }
+
+    SECTION("MinMax loop type") {
+        constexpr auto n_float = optimal_N<LoopType::MinMax, float>;
+        constexpr auto n_int32 = optimal_N<LoopType::MinMax, int32_t>;
+        constexpr auto n_int8 = optimal_N<LoopType::MinMax, int8_t>;
+
+        REQUIRE(n_float >= 2);
+        REQUIRE(n_int32 >= 2);
+        REQUIRE(n_int8 >= 2);
+
+        INFO("MinMax optimal_N: float=" << n_float << " int32=" << n_int32 << " int8=" << n_int8);
+    }
+
+    SECTION("Bitwise loop type") {
+        constexpr auto n_int8 = optimal_N<LoopType::Bitwise, int8_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Bitwise, int32_t>;
+        constexpr auto n_int64 = optimal_N<LoopType::Bitwise, int64_t>;
+
+        // Bitwise ops are low latency
+        REQUIRE(n_int8 >= 2);
+        REQUIRE(n_int32 >= 2);
+        REQUIRE(n_int64 >= 2);
+
+        INFO("Bitwise optimal_N: int8=" << n_int8 << " int32=" << n_int32 << " int64=" << n_int64);
+    }
+
+    SECTION("Shift loop type") {
+        constexpr auto n_int8 = optimal_N<LoopType::Shift, int8_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Shift, int32_t>;
+        constexpr auto n_int64 = optimal_N<LoopType::Shift, int64_t>;
+
+        REQUIRE(n_int8 >= 2);
+        REQUIRE(n_int32 >= 2);
+        REQUIRE(n_int64 >= 2);
+
+        INFO("Shift optimal_N: int8=" << n_int8 << " int32=" << n_int32 << " int64=" << n_int64);
+    }
 }
 
 TEST_CASE("optimal_N with actual types", "[cpu]") {
