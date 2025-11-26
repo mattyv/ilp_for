@@ -983,52 +983,52 @@ auto reduce_step_sum(T start, T end, T step, F&& body) {
 template<std::integral T, typename F>
     requires std::invocable<F, T, T>
 auto for_loop_ret_simple_auto(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<F>(body));
+    return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
 }
 
 template<std::integral T, typename F>
     requires std::invocable<F, T>
 auto reduce_sum_auto(T start, T end, F&& body) {
-    return reduce_sum<optimal_N<LoopType::Sum, sizeof(T)>>(start, end, std::forward<F>(body));
+    return reduce_sum<optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
 }
 
 template<std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
 auto reduce_simple_auto(T start, T end, Init init, BinaryOp op, F&& body) {
-    return reduce_simple<optimal_N<LoopType::Sum, sizeof(T)>>(start, end, init, op, std::forward<F>(body));
+    return reduce_simple<optimal_N<LoopType::Sum, T>>(start, end, init, op, std::forward<F>(body));
 }
 
 template<std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_sum_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return reduce_range_sum<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
+    return reduce_range_sum<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return reduce_range_simple<optimal_N<LoopType::Sum, sizeof(T)>>(std::forward<Range>(range), init, op, std::forward<F>(body));
+    return reduce_range_simple<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), init, op, std::forward<F>(body));
 }
 
 template<std::integral T, typename Pred>
     requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
 std::optional<T> for_until_auto(T start, T end, Pred&& pred) {
-    return detail::for_until_impl<optimal_N<LoopType::Search, 4>>(start, end, std::forward<Pred>(pred));
+    return detail::for_until_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<Pred>(pred));
 }
 
 template<std::ranges::random_access_range Range, typename Pred>
 std::optional<std::size_t> for_until_range_auto(Range&& range, Pred&& pred) {
     using T = std::ranges::range_value_t<Range>;
-    return detail::for_until_range_impl<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<Pred>(pred));
+    return detail::for_until_range_impl<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
 }
 
 template<std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
 auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, sizeof(T)>>(std::forward<Range>(range), std::forward<F>(body));
+    return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 } // namespace ilp

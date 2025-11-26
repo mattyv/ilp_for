@@ -2,6 +2,7 @@
 #include "../../ilp_for.hpp"
 #include <vector>
 #include <numeric>
+#include <cstdint>
 
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 
@@ -77,11 +78,11 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
 TEST_CASE("Simple Reduce", "[reduce]") {
     SECTION("Sum of 0 to 99") {
         auto result = ILP_REDUCE_SUM(auto i, 0, 100, 4) {
-            return (unsigned)i;
+            return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
 
-        unsigned expected = 0;
-        for(unsigned i = 0; i < 100; ++i) expected += i;
+        int64_t expected = 0;
+        for(int i = 0; i < 100; ++i) expected += i;
 
         REQUIRE(result == expected);
     }
@@ -91,10 +92,10 @@ TEST_CASE("Simple Reduce", "[reduce]") {
         std::iota(data.begin(), data.end(), 0);
 
         auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 8) {
-            return val;
+            return static_cast<int64_t>(val);
         } ILP_END_REDUCE;
 
-        long long expected = 0;
+        int64_t expected = 0;
         for(int val : data) expected += val;
 
         REQUIRE(result == expected);
@@ -268,6 +269,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
                     ILP_RETURN(val * 10);
                 }
             } ILP_END_RET;
+            return std::nullopt;
         };
 
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};  // 7 elements, unroll 4

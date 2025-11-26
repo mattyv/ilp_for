@@ -1,3 +1,12 @@
+// Suppress deprecation warnings for this entire test file
+// (intentionally tests large unroll factors which trigger warnings)
+#ifdef _MSC_VER
+#pragma warning(disable: 4996)
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include "catch.hpp"
 #include "../../ilp_for.hpp"
 #include <vector>

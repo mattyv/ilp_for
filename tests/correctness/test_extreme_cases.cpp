@@ -58,11 +58,8 @@ TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulato
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Zero elements with various N values", "[extreme][zero]") {
-    for (int n : {1, 2, 3, 4, 5, 6, 7, 8}) {
-        int count = 0;
-        // Can't change N at runtime, test a few
-        (void)n;
-    }
+    // N must be compile-time constant, so we test specific values below
+    (void)std::initializer_list<int>{1, 2, 3, 4, 5, 6, 7, 8};  // Document intent
 
     int count1 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 1) { count1++; } ILP_END;
     int count2 = 0; ILP_FOR_SIMPLE(auto i, 0, 0, 2) { count2++; } ILP_END;

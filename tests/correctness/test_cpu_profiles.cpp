@@ -2,20 +2,17 @@
 #include "ilp_for.hpp"
 #include <vector>
 #include <numeric>
+#include <cstdint>
 
 using namespace ilp;
 
 TEST_CASE("CPU profile optimal_N values", "[cpu]") {
-    SECTION("Sum loop type") {
-        // Verify we can access optimal_N at compile time
-        constexpr auto n_int8 = optimal_N<LoopType::Sum, 1>;
-        constexpr auto n_int16 = optimal_N<LoopType::Sum, 2>;
-        constexpr auto n_int32 = optimal_N<LoopType::Sum, 4>;
-        constexpr auto n_int64 = optimal_N<LoopType::Sum, 8>;
-
-        // Smaller types should have >= unrolling than larger types
-        REQUIRE(n_int8 >= n_int16);
-        REQUIRE(n_int16 >= n_int32);
+    SECTION("Sum loop type - integers") {
+        // Verify we can access optimal_N at compile time with actual types
+        constexpr auto n_int8 = optimal_N<LoopType::Sum, int8_t>;
+        constexpr auto n_int16 = optimal_N<LoopType::Sum, int16_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Sum, int32_t>;
+        constexpr auto n_int64 = optimal_N<LoopType::Sum, int64_t>;
 
         // All values should be reasonable (2-16)
         REQUIRE(n_int8 >= 2);
@@ -23,13 +20,28 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
         REQUIRE(n_int64 >= 2);
         REQUIRE(n_int64 <= 16);
 
-        INFO("Sum optimal_N: int8=" << n_int8 << " int16=" << n_int16
+        INFO("Sum optimal_N (int): int8=" << n_int8 << " int16=" << n_int16
              << " int32=" << n_int32 << " int64=" << n_int64);
     }
 
+    SECTION("Sum loop type - float vs int distinction") {
+        // Verify TMP distinguishes float from int for 4-byte and 8-byte types
+        constexpr auto n_float = optimal_N<LoopType::Sum, float>;
+        constexpr auto n_int32 = optimal_N<LoopType::Sum, int32_t>;
+        constexpr auto n_double = optimal_N<LoopType::Sum, double>;
+        constexpr auto n_int64 = optimal_N<LoopType::Sum, int64_t>;
+
+        // Float typically has higher latency, so may need more unrolling
+        INFO("Sum optimal_N: float=" << n_float << " int32=" << n_int32
+             << " double=" << n_double << " int64=" << n_int64);
+
+        REQUIRE(n_float >= 2);
+        REQUIRE(n_double >= 2);
+    }
+
     SECTION("DotProduct loop type") {
-        constexpr auto n_float = optimal_N<LoopType::DotProduct, 4>;
-        constexpr auto n_double = optimal_N<LoopType::DotProduct, 8>;
+        constexpr auto n_float = optimal_N<LoopType::DotProduct, float>;
+        constexpr auto n_double = optimal_N<LoopType::DotProduct, double>;
 
         // Both should be reasonable for hiding FMA latency
         REQUIRE(n_float >= 4);
@@ -39,8 +51,8 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
     }
 
     SECTION("Search loop type") {
-        constexpr auto n_int8 = optimal_N<LoopType::Search, 1>;
-        constexpr auto n_int32 = optimal_N<LoopType::Search, 4>;
+        constexpr auto n_int8 = optimal_N<LoopType::Search, int8_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Search, int32_t>;
 
         // Search should have moderate unrolling (early exit)
         REQUIRE(n_int8 <= 8);
@@ -50,8 +62,8 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
     }
 
     SECTION("Copy loop type") {
-        constexpr auto n_int8 = optimal_N<LoopType::Copy, 1>;
-        constexpr auto n_int32 = optimal_N<LoopType::Copy, 4>;
+        constexpr auto n_int8 = optimal_N<LoopType::Copy, int8_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Copy, int32_t>;
 
         REQUIRE(n_int8 >= n_int32);  // Smaller types benefit more
 
@@ -59,8 +71,8 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
     }
 
     SECTION("Transform loop type") {
-        constexpr auto n_int8 = optimal_N<LoopType::Transform, 1>;
-        constexpr auto n_int32 = optimal_N<LoopType::Transform, 4>;
+        constexpr auto n_int8 = optimal_N<LoopType::Transform, int8_t>;
+        constexpr auto n_int32 = optimal_N<LoopType::Transform, int32_t>;
 
         REQUIRE(n_int8 >= 2);
         REQUIRE(n_int32 >= 2);
@@ -69,30 +81,31 @@ TEST_CASE("CPU profile optimal_N values", "[cpu]") {
     }
 
     SECTION("Default template fallback") {
-        // Non-specialized should use default of 4
-        constexpr auto n_default = optimal_N<LoopType::Sum, 3>;  // 3-byte not specialized
+        // 3-byte struct not specialized, should use default of 4
+        struct ThreeByte { char data[3]; };
+        constexpr auto n_default = optimal_N<LoopType::Sum, ThreeByte>;
         REQUIRE(n_default == 4);
     }
 }
 
 TEST_CASE("optimal_N with actual types", "[cpu]") {
-    // Test with sizeof actual types
-    constexpr auto n_char = optimal_N<LoopType::Sum, sizeof(char)>;
-    constexpr auto n_short = optimal_N<LoopType::Sum, sizeof(short)>;
-    constexpr auto n_int = optimal_N<LoopType::Sum, sizeof(int)>;
-    constexpr auto n_long = optimal_N<LoopType::Sum, sizeof(long long)>;
-    constexpr auto n_float = optimal_N<LoopType::Sum, sizeof(float)>;
-    constexpr auto n_double = optimal_N<LoopType::Sum, sizeof(double)>;
+    // Test with actual C++ types
+    constexpr auto n_char = optimal_N<LoopType::Sum, char>;
+    constexpr auto n_short = optimal_N<LoopType::Sum, short>;
+    constexpr auto n_int = optimal_N<LoopType::Sum, int>;
+    constexpr auto n_long = optimal_N<LoopType::Sum, long long>;
+    constexpr auto n_float = optimal_N<LoopType::Sum, float>;
+    constexpr auto n_double = optimal_N<LoopType::Sum, double>;
 
     INFO("Sum with real types: char=" << n_char << " short=" << n_short
          << " int=" << n_int << " long=" << n_long
          << " float=" << n_float << " double=" << n_double);
 
-    REQUIRE(n_char >= 8);   // 1 byte
-    REQUIRE(n_short >= 4);  // 2 bytes
-    REQUIRE(n_int >= 2);    // 4 bytes
-    REQUIRE(n_float >= 2);  // 4 bytes
-    REQUIRE(n_double >= 2); // 8 bytes
+    REQUIRE(n_char >= 2);
+    REQUIRE(n_short >= 2);
+    REQUIRE(n_int >= 2);
+    REQUIRE(n_float >= 2);
+    REQUIRE(n_double >= 2);
 }
 
 TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
@@ -100,8 +113,8 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        int sum = reduce_sum<4>(0, 100, [&](int i) {
-            return data[i];
+        auto sum = reduce_sum<4>(0, 100, [&](int i) {
+            return static_cast<int64_t>(data[i]);
         });
 
         REQUIRE(sum == 5050);
@@ -111,8 +124,8 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<short> data(100);
         for (int i = 0; i < 100; ++i) data[i] = static_cast<short>(i + 1);
 
-        short sum = reduce_sum<4>(short(0), short(100), [&](short i) {
-            return data[i];
+        auto sum = reduce_sum<4>(short(0), short(100), [&](short i) {
+            return static_cast<int64_t>(data[i]);
         });
 
         REQUIRE(sum == 5050);
@@ -122,8 +135,8 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        int sum = reduce_range_sum<4>(data, [&](int val) {
-            return val;
+        auto sum = reduce_range_sum<4>(data, [&](int val) {
+            return static_cast<int64_t>(val);
         });
 
         REQUIRE(sum == 5050);

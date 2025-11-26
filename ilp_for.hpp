@@ -60,60 +60,60 @@ namespace ilp::detail {
 // ----- Simple loops (no control flow - maximum optimization) -----
 
 #define ILP_FOR_SIMPLE(loop_var_decl, start, end, N) \
-    ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+    ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_FOR_STEP_SIMPLE(loop_var_decl, start, end, step, N) \
-    ::ilp::for_loop_step_simple<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+    ::ilp::for_loop_step_simple<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_FOR_RANGE_SIMPLE(loop_var_decl, range, N) \
-    ::ilp::for_loop_range_simple<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+    ::ilp::for_loop_range_simple<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl)
 
 // ----- Simple loops with return (no control flow) -----
 // Returns sentinel value (end for index, end iterator for range) when not found
 
 #define ILP_FOR_RET_SIMPLE(loop_var_decl, start, end, N) \
     ::ilp::for_loop_ret_simple<N>(start, end, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_STEP_RET_SIMPLE(loop_var_decl, start, end, step, N) \
     ::ilp::for_loop_step_ret_simple<N>(start, end, step, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RANGE_RET_SIMPLE(loop_var_decl, range, N) \
     ::ilp::for_loop_range_ret_simple<N>(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RANGE_IDX_RET_SIMPLE(loop_var_decl, idx_var_decl, range, N) \
     ::ilp::for_loop_range_idx_ret_simple<N>(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, idx_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] idx_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 // ----- Index-based loops with control flow -----
 
 #define ILP_FOR(loop_var_decl, start, end, N) \
-    ::ilp::for_loop<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::for_loop<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RET(ret_type, loop_var_decl, start, end, N) \
     do { \
         auto _ilp_r_ = ::ilp::for_loop_ret<ret_type, N>(start, end, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP(loop_var_decl, start, end, step, N) \
-    ::ilp::for_loop_step<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::for_loop_step<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_STEP_RET(ret_type, loop_var_decl, start, end, step, N) \
     do { \
         auto _ilp_r_ = ::ilp::for_loop_step_ret<ret_type, N>(start, end, step, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 // ----- Range-based loops with control flow -----
 
 #define ILP_FOR_RANGE(loop_var_decl, range, N) \
-    ::ilp::for_loop_range<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::for_loop_range<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_FOR_RANGE_RET(ret_type, loop_var_decl, range, N) \
     do { \
         auto _ilp_r_ = ::ilp::for_loop_range_ret<ret_type, N>(range, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 // ----- Loop endings -----
 
@@ -142,18 +142,18 @@ namespace ilp::detail {
 
 // Index-based for_until - body returns bool (true = stop)
 #define ILP_FOR_UNTIL(loop_var_decl, start, end, N) \
-    ::ilp::for_until<N>(start, end, [&](loop_var_decl) -> bool
+    ::ilp::for_until<N>(start, end, [&]([[maybe_unused]] loop_var_decl) -> bool
 
 // Range-based for_until - body returns bool (true = stop)
 #define ILP_FOR_UNTIL_RANGE(loop_var_decl, range, N) \
-    ::ilp::for_until_range<N>(range, [&](loop_var_decl) -> bool
+    ::ilp::for_until_range<N>(range, [&]([[maybe_unused]] loop_var_decl) -> bool
 
 // Auto-selecting versions
 #define ILP_FOR_UNTIL_AUTO(loop_var_decl, start, end) \
-    ::ilp::for_until_auto(start, end, [&](loop_var_decl) -> bool
+    ::ilp::for_until_auto(start, end, [&]([[maybe_unused]] loop_var_decl) -> bool
 
 #define ILP_FOR_UNTIL_RANGE_AUTO(loop_var_decl, range) \
-    ::ilp::for_until_range_auto(range, [&](loop_var_decl) -> bool
+    ::ilp::for_until_range_auto(range, [&]([[maybe_unused]] loop_var_decl) -> bool
 
 // End marker for for_until macros
 #define ILP_END_UNTIL )
@@ -161,49 +161,49 @@ namespace ilp::detail {
 // ----- Reduce macros (multi-accumulator ILP) -----
 
 #define ILP_REDUCE(op, init, loop_var_decl, start, end, N) \
-    ::ilp::reduce<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::reduce<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_REDUCE_SIMPLE(op, init, loop_var_decl, start, end, N) \
-    ::ilp::reduce_simple<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_simple<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_SUM(loop_var_decl, start, end, N) \
-    ::ilp::reduce_sum<N>(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_sum<N>(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_RANGE(op, init, loop_var_decl, range, N) \
-    ::ilp::reduce_range<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    ::ilp::reduce_range<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_REDUCE_RANGE_SIMPLE(op, init, loop_var_decl, range, N) \
-    ::ilp::reduce_range_simple<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_range_simple<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_RANGE_SUM(loop_var_decl, range, N) \
-    ::ilp::reduce_range_sum<N>(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_range_sum<N>(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_STEP_SIMPLE(op, init, loop_var_decl, start, end, step, N) \
-    ::ilp::reduce_step_simple<N>(start, end, step, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_step_simple<N>(start, end, step, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_STEP_SUM(loop_var_decl, start, end, step, N) \
-    ::ilp::reduce_step_sum<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_step_sum<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_END_REDUCE )
 
 // ----- Auto-selecting macros (use optimal_N) -----
 
 #define ILP_REDUCE_SUM_AUTO(loop_var_decl, start, end) \
-    ::ilp::reduce_sum_auto(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_sum_auto(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_SIMPLE_AUTO(op, init, loop_var_decl, start, end) \
-    ::ilp::reduce_simple_auto(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_simple_auto(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_RANGE_SUM_AUTO(loop_var_decl, range) \
-    ::ilp::reduce_range_sum_auto(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_range_sum_auto(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, loop_var_decl, range) \
-    ::ilp::reduce_range_simple_auto(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+    ::ilp::reduce_range_simple_auto(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]([[maybe_unused]] loop_var_decl)
 
 #define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_decl, idx_var_decl, range) \
     ::ilp::for_loop_range_idx_ret_simple_auto(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, idx_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] idx_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_FOR_RET_SIMPLE_AUTO(loop_var_decl, start, end) \
     ::ilp::for_loop_ret_simple_auto(start, end, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)

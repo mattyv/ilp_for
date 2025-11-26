@@ -68,20 +68,10 @@ constexpr void warn_accumulator_overflow() {}
 template<typename AccumT, typename ElemT>
 constexpr void check_accumulator_overflow() {
     // Only warn for integral types (floating point has better overflow characteristics)
+    // Warn only if accumulator is strictly smaller than element type
     if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // Warn if accumulator is same size or smaller than element type
-        // This is a heuristic - actual overflow depends on range size and values
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT)) {
+        if constexpr (sizeof(AccumT) < sizeof(ElemT)) {
             warn_accumulator_overflow<AccumT, ElemT>();
-        }
-        // Also warn if accumulator is only slightly larger than element
-        // and both are signed (e.g., accumulating int16_t into int32_t might still overflow)
-        else if constexpr (std::signed_integral<AccumT> && std::signed_integral<ElemT>) {
-            if constexpr (sizeof(AccumT) == sizeof(ElemT) + sizeof(ElemT)) {
-                // int32_t accumulating int16_t - warn if pattern suggests large accumulation
-                // This is conservative but helps catch common mistakes
-                warn_accumulator_overflow<AccumT, ElemT>();
-            }
         }
     }
 }
@@ -90,8 +80,9 @@ constexpr void check_accumulator_overflow() {
 template<typename AccumT, typename ElemT>
 constexpr void check_sum_overflow() {
     if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // For sum operations, be more aggressive with warnings
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT) * 2) {
+        // Warn only if accumulator is smaller than element type
+        // Same-size is fine - users know their data
+        if constexpr (sizeof(AccumT) < sizeof(ElemT)) {
             warn_accumulator_overflow<AccumT, ElemT>();
         }
     }

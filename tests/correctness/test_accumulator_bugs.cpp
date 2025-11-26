@@ -111,10 +111,6 @@ TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
-    auto run_test = [](int expected_multiplier) {
-        // This is just to document the behavior
-    };
-
     SECTION("N=1 - should be correct") {
         auto result = ILP_REDUCE_SIMPLE(
             std::plus<>(), 100, auto i, 0, 0, 1
@@ -268,21 +264,21 @@ TEST_CASE("Sum with zero init - correct behavior", "[accumulator][correct]") {
 
     SECTION("Empty range") {
         auto result = ILP_REDUCE_SUM(auto i, 0, 0, 4) {
-            return i;
+            return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 0);
     }
 
     SECTION("Single element") {
         auto result = ILP_REDUCE_SUM(auto i, 0, 1, 4) {
-            return i;
+            return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 0);
     }
 
     SECTION("Multiple elements") {
         auto result = ILP_REDUCE_SUM(auto i, 0, 10, 4) {
-            return i;
+            return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 45);
     }
