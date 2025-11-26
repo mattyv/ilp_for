@@ -2,12 +2,38 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. contian `break`, `continue`, `return`), where compilers typically cannot unroll. 
+Compile-time loop unrolling for complex or early exit loops (i.e. contian `break`, `continue`, `return`), where compilers typically cannot unroll.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
 #include <ilp_for.hpp>
 ```
+
+---
+
+## How It Works
+
+The library unrolls your loop body N times, allowing the CPU to execute multiple iterations in parallel:
+
+```cpp
+// Your code
+ILP_FOR_RET(int, auto i, 0, n, 4) {
+    if (data[i] == target) ILP_RETURN(i);
+} ILP_END_RET;
+
+// Conceptually expands to:
+for (int i = 0; i + 4 <= n; i += 4) {
+    if (data[i+0] == target) return i+0;
+    if (data[i+1] == target) return i+1;
+    if (data[i+2] == target) return i+2;
+    if (data[i+3] == target) return i+3;
+}
+for (int i = /*remainder*/; i < n; i++) {  // cleanup loop
+    if (data[i] == target) return i;
+}
+```
+
+The unrolled comparisons have no data dependencies, so out-of-order CPUs can execute them simultaneously while waiting for memory.
 
 ---
 
