@@ -113,8 +113,8 @@ auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
 
 } // namespace ilp
 
-#define ILP_REDUCE(op, init, loop_var_name, start, end, N) \
-    ::ilp::reduce<N>(start, end, init, op, [[&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name, [[maybe_unused]] auto& _ilp_ctrl), _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+#define ILP_REDUCE(op, init, loop_var_decl, start, end, N) \
+    ::ilp::reduce<N>(start, end, init, op, [&](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_BREAK_RET(val) \
     do { _ilp_ctrl.break_loop(); return val; } while(0)
@@ -140,27 +140,29 @@ int sum_until_threshold_ilp(const std::vector<int>& data, int threshold) {
 // ============================================================
 
 int sum_until_threshold_handrolled(const std::vector<int>& data, int threshold) {
-    int sum = 0;
+    // 4 independent accumulators - no dependency chain!
+    int sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
     size_t i = 0;
 
     for (; i + 4 <= data.size(); i += 4) {
         if (data[i] >= threshold) break;
-        sum += data[i];
+        sum0 += data[i];      // Independent
         if (data[i+1] >= threshold) break;
-        sum += data[i+1];
+        sum1 += data[i+1];    // Independent
         if (data[i+2] >= threshold) break;
-        sum += data[i+2];
+        sum2 += data[i+2];    // Independent
         if (data[i+3] >= threshold) break;
-        sum += data[i+3];
+        sum3 += data[i+3];    // Independent
     }
 
     // Cleanup
     for (; i < data.size(); ++i) {
         if (data[i] >= threshold) break;
-        sum += data[i];
+        sum0 += data[i];
     }
 
-    return sum;
+    // Final reduction
+    return sum0 + sum1 + sum2 + sum3;
 }
 
 // ============================================================

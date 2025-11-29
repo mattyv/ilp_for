@@ -8,9 +8,10 @@
 
 // Find first value greater than threshold
 std::optional<size_t> find_first_above(const std::vector<int>& data, int threshold) {
-    return ILP_FOR_RET_SIMPLE_AUTO(auto i, 0uz, data.size()) {
+    size_t idx = ILP_FIND(auto i, 0uz, data.size(), 4) {
         return data[i] > threshold;
     } ILP_END;
+    return (idx != data.size()) ? std::optional(idx) : std::nullopt;
 }
 
 int main() {

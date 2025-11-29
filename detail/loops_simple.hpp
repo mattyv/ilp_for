@@ -203,6 +203,19 @@ auto find_range_idx_impl(Range&& range, F&& body) {
     }
 }
 
+// Range-based find with simple bool predicate - returns index
+template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range_impl(Range&& range, Pred&& pred) {
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+    for (std::size_t i = 0; i < size; ++i) {
+        if (pred(it[i])) return i;
+    }
+    return size;  // Not found sentinel
+}
+
 // =============================================================================
 // Reduce implementations
 // =============================================================================
@@ -333,6 +346,23 @@ auto for_loop_range_ret_simple(Range&& range, F&& body) {
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 auto find_range_idx(Range&& range, F&& body) {
     return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+// Simple bool-predicate find - returns index (size() if not found)
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range(Range&& range, Pred&& pred) {
+    return detail::find_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
+}
+
+// Auto-selecting N based on CPU profile
+template<std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range_auto(Range&& range, Pred&& pred) {
+    using T = std::ranges::range_value_t<Range>;
+    return detail::find_range_impl<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
 }
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>

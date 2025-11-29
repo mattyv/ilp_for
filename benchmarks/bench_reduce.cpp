@@ -113,7 +113,7 @@ BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, auto i, 0u, (unsigned)data.size(), 4) {
             if (i >= stop_at) {
-                ILP_BREAK_RET(0ull);
+                ILP_REDUCE_BREAK(0ull);
             }
             return static_cast<uint64_t>(data[i]);
         } ILP_END_REDUCE;
@@ -159,14 +159,15 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// Optimized for_until - matches std::find performance
+// Optimized find - matches std::find performance
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
+        size_t idx = ILP_FIND_RANGE(auto&& val, arr, 8) {
             return val == target;
-        } ILP_END_UNTIL;
-        benchmark::DoNotOptimize(idx);
+        } ILP_END;
+        auto it = (idx < arr.size()) ? arr.begin() + idx : arr.end();
+        benchmark::DoNotOptimize(it);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
 }
@@ -281,14 +282,14 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// Optimized for_until for any_of pattern
+// Optimized find for any_of pattern
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
+        size_t idx = ILP_FIND_RANGE(auto&& val, arr, 8) {
             return val == target;
-        } ILP_END_UNTIL;
-        bool found = idx.has_value();
+        } ILP_END;
+        bool found = (idx < arr.size());
         benchmark::DoNotOptimize(found);
     }
     state.SetItemsProcessed(state.iterations() * data.size());

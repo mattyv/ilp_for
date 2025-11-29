@@ -109,6 +109,12 @@ namespace ilp::detail {
     ::ilp::find<N>(start, end, \
         [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
+#define ILP_FIND_RANGE(loop_var_decl, range, N) \
+    ::ilp::find_range<N>(range, [&]([[maybe_unused]] loop_var_decl) -> bool
+
+#define ILP_FIND_RANGE_AUTO(loop_var_decl, range) \
+    ::ilp::find_range_auto(range, [&]([[maybe_unused]] loop_var_decl) -> bool
+
 #define ILP_FIND_RANGE_IDX(loop_var_decl, idx_var_decl, range, N) \
     ::ilp::find_range_idx<N>(range, \
         [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}]([[maybe_unused]] loop_var_decl, [[maybe_unused]] idx_var_decl, [[maybe_unused]] auto _ilp_end_)

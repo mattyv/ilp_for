@@ -94,8 +94,8 @@ auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
 
 } // namespace ilp
 
-#define ILP_REDUCE(op, init, loop_var_name, start, end, N) \
-    ::ilp::reduce_simple<N>(start, end, init, op, [[&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name), _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
+#define ILP_REDUCE(op, init, loop_var_decl, start, end, N) \
+    ::ilp::reduce_simple<N>(start, end, init, op, [&](loop_var_decl)
 
 #define ILP_END_REDUCE )
 
@@ -116,22 +116,27 @@ int find_min_ilp(const std::vector<int>& data) {
 // ============================================================
 
 int find_min_handrolled(const std::vector<int>& data) {
-    int min_val = std::numeric_limits<int>::max();
+    // 4 independent accumulators - no dependency chain!
+    int min0 = std::numeric_limits<int>::max();
+    int min1 = std::numeric_limits<int>::max();
+    int min2 = std::numeric_limits<int>::max();
+    int min3 = std::numeric_limits<int>::max();
     size_t i = 0;
 
     for (; i + 4 <= data.size(); i += 4) {
-        min_val = std::min(min_val, data[i]);
-        min_val = std::min(min_val, data[i+1]);
-        min_val = std::min(min_val, data[i+2]);
-        min_val = std::min(min_val, data[i+3]);
+        min0 = std::min(min0, data[i]);    // Independent
+        min1 = std::min(min1, data[i+1]);  // Independent
+        min2 = std::min(min2, data[i+2]);  // Independent
+        min3 = std::min(min3, data[i+3]);  // Independent
     }
 
     // Cleanup
     for (; i < data.size(); ++i) {
-        min_val = std::min(min_val, data[i]);
+        min0 = std::min(min0, data[i]);
     }
 
-    return min_val;
+    // Final reduction
+    return std::min({min0, min1, min2, min3});
 }
 
 // ============================================================

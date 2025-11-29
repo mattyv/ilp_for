@@ -12,7 +12,6 @@
 
 #include "loops_common.hpp"
 #include "ctrl.hpp"
-#include "lambda_check.hpp"
 
 namespace ilp {
 namespace detail {
@@ -325,11 +324,6 @@ void for_loop_range_impl(Range&& range, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = std::invocable<F, Ref, LoopCtrl<void>&>;
 
-    // Check if lambda parameter is by-value (performance warning) - only for simple lambdas
-    if constexpr (!has_ctrl) {
-        check_range_lambda_param<F, Ref>();
-    }
-
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -386,9 +380,6 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
 auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
-
-    // Check if lambda parameter is by-value (performance warning)
-    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
 
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
@@ -459,9 +450,6 @@ template<std::size_t N, std::ranges::random_access_range Range, typename F>
 auto find_range_idx_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
 
-    // Check if lambda parameter is by-value (performance warning)
-    check_range_lambda_param<F, std::ranges::range_reference_t<Range>>();
-
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
@@ -523,6 +511,36 @@ auto find_range_idx_impl(Range&& range, F&& body) {
         }
         return static_cast<R>(end_it);
     }
+}
+
+// Range-based find with simple bool predicate - returns index
+template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range_impl(Range&& range, Pred&& pred) {
+    validate_unroll_factor<N>();
+
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+    std::size_t i = 0;
+
+    // Unrolled main loop
+    for (; i + N <= size; i += N) {
+        std::array<bool, N> matches;
+        for (std::size_t j = 0; j < N; ++j) {
+            matches[j] = pred(it[i + j]);
+        }
+        for (std::size_t j = 0; j < N; ++j) {
+            if (matches[j]) return i + j;
+        }
+    }
+
+    // Cleanup loop
+    for (; i < size; ++i) {
+        if (pred(it[i])) return i;
+    }
+
+    return size;  // Not found sentinel
 }
 
 // =============================================================================
@@ -595,10 +613,6 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = std::invocable<F, Ref, LoopCtrl<void>&>;
 
-    if constexpr (!has_ctrl) {
-        check_range_lambda_param<F, Ref>();
-    }
-
     auto* ptr = std::ranges::data(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
@@ -658,10 +672,6 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = std::invocable<F, Ref, LoopCtrl<void>&>;
-
-    if constexpr (!has_ctrl) {
-        check_range_lambda_param<F, Ref>();
-    }
 
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
@@ -781,9 +791,6 @@ template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
 std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
     validate_unroll_factor<N>();
 
-    // Check if lambda parameter is by-value (performance warning)
-    check_range_lambda_param<Pred, std::ranges::range_reference_t<Range>>();
-
     auto* data = std::ranges::data(range);
     std::size_t n = std::ranges::size(range);
 
@@ -879,6 +886,23 @@ auto for_loop_range_ret_simple(Range&& range, F&& body) {
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 auto find_range_idx(Range&& range, F&& body) {
     return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+}
+
+// Simple bool-predicate find - returns index (size() if not found)
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range(Range&& range, Pred&& pred) {
+    return detail::find_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
+}
+
+// Auto-selecting N based on CPU profile
+template<std::ranges::random_access_range Range, typename Pred>
+    requires std::invocable<Pred, std::ranges::range_reference_t<Range>>
+          && std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
+std::size_t find_range_auto(Range&& range, Pred&& pred) {
+    using T = std::ranges::range_value_t<Range>;
+    return detail::find_range_impl<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
 }
 
 // =============================================================================

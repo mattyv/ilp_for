@@ -30,46 +30,46 @@ The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type.
 Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
 
 ```cpp
-// Matches std::find performance - use ILP_FOR_UNTIL for find operations
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+// Matches std::find performance - use ILP_FIND_RANGE for find operations
+size_t idx = ILP_FIND_RANGE_AUTO(auto&& val, data) {
     return val == target;  // returns bool
-} ILP_END_UNTIL;
-// Returns: std::optional<size_t> - index if found, nullopt if not
+} ILP_END;
+// Returns: size_t - index if found, size() if not
 ```
 
 ### Optional Mode (General Purpose)
 
-Return `std::optional<T>` for computed values:
+Return early from the enclosing function using `ILP_RETURN`:
 
 ```cpp
-auto result = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
-    if (expensive_check(data[i])) {
-        return std::optional(compute(data[i]));
-    }
+std::optional<int> find_expensive() {
+    ILP_FOR_RET(std::optional<int>, auto i, 0uz, data.size(), 4) {
+        if (expensive_check(data[i])) {
+            ILP_RETURN(compute(data[i]));
+        }
+    } ILP_END_RET;
     return std::nullopt;
-} ILP_END;
-// Returns: std::optional<T>
+}
 ```
 
 ### Why Bool Mode is Faster
 
-When your lambda does `if (cond) return value; return sentinel;`, the compiler generates `csel` instructions:
+When using `ILP_FOR_RET` with conditional returns, the compiler generates `csel` instructions:
 
 ```cpp
 // Slower - generates csel dependency chain
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
-    if (data[i] == target) return i;
-    return _ilp_end_;
-} ILP_END;
+ILP_FOR_RET(size_t, auto i, 0uz, n, 4) {
+    if (data[i] == target) ILP_RETURN(i);
+} ILP_END_RET;
 ```
 
 Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
 
-With bool mode, comparisons run in parallel without dependencies:
+With `ILP_FIND`, comparisons run in parallel without dependencies:
 
 ```cpp
 // Fast - parallel comparisons, no csel
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
+size_t idx = ILP_FIND(auto i, 0uz, n, 4) {
     return data[i] == target;
 } ILP_END;
 ```
