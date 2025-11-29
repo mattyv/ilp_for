@@ -193,12 +193,12 @@ def get_needed_items(example_name: str) -> Dict[str, List[str]]:
         'transform_simple.cpp': {
             'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
             'detail/loops_ilp.hpp': ['for_loop_simple_impl'],
-            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_simple', 'ILP_FOR_SIMPLE', 'ILP_END']
+            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_simple', 'ILP_FOR', 'ILP_END']
         },
         'parallel_min.cpp': {
             'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
             'detail/loops_ilp.hpp': ['reduce_simple_impl'],
-            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce_simple', 'ILP_REDUCE_SIMPLE', 'ILP_END_REDUCE']
+            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce_simple', 'ILP_REDUCE', 'ILP_END_REDUCE']
         },
         'sum_with_break.cpp': {
             'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
@@ -208,8 +208,8 @@ def get_needed_items(example_name: str) -> Dict[str, List[str]]:
         },
         'find_first_match.cpp': {
             'detail/loops_common.hpp': ['is_optional', 'is_optional_v', 'warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['for_loop_ret_simple_impl'],
-            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_ret_simple', 'ILP_FOR_RET_SIMPLE', 'ILP_END']
+            'detail/loops_ilp.hpp': ['find_impl'],
+            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'find', 'ILP_FIND', 'ILP_END']
         }
     }
 

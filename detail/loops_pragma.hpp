@@ -19,18 +19,29 @@ namespace detail {
 // Index-based loops
 // =============================================================================
 
+// Unified for_loop implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
-void for_loop_simple_impl(T start, T end, F&& body) {
-    _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
-    for (T i = start; i < end; ++i) {
-        body(i);
+void for_loop_impl(T start, T end, F&& body) {
+    constexpr bool has_ctrl = std::invocable<F, T, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        LoopCtrl<void> ctrl;
+        _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
+        for (T i = start; i < end && ctrl.ok; ++i) {
+            body(i, ctrl);
+        }
+    } else {
+        static_assert(std::invocable<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
+        _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
+        for (T i = start; i < end; ++i) {
+            body(i);
+        }
     }
 }
 
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple_impl(T start, T end, F&& body) {
+auto find_impl(T start, T end, F&& body) {
     using R = std::invoke_result_t<F, T, T>;
 
     if constexpr (std::is_same_v<R, bool>) {
@@ -162,7 +173,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
 
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
-auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
+auto find_range_idx_impl(Range&& range, F&& body) {
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
@@ -304,8 +315,8 @@ void for_loop_simple(T start, T end, F&& body) {
 
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
+auto find(T start, T end, F&& body) {
+    return detail::find_impl<N>(start, end, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -331,8 +342,8 @@ auto for_loop_range_ret_simple(Range&& range, F&& body) {
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-auto for_loop_range_idx_ret_simple(Range&& range, F&& body) {
-    return detail::for_loop_range_idx_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+auto find_range_idx(Range&& range, F&& body) {
+    return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
@@ -415,8 +426,8 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
 // Auto-selecting functions
 template<std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple_auto(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
+auto find_auto(T start, T end, F&& body) {
+    return detail::find_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
 }
 
 template<std::integral T, typename F>
@@ -447,9 +458,9 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
 
 template<std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
-auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
+auto find_range_idx_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
+    return find_range_idx<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 // =============================================================================

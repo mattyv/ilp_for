@@ -94,7 +94,7 @@ auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
 
 } // namespace ilp
 
-#define ILP_REDUCE_SIMPLE(op, init, loop_var_name, start, end, N) \
+#define ILP_REDUCE(op, init, loop_var_name, start, end, N) \
     ::ilp::reduce_simple<N>(start, end, init, op, [[&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](auto loop_var_name), _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
 
 #define ILP_END_REDUCE )
@@ -106,7 +106,7 @@ auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
 int find_min_ilp(const std::vector<int>& data) {
     auto min_op = [](int a, int b) { return std::min(a, b); };
 
-    return ILP_REDUCE_SIMPLE(min_op, std::numeric_limits<int>::max(), auto i, 0uz, data.size(), 4) {
+    return ILP_REDUCE(min_op, std::numeric_limits<int>::max(), auto i, 0uz, data.size(), 4) {
         return data[i];
     } ILP_END_REDUCE;
 }

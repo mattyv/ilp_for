@@ -49,7 +49,7 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint64_t sum = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0ull, auto&& val, arr) {
+        uint64_t sum = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0ull, auto&& val, arr) {
             return static_cast<uint64_t>(val);
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
@@ -231,7 +231,7 @@ BENCHMARK_DEFINE_F(MinFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO([](auto a, auto b){ return a < b ? a : b; },
+        auto min_val = ILP_REDUCE_RANGE_AUTO([](auto a, auto b){ return a < b ? a : b; },
             std::numeric_limits<uint32_t>::max(), auto&& val, arr) {
             return val;
         } ILP_END_REDUCE;

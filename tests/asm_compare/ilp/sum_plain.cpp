@@ -5,7 +5,7 @@
 __attribute__((noinline))
 unsigned sum_plain_ilp(unsigned n) {
     escape(n);
-    auto result = ILP_REDUCE_SUM(auto i, 0u, n, 4) {
+    auto result = ILP_REDUCE(std::plus<>{}, 0u, auto i, 0u, n, 4) {
         return i;
     } ILP_END_REDUCE;
     escape(result);

@@ -56,7 +56,7 @@ auto sum = ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
 } ILP_END_REDUCE;
 
 // Min
-auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
+auto min_val = ILP_REDUCE_RANGE_AUTO(
     [](auto a, auto b) { return a < b ? a : b; },
     INT_MAX, auto&& val, data
 ) {
@@ -128,8 +128,8 @@ These macros use CPU profiles defined in the header to select optimal unroll fac
 |-------|-------------|
 | `ILP_REDUCE_RANGE_SUM_AUTO(var, range)` | Sum over range |
 | `ILP_REDUCE_SUM_AUTO(i, start, end)` | Index-based sum |
-| `ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, var, range)` | Custom reduce over range |
-| `ILP_REDUCE_SIMPLE_AUTO(op, init, i, start, end)` | Index-based custom reduce |
+| `ILP_REDUCE_RANGE_AUTO(op, init, var, range)` | Custom reduce over range |
+| `ILP_REDUCE_AUTO(op, init, i, start, end)` | Index-based custom reduce |
 
 ---
 
@@ -141,7 +141,7 @@ For when you need specific unroll factors:
 
 ```cpp
 // Simple - no control flow
-ILP_FOR_SIMPLE(i, 0, n, 4) {
+ILP_FOR(i, 0, n, 4) {
     data[i] = data[i] * 2;
 } ILP_END;
 
@@ -158,12 +158,12 @@ ILP_FOR_RET(int, i, 0, n, 4) {
 } ILP_END_RET;
 
 // Range-based
-ILP_FOR_RANGE_SIMPLE(val, data, 4) {
+ILP_FOR_RANGE(val, data, 4) {
     process(val);
 } ILP_END;
 
 // Step loop
-ILP_FOR_STEP_SIMPLE(i, 0, n, 2, 4) {
+ILP_FOR_STEP(i, 0, n, 2, 4) {
     data[i] = data[i] * 2;  // every 2nd element
 } ILP_END;
 ```
@@ -177,7 +177,7 @@ int sum = ILP_REDUCE_RANGE_SUM(val, data, 4) {
 } ILP_END_REDUCE;
 
 // Custom operation
-int min_val = ILP_REDUCE_RANGE_SIMPLE(
+int min_val = ILP_REDUCE_RANGE(
     [](int a, int b) { return std::min(a, b); },
     INT_MAX, val, data, 4
 ) {
@@ -263,7 +263,7 @@ Only use associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
 
 ```cpp
 // Undefined - subtraction is not associative
-ILP_REDUCE_RANGE_SIMPLE(std::minus<>{}, 100, val, data, 4) { ... }
+ILP_REDUCE_RANGE(std::minus<>{}, 100, val, data, 4) { ... }
 ```
 
 **Floating-point note:** IEEE floating-point arithmetic is not strictly associative due to rounding. Parallel reduction may yield results differing by a few ULPs from sequential evaluation. This is inherent to all parallel/unrolled reductions and typically negligible for well-conditioned data.
@@ -288,14 +288,14 @@ For custom operations, `init` must be the identity element:
 
 ```cpp
 // For addition lambda, init must be 0
-auto result = ILP_REDUCE_RANGE_SIMPLE(
+auto result = ILP_REDUCE_RANGE(
     [](int a, int b) { return a + b; },
     0,  // identity for +
     val, data, 4
 ) { return val; } ILP_END_REDUCE;
 
 // To add offset, do it after
-auto result = 100 + ILP_REDUCE_RANGE_SIMPLE(...);
+auto result = 100 + ILP_REDUCE_RANGE(...);
 ```
 
 ---

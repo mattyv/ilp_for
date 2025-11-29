@@ -1,5 +1,5 @@
 // Example: Non-unit stride iteration
-// Demonstrates ILP_FOR_STEP_SIMPLE for processing every Nth element
+// Demonstrates ILP_FOR_STEP for processing every Nth element
 
 #include "../ilp_for.hpp"
 #include <vector>
@@ -8,7 +8,7 @@
 
 // Process interleaved stereo audio (left channel only)
 void process_left_channel(std::vector<int16_t>& stereo_data) {
-    ILP_FOR_STEP_SIMPLE(auto i, 0uz, stereo_data.size(), 2uz, 4) {
+    ILP_FOR_STEP(auto i, 0uz, stereo_data.size(), 2uz, 4) {
         stereo_data[i] = static_cast<int16_t>(stereo_data[i] * 0.8);  // Reduce volume
     } ILP_END;
 }
@@ -16,7 +16,7 @@ void process_left_channel(std::vector<int16_t>& stereo_data) {
 // Sum every 4th element (e.g., RGBA alpha channel)
 int sum_alpha_channel(const std::vector<uint8_t>& rgba_data) {
     int sum = 0;
-    ILP_FOR_STEP_SIMPLE(auto i, 3uz, rgba_data.size(), 4uz, 4) {  // Start at index 3 (alpha)
+    ILP_FOR_STEP(auto i, 3uz, rgba_data.size(), 4uz, 4) {  // Start at index 3 (alpha)
         sum += rgba_data[i];
     } ILP_END;
     return sum;
@@ -27,7 +27,7 @@ std::vector<int> downsample(const std::vector<int>& data, size_t factor) {
     std::vector<int> result;
     result.reserve(data.size() / factor + 1);
 
-    ILP_FOR_STEP_SIMPLE(auto i, 0uz, data.size(), factor, 4) {
+    ILP_FOR_STEP(auto i, 0uz, data.size(), factor, 4) {
         result.push_back(data[i]);
     } ILP_END;
 
@@ -39,7 +39,7 @@ void scale_diagonal(std::vector<double>& matrix, size_t width, double scale) {
     size_t stride = width + 1;
     size_t max_idx = width * width;
 
-    ILP_FOR_STEP_SIMPLE(auto i, 0uz, max_idx, stride, 4) {
+    ILP_FOR_STEP(auto i, 0uz, max_idx, stride, 4) {
         matrix[i] *= scale;
     } ILP_END;
 }

@@ -19,17 +19,27 @@ namespace detail {
 // Index-based loops
 // =============================================================================
 
+// Unified for_loop implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
-void for_loop_simple_impl(T start, T end, F&& body) {
-    for (T i = start; i < end; ++i) {
-        body(i);
+void for_loop_impl(T start, T end, F&& body) {
+    constexpr bool has_ctrl = std::invocable<F, T, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        LoopCtrl<void> ctrl;
+        for (T i = start; i < end && ctrl.ok; ++i) {
+            body(i, ctrl);
+        }
+    } else {
+        static_assert(std::invocable<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
+        for (T i = start; i < end; ++i) {
+            body(i);
+        }
     }
 }
 
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple_impl(T start, T end, F&& body) {
+auto find_impl(T start, T end, F&& body) {
     using R = std::invoke_result_t<F, T, T>;
 
     if constexpr (std::is_same_v<R, bool>) {
@@ -54,13 +64,25 @@ auto for_loop_ret_simple_impl(T start, T end, F&& body) {
 // Step loops
 // =============================================================================
 
+// Unified for_loop_step implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
-void for_loop_step_simple_impl(T start, T end, T step, F&& body) {
-    if (step > 0) {
-        for (T i = start; i < end; i += step) body(i);
+void for_loop_step_impl(T start, T end, T step, F&& body) {
+    constexpr bool has_ctrl = std::invocable<F, T, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        LoopCtrl<void> ctrl;
+        if (step > 0) {
+            for (T i = start; i < end && ctrl.ok; i += step) body(i, ctrl);
+        } else {
+            for (T i = start; i > end && ctrl.ok; i += step) body(i, ctrl);
+        }
     } else {
-        for (T i = start; i > end; i += step) body(i);
+        static_assert(std::invocable<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
+        if (step > 0) {
+            for (T i = start; i < end; i += step) body(i);
+        } else {
+            for (T i = start; i > end; i += step) body(i);
+        }
     }
 }
 
@@ -109,10 +131,23 @@ auto for_loop_step_ret_simple_impl(T start, T end, T step, F&& body) {
 // Range-based loops
 // =============================================================================
 
+// Unified for_loop_range implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
-void for_loop_range_simple_impl(Range&& range, F&& body) {
-    for (auto&& elem : range) {
-        body(elem);
+void for_loop_range_impl(Range&& range, F&& body) {
+    using Ref = std::ranges::range_reference_t<Range>;
+    constexpr bool has_ctrl = std::invocable<F, Ref, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        LoopCtrl<void> ctrl;
+        for (auto&& elem : range) {
+            if (!ctrl.ok) break;
+            body(elem, ctrl);
+        }
+    } else {
+        static_assert(std::invocable<F, Ref>, "Lambda must be invocable with (Ref) or (Ref, LoopCtrl<void>&)");
+        for (auto&& elem : range) {
+            body(elem);
+        }
     }
 }
 
@@ -143,7 +178,7 @@ auto for_loop_range_ret_simple_impl(Range&& range, F&& body) {
 
 template<std::size_t N, std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
-auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
+auto find_range_idx_impl(Range&& range, F&& body) {
     auto it = std::ranges::begin(range);
     auto end_it = std::ranges::end(range);
     auto size = std::ranges::size(range);
@@ -172,24 +207,50 @@ auto for_loop_range_idx_ret_simple_impl(Range&& range, F&& body) {
 // Reduce implementations
 // =============================================================================
 
+// Unified reduce implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
-    requires std::invocable<F, T>
-auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
-    auto acc = init;
-    for (T i = start; i < end; ++i) {
-        acc = op(acc, body(i));
+auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
+    constexpr bool has_ctrl = std::invocable<F, T, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        auto acc = init;
+        LoopCtrl<void> ctrl;
+        for (T i = start; i < end && ctrl.ok; ++i) {
+            acc = op(acc, body(i, ctrl));
+        }
+        return acc;
+    } else {
+        static_assert(std::invocable<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
+        auto acc = init;
+        for (T i = start; i < end; ++i) {
+            acc = op(acc, body(i));
+        }
+        return acc;
     }
-    return acc;
 }
 
+// Unified range-based reduce - handles both simple (no ctrl) and ctrl-enabled lambdas
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>>
-auto reduce_range_simple_impl(Range&& range, Init init, BinaryOp op, F&& body) {
-    auto acc = init;
-    for (auto&& elem : range) {
-        acc = op(acc, body(elem));
+auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+    using Ref = std::ranges::range_reference_t<Range>;
+    constexpr bool has_ctrl = std::invocable<F, Ref, LoopCtrl<void>&>;
+
+    if constexpr (has_ctrl) {
+        auto acc = init;
+        LoopCtrl<void> ctrl;
+        for (auto&& elem : range) {
+            if (!ctrl.ok) break;
+            acc = op(acc, body(elem, ctrl));
+        }
+        return acc;
+    } else {
+        static_assert(std::invocable<F, Ref>, "Lambda must be invocable with (Ref) or (Ref, LoopCtrl<void>&)");
+        auto acc = init;
+        for (auto&& elem : range) {
+            acc = op(acc, body(elem));
+        }
+        return acc;
     }
-    return acc;
 }
 
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
@@ -200,33 +261,6 @@ auto reduce_step_simple_impl(T start, T end, T step, Init init, BinaryOp op, F&&
         for (T i = start; i < end; i += step) acc = op(acc, body(i));
     } else {
         for (T i = start; i > end; i += step) acc = op(acc, body(i));
-    }
-    return acc;
-}
-
-// =============================================================================
-// Reduce with LoopCtrl (break support)
-// =============================================================================
-
-template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
-    requires std::invocable<F, T, LoopCtrl<void>&>
-auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
-    auto acc = init;
-    LoopCtrl<void> ctrl;
-    for (T i = start; i < end && ctrl.ok; ++i) {
-        acc = op(acc, body(i, ctrl));
-    }
-    return acc;
-}
-
-template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, LoopCtrl<void>&>
-auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
-    auto acc = init;
-    LoopCtrl<void> ctrl;
-    for (auto&& elem : range) {
-        if (!ctrl.ok) break;
-        acc = op(acc, body(elem, ctrl));
     }
     return acc;
 }
@@ -265,19 +299,19 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_simple(T start, T end, F&& body) {
-    detail::for_loop_simple_impl<N>(start, end, std::forward<F>(body));
+    detail::for_loop_impl<N>(start, end, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
+auto find(T start, T end, F&& body) {
+    return detail::find_impl<N>(start, end, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
     requires std::invocable<F, T>
 void for_loop_step_simple(T start, T end, T step, F&& body) {
-    detail::for_loop_step_simple_impl<N>(start, end, step, std::forward<F>(body));
+    detail::for_loop_step_impl<N>(start, end, step, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -288,7 +322,7 @@ auto for_loop_step_ret_simple(T start, T end, T step, F&& body) {
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
 void for_loop_range_simple(Range&& range, F&& body) {
-    detail::for_loop_range_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+    detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -297,14 +331,14 @@ auto for_loop_range_ret_simple(Range&& range, F&& body) {
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-auto for_loop_range_idx_ret_simple(Range&& range, F&& body) {
-    return detail::for_loop_range_idx_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+auto find_range_idx(Range&& range, F&& body) {
+    return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
 auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
-    return detail::reduce_simple_impl<N>(start, end, init, op, std::forward<F>(body));
+    return detail::reduce_impl<N>(start, end, init, op, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -315,13 +349,13 @@ auto reduce_sum(T start, T end, F&& body) {
     // Check for potential overflow
     detail::check_sum_overflow<R, T>();
 
-    return detail::reduce_simple_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
+    return detail::reduce_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_simple(Range&& range, Init init, BinaryOp op, F&& body) {
-    return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), init, op, std::forward<F>(body));
+    return detail::reduce_range_impl<N>(std::forward<Range>(range), init, op, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -333,7 +367,7 @@ auto reduce_range_sum(Range&& range, F&& body) {
     // Check for potential overflow
     detail::check_sum_overflow<R, ElemT>();
 
-    return detail::reduce_range_simple_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
+    return detail::reduce_range_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
@@ -381,8 +415,8 @@ std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
 // Auto-selecting functions
 template<std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple_auto(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
+auto find_auto(T start, T end, F&& body) {
+    return detail::find_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
 }
 
 template<std::integral T, typename F>
@@ -413,9 +447,9 @@ auto reduce_range_simple_auto(Range&& range, Init init, BinaryOp op, F&& body) {
 
 template<std::ranges::random_access_range Range, typename F>
     requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t, decltype(std::ranges::end(std::declval<Range>()))>
-auto for_loop_range_idx_ret_simple_auto(Range&& range, F&& body) {
+auto find_range_idx_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return for_loop_range_idx_ret_simple<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
+    return find_range_idx<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 // =============================================================================

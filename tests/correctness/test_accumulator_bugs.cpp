@@ -15,7 +15,7 @@
 
 TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     SECTION("Sum with init 100, empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 100, auto i, 0, 0, 4
         ) {
             return i;
@@ -27,7 +27,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("Product with init 5, empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::multiplies<>(), 5, auto i, 0, 0, 4
         ) {
             return i;
@@ -39,7 +39,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("Max with init MIN, empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return std::max(a, b); },
             std::numeric_limits<int>::min(),
             auto i, 0, 0, 4
@@ -51,7 +51,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("Min with init MAX, empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return std::min(a, b); },
             std::numeric_limits<int>::max(),
             auto i, 0, 0, 4
@@ -63,7 +63,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("XOR with init, empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return a ^ b; },
             42, auto i, 0, 0, 4
         ) {
@@ -82,7 +82,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
 
 TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
     SECTION("Sum with init 100, single element 5") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 100, auto i, 0, 1, 4
         ) {
             return i;  // returns 0
@@ -94,7 +94,7 @@ TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
     }
 
     SECTION("Product with init 2, single element") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::multiplies<>(), 2, auto i, 1, 2, 4  // only i=1
         ) {
             return i;
@@ -112,7 +112,7 @@ TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
 
 TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
     SECTION("N=1 - should be correct") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 100, auto i, 0, 0, 1
         ) {
             return i;
@@ -121,7 +121,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
     }
 
     SECTION("N=2 - init×2") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 100, auto i, 0, 0, 2
         ) {
             return i;
@@ -132,7 +132,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
     }
 
     SECTION("N=8 - init×8") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 100, auto i, 0, 0, 8
         ) {
             return i;
@@ -152,8 +152,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
 TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break on first iteration") {
         auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-            ILP_BREAK_RET(0);
-            return i;
+            ILP_REDUCE_BREAK(0);  // 0 is identity for plus
         } ILP_END_REDUCE;
         INFO("Bug: Returns 400 instead of 100");
         REQUIRE(result == 100);  // Will FAIL with 400
@@ -161,7 +160,7 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
 
     SECTION("Break after first element") {
         auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-            if (i == 1) ILP_BREAK_RET(0);
+            if (i == 1) ILP_REDUCE_BREAK(0);
             return i;
         } ILP_END_REDUCE;
         // First iteration processes 0 in one accumulator
@@ -180,7 +179,7 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
 TEST_CASE("Range reduce - init multiplication", "[bug][accumulator][range]") {
     SECTION("Empty vector") {
         std::vector<int> empty;
-        auto result = ILP_REDUCE_RANGE_SIMPLE(
+        auto result = ILP_REDUCE_RANGE(
             std::plus<>(), 100, auto&& val, empty, 4
         ) {
             return val;
@@ -191,7 +190,7 @@ TEST_CASE("Range reduce - init multiplication", "[bug][accumulator][range]") {
 
     SECTION("Single element vector") {
         std::vector<int> single = {5};
-        auto result = ILP_REDUCE_RANGE_SIMPLE(
+        auto result = ILP_REDUCE_RANGE(
             std::plus<>(), 100, auto&& val, single, 4
         ) {
             return val;
@@ -211,7 +210,7 @@ TEST_CASE("Operations where bug doesn't manifest", "[accumulator][works]") {
     // These operations have idempotent or self-inverse properties
 
     SECTION("Max - idempotent") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return std::max(a, b); },
             -999, auto i, 0, 0, 4
         ) {
@@ -222,7 +221,7 @@ TEST_CASE("Operations where bug doesn't manifest", "[accumulator][works]") {
     }
 
     SECTION("Min - idempotent") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return std::min(a, b); },
             999, auto i, 0, 0, 4
         ) {
@@ -233,7 +232,7 @@ TEST_CASE("Operations where bug doesn't manifest", "[accumulator][works]") {
     }
 
     SECTION("AND with all 1s") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return a & b; },
             0xFF, auto i, 0, 0, 4
         ) {
@@ -244,7 +243,7 @@ TEST_CASE("Operations where bug doesn't manifest", "[accumulator][works]") {
     }
 
     SECTION("OR with 0") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             [](int a, int b) { return a | b; },
             0, auto i, 0, 0, 4
         ) {
@@ -263,21 +262,21 @@ TEST_CASE("Sum with zero init - correct behavior", "[accumulator][correct]") {
     // Sum with init=0 works correctly because 0+0+0+0 = 0
 
     SECTION("Empty range") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 0, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 0, 4) {
             return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 0);
     }
 
     SECTION("Single element") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 1, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 1, 4) {
             return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 0);
     }
 
     SECTION("Multiple elements") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 10, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 10, 4) {
             return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
         REQUIRE(result == 45);
@@ -292,7 +291,7 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
     // Product with init=1 also works correctly because 1*1*1*1 = 1
 
     SECTION("Empty range") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::multiplies<>(), 1, auto i, 0, 0, 4
         ) {
             return i;
@@ -301,7 +300,7 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
     }
 
     SECTION("Factorial 5") {
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::multiplies<>(), 1, auto i, 1, 6, 4
         ) {
             return i;
@@ -317,7 +316,7 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
 TEST_CASE("Bug severity demonstration", "[bug][severity]") {
     SECTION("Off-by-huge-amount for counting") {
         // Trying to count with init offset
-        auto result = ILP_REDUCE_SIMPLE(
+        auto result = ILP_REDUCE(
             std::plus<>(), 1000, auto i, 0, 5, 4  // Count 5 elements starting from 1000
         ) {
             return 1;  // Add 1 for each element
@@ -333,7 +332,7 @@ TEST_CASE("Bug severity demonstration", "[bug][severity]") {
         int starting_balance = 10000;
         std::vector<int> transactions = {};  // No transactions yet
 
-        auto final_balance = ILP_REDUCE_RANGE_SIMPLE(
+        auto final_balance = ILP_REDUCE_RANGE(
             std::plus<>(), starting_balance, auto&& txn, transactions, 4
         ) {
             return txn;
@@ -356,7 +355,7 @@ TEST_CASE("Workaround: Handle empty separately", "[workaround]") {
     if (empty.empty()) {
         result = 100;  // Handle empty case manually
     } else {
-        result = ILP_REDUCE_RANGE_SIMPLE(
+        result = ILP_REDUCE_RANGE(
             std::plus<>(), 100, auto&& val, empty, 4
         ) {
             return val;
@@ -374,7 +373,7 @@ TEST_CASE("reduce_sum uses correct zero init", "[accumulator][correct]") {
     // reduce_sum defaults to R{} which is 0 for numeric types
 
     SECTION("Empty range") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 0, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 0, 4) {
             return i;
         } ILP_END_REDUCE;
         // 0 + 0 + 0 + 0 = 0 - correct!
@@ -382,7 +381,7 @@ TEST_CASE("reduce_sum uses correct zero init", "[accumulator][correct]") {
     }
 
     SECTION("Range sum") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 100, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 100, 4) {
             return i;
         } ILP_END_REDUCE;
         REQUIRE(result == 4950);

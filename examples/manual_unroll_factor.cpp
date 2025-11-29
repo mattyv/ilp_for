@@ -15,7 +15,7 @@ template<size_t Size>
 int sum_small_array(const std::array<int, Size>& arr) {
     // For small arrays, N=2 reduces loop overhead while maintaining ILP
     int sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0uz, Size, 2) {
+    ILP_FOR(auto i, 0uz, Size, 2) {
         sum += arr[i];
     } ILP_END;
     return sum;
@@ -24,7 +24,7 @@ int sum_small_array(const std::array<int, Size>& arr) {
 // Known hot path with profiled optimal N
 // After benchmarking, N=8 was determined optimal for this specific workload
 double dot_product_tuned(const double* a, const double* b, size_t n) {
-    return ILP_REDUCE_SIMPLE(std::plus<>{}, 0.0, auto i, 0uz, n, 8) {
+    return ILP_REDUCE(std::plus<>{}, 0.0, auto i, 0uz, n, 8) {
         return a[i] * b[i];
     } ILP_END_REDUCE;
 }
@@ -54,7 +54,7 @@ void compare_approaches(const std::vector<int>& data) {
 // Memory-bound operation: smaller N reduces register pressure
 void process_large_structs(std::vector<std::array<double, 8>>& data) {
     // Large struct = memory bound, N=2 is often optimal
-    ILP_FOR_SIMPLE(auto i, 0uz, data.size(), 2) {
+    ILP_FOR(auto i, 0uz, data.size(), 2) {
         for (auto& v : data[i]) {
             v *= 2.0;
         }
