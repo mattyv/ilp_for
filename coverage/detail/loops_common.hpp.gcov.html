@@ -32,17 +32,17 @@
             <td></td>
             <td class="headerItem">Lines:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
-            <td class="headerCovTableEntry">4</td>
-            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">6</td>
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2025-11-25 10:07:07</td>
+            <td class="headerValue">2025-11-30 11:34:49</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
-            <td class="headerCovTableEntry">14</td>
-            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntry">16</td>
           </tr>
                   <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -99,15 +99,59 @@
 <span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">           4 : constexpr void warn_large_unroll_factor() {}</span></span>
 <span id="L38"><span class="lineNum">      38</span>              : </span>
 <span id="L39"><span class="lineNum">      39</span>              : template&lt;std::size_t N&gt;</span>
-<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">        1207 : constexpr void validate_unroll_factor() {</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">        1200 : constexpr void validate_unroll_factor() {</span></span>
 <span id="L41"><span class="lineNum">      41</span>              :     static_assert(N &gt;= 1, &quot;Unroll factor N must be at least 1&quot;);</span>
 <span id="L42"><span class="lineNum">      42</span>              :     if constexpr (N &gt; 16) {</span>
 <span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">           4 :         warn_large_unroll_factor&lt;N&gt;();</span></span>
 <span id="L44"><span class="lineNum">      44</span>              :     }</span>
-<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">        1207 : }</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">        1200 : }</span></span>
 <span id="L46"><span class="lineNum">      46</span>              : </span>
-<span id="L47"><span class="lineNum">      47</span>              : } // namespace detail</span>
-<span id="L48"><span class="lineNum">      48</span>              : } // namespace ilp</span>
+<span id="L47"><span class="lineNum">      47</span>              : // =============================================================================</span>
+<span id="L48"><span class="lineNum">      48</span>              : // Overflow risk detection</span>
+<span id="L49"><span class="lineNum">      49</span>              : // =============================================================================</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              : // Concept to check if a type is a signed integral type</span>
+<span id="L52"><span class="lineNum">      52</span>              : template&lt;typename T&gt;</span>
+<span id="L53"><span class="lineNum">      53</span>              : concept signed_integral_type = std::integral&lt;T&gt; &amp;&amp; std::signed_integral&lt;T&gt;;</span>
+<span id="L54"><span class="lineNum">      54</span>              : </span>
+<span id="L55"><span class="lineNum">      55</span>              : // Concept to check if a type is an unsigned integral type</span>
+<span id="L56"><span class="lineNum">      56</span>              : template&lt;typename T&gt;</span>
+<span id="L57"><span class="lineNum">      57</span>              : concept unsigned_integral_type = std::integral&lt;T&gt; &amp;&amp; std::unsigned_integral&lt;T&gt;;</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              : // Warning helper for potential overflow in reductions</span>
+<span id="L60"><span class="lineNum">      60</span>              : template&lt;typename AccumT, typename ElemT&gt;</span>
+<span id="L61"><span class="lineNum">      61</span>              : [[deprecated(&quot;Overflow risk: accumulator type may be too small for sum. &quot;</span>
+<span id="L62"><span class="lineNum">      62</span>              :              &quot;Consider using a larger type (e.g., int64_t or double) or &quot;</span>
+<span id="L63"><span class="lineNum">      63</span>              :              &quot;explicitly provide an init value with sufficient range. &quot;</span>
+<span id="L64"><span class="lineNum">      64</span>              :              &quot;For small, bounded ranges this warning can be safely ignored.&quot;)]]</span>
+<span id="L65"><span class="lineNum">      65</span>              : constexpr void warn_accumulator_overflow() {}</span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              : // Check if accumulator might overflow during sum reduction</span>
+<span id="L68"><span class="lineNum">      68</span>              : template&lt;typename AccumT, typename ElemT&gt;</span>
+<span id="L69"><span class="lineNum">      69</span>              : constexpr void check_accumulator_overflow() {</span>
+<span id="L70"><span class="lineNum">      70</span>              :     // Only warn for integral types (floating point has better overflow characteristics)</span>
+<span id="L71"><span class="lineNum">      71</span>              :     // Warn only if accumulator is strictly smaller than element type</span>
+<span id="L72"><span class="lineNum">      72</span>              :     if constexpr (std::integral&lt;AccumT&gt; &amp;&amp; std::integral&lt;ElemT&gt;) {</span>
+<span id="L73"><span class="lineNum">      73</span>              :         if constexpr (sizeof(AccumT) &lt; sizeof(ElemT)) {</span>
+<span id="L74"><span class="lineNum">      74</span>              :             warn_accumulator_overflow&lt;AccumT, ElemT&gt;();</span>
+<span id="L75"><span class="lineNum">      75</span>              :         }</span>
+<span id="L76"><span class="lineNum">      76</span>              :     }</span>
+<span id="L77"><span class="lineNum">      77</span>              : }</span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span>              : // Stricter check for when we know this is definitely a sum operation</span>
+<span id="L80"><span class="lineNum">      80</span>              : template&lt;typename AccumT, typename ElemT&gt;</span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">           3 : constexpr void check_sum_overflow() {</span></span>
+<span id="L82"><span class="lineNum">      82</span>              :     if constexpr (std::integral&lt;AccumT&gt; &amp;&amp; std::integral&lt;ElemT&gt;) {</span>
+<span id="L83"><span class="lineNum">      83</span>              :         // Warn only if accumulator is smaller than element type</span>
+<span id="L84"><span class="lineNum">      84</span>              :         // Same-size is fine - users know their data</span>
+<span id="L85"><span class="lineNum">      85</span>              :         if constexpr (sizeof(AccumT) &lt; sizeof(ElemT)) {</span>
+<span id="L86"><span class="lineNum">      86</span>              :             warn_accumulator_overflow&lt;AccumT, ElemT&gt;();</span>
+<span id="L87"><span class="lineNum">      87</span>              :         }</span>
+<span id="L88"><span class="lineNum">      88</span>              :     }</span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           3 : }</span></span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span>              : } // namespace detail</span>
+<span id="L92"><span class="lineNum">      92</span>              : } // namespace ilp</span>
         </pre>
               </td>
             </tr>
