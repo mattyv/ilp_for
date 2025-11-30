@@ -1,7 +1,15 @@
 #!/bin/bash
 # Run benchmarks with different compilers and ILP modes
+# Usage: ./bench_all.sh [--quick]
+#   --quick: Only run ILP mode (skip SIMPLE and PRAGMA)
 
 set -e
+
+QUICK_MODE=false
+if [[ "$1" == "--quick" || "$1" == "-q" ]]; then
+    QUICK_MODE=true
+    echo "Quick mode: only running ILP benchmarks"
+fi
 
 cd "$(dirname "$0")"
 
@@ -81,14 +89,18 @@ echo ""
 # Run benchmarks
 if [ -n "$CLANG_CMD" ]; then
     run_benchmark "clang_ilp" "$CLANG_CMD" "-O3 -march=native"
-    run_benchmark "clang_simple" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
-    run_benchmark "clang_pragma" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
+    if [ "$QUICK_MODE" = false ]; then
+        run_benchmark "clang_simple" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
+        run_benchmark "clang_pragma" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
+    fi
 fi
 
 if [ -n "$GCC_CMD" ]; then
     run_benchmark "gcc_ilp" "$GCC_CMD" "-O3 -march=native"
-    run_benchmark "gcc_simple" "$GCC_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
-    run_benchmark "gcc_pragma" "$GCC_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
+    if [ "$QUICK_MODE" = false ]; then
+        run_benchmark "gcc_simple" "$GCC_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
+        run_benchmark "gcc_pragma" "$GCC_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
+    fi
 fi
 
 echo "=========================================="
