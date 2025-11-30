@@ -404,10 +404,11 @@ TEST_CASE("Array pointer iteration", "[mistake][pointer]") {
 }
 
 // -----------------------------------------------------------------------------
-// Mistake 27: Trying to break from reduce_simple
+// Mistake 27: Using ctrl in reduce is optional
 // -----------------------------------------------------------------------------
 
-// reduce_simple doesn't have _ilp_ctrl - would be compile error
+// Since reduce() auto-detects from signature, lambdas without ctrl work fine.
+// Use ILP_REDUCE_BREAK(identity) if you need early exit.
 
 // -----------------------------------------------------------------------------
 // Mistake 29: Comparing iterators incorrectly

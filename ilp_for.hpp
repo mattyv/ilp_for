@@ -85,7 +85,7 @@ namespace ilp::detail {
 
 // For control-flow RET macros (returns from enclosing function)
 #define ILP_END_RET ); \
-        if (_ilp_r_) return *_ilp_r_; \
+        if (_ilp_r_) return std::move(*_ilp_r_); \
     } while(0)
 
 // ----- Control flow -----
@@ -132,7 +132,11 @@ namespace ilp::detail {
 // ----- Auto-selecting macros (use optimal N based on CPU profile) -----
 
 #define ILP_REDUCE_AUTO(op, init, loop_var_decl, start, end) \
-    ::ilp::reduce_simple_auto(start, end, init, op, [&]([[maybe_unused]] loop_var_decl)
+    ::ilp::reduce_auto(start, end, init, op, \
+        [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]( \
+            [[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
 
 #define ILP_REDUCE_RANGE_AUTO(op, init, loop_var_decl, range) \
-    ::ilp::reduce_range_simple_auto(range, init, op, [&]([[maybe_unused]] loop_var_decl)
+    ::ilp::reduce_range_auto(range, init, op, \
+        [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}]( \
+            [[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)

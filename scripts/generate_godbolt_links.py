@@ -191,14 +191,14 @@ def get_needed_items(example_name: str) -> Dict[str, List[str]]:
 
     needs = {
         'transform_simple.cpp': {
-            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['for_loop_simple_impl'],
-            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_simple', 'ILP_FOR', 'ILP_END']
+            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor', 'ForBody', 'ForCtrlBody'],
+            'detail/loops_ilp.hpp': ['for_loop_impl'],
+            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop', 'ILP_FOR', 'ILP_END']
         },
         'parallel_min.cpp': {
-            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['reduce_simple_impl'],
-            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce_simple', 'ILP_REDUCE', 'ILP_END_REDUCE']
+            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor', 'ReduceBody', 'ReduceCtrlBody'],
+            'detail/loops_ilp.hpp': ['reduce_impl'],
+            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce', 'ILP_REDUCE', 'ILP_END_REDUCE']
         },
         'sum_with_break.cpp': {
             'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],

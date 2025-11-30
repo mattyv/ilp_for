@@ -50,7 +50,7 @@ constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T
 
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
-auto reduce_simple_impl(T start, T end, Init init, BinaryOp op, F&& body) {
+auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T>;
 
@@ -88,14 +88,14 @@ struct Reduce_Context_USE_ILP_END_REDUCE {};
 
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires std::invocable<F, T>
-auto reduce_simple(T start, T end, Init init, BinaryOp op, F&& body) {
-    return detail::reduce_simple_impl<N>(start, end, init, op, std::forward<F>(body));
+auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
+    return detail::reduce_impl<N>(start, end, init, op, std::forward<F>(body));
 }
 
 } // namespace ilp
 
 #define ILP_REDUCE(op, init, loop_var_decl, start, end, N) \
-    ::ilp::reduce_simple<N>(start, end, init, op, [&](loop_var_decl)
+    ::ilp::reduce<N>(start, end, init, op, [&](loop_var_decl)
 
 #define ILP_END_REDUCE )
 
