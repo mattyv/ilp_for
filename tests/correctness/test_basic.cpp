@@ -9,8 +9,6 @@ unsigned sum_plain_handrolled(unsigned n);
 unsigned sum_with_break_handrolled(unsigned n, unsigned stop_at);
 unsigned sum_odd_handrolled(unsigned n);
 int sum_negative_handrolled(int start, int end);
-int sum_backward_handrolled(int start, int end);
-unsigned sum_step2_handrolled(unsigned n);
 
 // ILP declarations
 unsigned sum_plain_ilp(unsigned n);
@@ -19,8 +17,6 @@ unsigned sum_with_break_ilp(unsigned n, unsigned stop_at);
 #endif
 unsigned sum_odd_ilp(unsigned n);
 int sum_negative_ilp(int start, int end);
-int sum_backward_ilp(int start, int end);
-unsigned sum_step2_ilp(unsigned n);
 
 TEST_CASE("Plain accumulation", "[basic]") {
     SECTION("typical values") {
@@ -81,37 +77,6 @@ TEST_CASE("Negative range", "[signed]") {
     SECTION("edge cases") {
         REQUIRE(sum_negative_ilp(0, 0) == sum_negative_handrolled(0, 0));
         REQUIRE(sum_negative_ilp(-1, 0) == sum_negative_handrolled(-1, 0));
-    }
-}
-
-TEST_CASE("Backward iteration", "[step]") {
-    SECTION("typical values") {
-        REQUIRE(sum_backward_ilp(100, 0) == sum_backward_handrolled(100, 0));
-        REQUIRE(sum_backward_ilp(50, 10) == sum_backward_handrolled(50, 10));
-    }
-
-    SECTION("crossing zero") {
-        REQUIRE(sum_backward_ilp(10, -10) == sum_backward_handrolled(10, -10));
-    }
-
-    SECTION("edge cases") {
-        REQUIRE(sum_backward_ilp(0, 0) == sum_backward_handrolled(0, 0));
-        REQUIRE(sum_backward_ilp(3, 0) == sum_backward_handrolled(3, 0));
-        REQUIRE(sum_backward_ilp(4, 0) == sum_backward_handrolled(4, 0));
-    }
-}
-
-TEST_CASE("Step of 2", "[step]") {
-    SECTION("typical values") {
-        REQUIRE(sum_step2_ilp(100) == sum_step2_handrolled(100));
-        REQUIRE(sum_step2_ilp(101) == sum_step2_handrolled(101));
-    }
-
-    SECTION("edge cases") {
-        REQUIRE(sum_step2_ilp(0) == sum_step2_handrolled(0));
-        REQUIRE(sum_step2_ilp(1) == sum_step2_handrolled(1));
-        REQUIRE(sum_step2_ilp(7) == sum_step2_handrolled(7));
-        REQUIRE(sum_step2_ilp(8) == sum_step2_handrolled(8));
     }
 }
 

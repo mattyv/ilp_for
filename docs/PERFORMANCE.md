@@ -4,22 +4,22 @@ This library's goal is not to be a performance library, but to ensure performanc
 
 ## Benchmarks
 
-Clang 17 on Apple M2
+Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
-| Min | 3.4ms | 0.58ms | **5.9x** |
-| Any-of | 4.0ms | 0.75ms | **5.3x** |
-| Find | 1.9ms | 1.6ms | **1.2x** |
-| Sum with break | 1.8ms | 1.1ms | **1.6x** |
+| Min | 3.47ms | 0.58ms | **6.0x** |
+| Any-of | 3.96ms | 1.86ms | **2.1x** |
+| Sum with break | 1.80ms | 1.11ms | **1.6x** |
+| Find | 1.86ms | 1.86ms | ~1.0x |
 
 ### Simple Reductions
 
-| Operation | std/simple | ILP | Result |
+| Operation | Handrolled | ILP | Result |
 |-----------|------------|-----|--------|
-| Sum | 0.54ms | 0.58ms | **ILP ~7% slower** |
+| Sum | 0.75ms | 0.75ms | **equivalent** |
 
-Modern compilers auto-vectorize simple sums effectively. Use `ILP_REDUCE_SUM` only when you need break/return support.
+Modern compilers auto-vectorize simple sums effectively. ILP matches hand-optimized code.
 
 ## Early Return Performance
 
