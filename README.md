@@ -22,7 +22,8 @@ auto idx = ILP_FIND(auto i, 0, n, 4) {
 } ILP_END;
 
 // Conceptually expands to:
-for (int i = 0; i + 4 <= n; i += 4) {
+size_t i = 0;
+for (; i + 4 <= n; i += 4) {
     bool r0 = data[i+0] == target;  // Parallel evaluation
     bool r1 = data[i+1] == target;
     bool r2 = data[i+2] == target;
@@ -32,7 +33,10 @@ for (int i = 0; i + 4 <= n; i += 4) {
     if (r2) return i+2;
     if (r3) return i+3;
 }
-// cleanup loop for remainder...
+for (; i < n; ++i) {             // Remainder
+    if (data[i] == target) return i;
+}
+return n;  // Not found (sentinel)
 ```
 
 The unrolled comparisons have no data dependencies, so out-of-order CPUs can execute them simultaneously while waiting for memory.
