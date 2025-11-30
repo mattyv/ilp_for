@@ -1,5 +1,5 @@
 // Example: Range iteration with index tracking
-// Demonstrates ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO
+// Demonstrates ILP_FIND_RANGE_IDX
 
 #include "../ilp_for.hpp"
 #include <vector>
@@ -13,14 +13,14 @@ struct Item {
 
 // Find item by name, return iterator
 auto find_item(std::vector<Item>& items, const std::string& target) {
-    return ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(auto&& item, auto idx, items) {
+    return ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
         return item.name == target;
     } ILP_END;
 }
 
 // Find highest priority item
 auto find_highest_priority(std::vector<Item>& items) {
-    return ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(auto&& item, auto idx, items) {
+    return ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
         return item.priority >= 10;
     } ILP_END;
 }
@@ -29,7 +29,7 @@ auto find_highest_priority(std::vector<Item>& items) {
 void find_and_report(const std::vector<Item>& items, int min_priority) {
     size_t found_idx = items.size();
 
-    auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(auto&& item, auto idx, items) {
+    auto it = ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
         if (item.priority >= min_priority) {
             found_idx = idx;
             return true;

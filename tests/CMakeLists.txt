@@ -162,8 +162,8 @@ if(ENABLE_COVERAGE)
     # Generate lcov report
     add_custom_target(coverage-report
         COMMAND lcov --capture --directory ${CMAKE_CURRENT_BINARY_DIR} --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors inconsistent,unused,mismatch,negative,format --rc branch_coverage=0
-        COMMAND lcov --remove ${CMAKE_CURRENT_BINARY_DIR}/coverage.info '/usr/*' '*/catch.hpp' '*/tests/*' '*/asm_compare/*' --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors unused
-        COMMAND lcov --list ${CMAKE_CURRENT_BINARY_DIR}/coverage.info
+        COMMAND lcov --remove ${CMAKE_CURRENT_BINARY_DIR}/coverage.info '/usr/*' '/Library/*' '*/catch.hpp' '*/tests/*' '*/asm_compare/*' --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors unused,inconsistent,empty
+        COMMAND lcov --list ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors inconsistent
         DEPENDS coverage-run
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating lcov coverage report"

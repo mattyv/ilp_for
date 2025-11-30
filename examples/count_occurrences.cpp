@@ -6,7 +6,7 @@
 #include <iostream>
 
 size_t count_value(const std::vector<int>& data, int target) {
-    return ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
+    return ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0uz, auto&& val, data) {
         return val == target ? 1uz : 0uz;
     } ILP_END_REDUCE;
 }

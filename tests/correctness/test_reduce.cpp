@@ -2,6 +2,7 @@
 #include "../../ilp_for.hpp"
 #include <vector>
 #include <numeric>
+#include <cstdint>
 
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 
@@ -21,7 +22,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // accumulators holding the values processed before the break.
         auto result = ILP_REDUCE_RANGE(std::plus<int>(), 0, auto&& val, data, 4) {
             if (val > 5) {
-                ILP_BREAK_RET(0);
+                ILP_REDUCE_BREAK(0);
             }
             return val;
         } ILP_END_REDUCE;
@@ -59,7 +60,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // Sum numbers up to a value where the index triggers a break.
         auto result = ILP_REDUCE(std::plus<int>(), 0, auto i, 0, 100, 4) {
             if (i >= 10) {
-                ILP_BREAK_RET(0);
+                ILP_REDUCE_BREAK(0);
             }
             return (int)i;
         } ILP_END_REDUCE;
@@ -76,12 +77,12 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
 
 TEST_CASE("Simple Reduce", "[reduce]") {
     SECTION("Sum of 0 to 99") {
-        auto result = ILP_REDUCE_SUM(auto i, 0, 100, 4) {
-            return (unsigned)i;
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 100, 4) {
+            return static_cast<int64_t>(i);
         } ILP_END_REDUCE;
 
-        unsigned expected = 0;
-        for(unsigned i = 0; i < 100; ++i) expected += i;
+        int64_t expected = 0;
+        for(int i = 0; i < 100; ++i) expected += i;
 
         REQUIRE(result == expected);
     }
@@ -90,11 +91,11 @@ TEST_CASE("Simple Reduce", "[reduce]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
 
-        auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 8) {
-            return val;
+        auto result = ILP_REDUCE_RANGE(std::plus<>{}, 0, auto&& val, data, 8) {
+            return static_cast<int64_t>(val);
         } ILP_END_REDUCE;
 
-        long long expected = 0;
+        int64_t expected = 0;
         for(int val : data) expected += val;
 
         REQUIRE(result == expected);
@@ -106,7 +107,7 @@ TEST_CASE("Bitwise Reduce Operations", "[reduce][bitwise]") {
         // Test bit_and with a range
         std::vector<unsigned> data = {0xFF, 0xF0, 0x3F, 0x0F};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_and<>(), 0xFF, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::bit_and<>(), 0xFF, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -121,7 +122,7 @@ TEST_CASE("Bitwise Reduce Operations", "[reduce][bitwise]") {
         // Test bit_or with a range
         std::vector<unsigned> data = {0x01, 0x02, 0x04, 0x08};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_or<>(), 0, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::bit_or<>(), 0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -136,7 +137,7 @@ TEST_CASE("Bitwise Reduce Operations", "[reduce][bitwise]") {
         // Test bit_xor - useful for parity checks
         std::vector<unsigned> data = {0xFF, 0xFF, 0x0F, 0x0F};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::bit_xor<>(), 0, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::bit_xor<>(), 0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -149,7 +150,7 @@ TEST_CASE("Bitwise Reduce Operations", "[reduce][bitwise]") {
 
     SECTION("Bitwise AND with index-based loop") {
         // Create a bitmask by ANDing values
-        auto result = ILP_REDUCE_SIMPLE(std::bit_and<>(), 0xFFFFFFFF, auto i, 0, 10, 4) {
+        auto result = ILP_REDUCE(std::bit_and<>(), 0xFFFFFFFF, auto i, 0, 10, 4) {
             return ~(1u << i);  // Clear bit i
         } ILP_END_REDUCE;
 
@@ -167,7 +168,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
         // 9 elements with unroll 4: hits cleanup loop for last element
         std::vector<int> data = {1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-        auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::plus<>{}, 0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -177,7 +178,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     SECTION("Range reduce SIMPLE with std::plus<>") {
         std::vector<int> data = {1, 2, 3, 4, 5};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::plus<>(), 0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -185,7 +186,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     }
 
     SECTION("Index reduce SIMPLE with std::plus<>") {
-        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0, auto i, 0, 10, 4) {
+        auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 10, 4) {
             return i;
         } ILP_END_REDUCE;
 
@@ -195,7 +196,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     SECTION("Vector<double> reduce SIMPLE with std::plus<>") {
         std::vector<double> data = {1.5, 2.5, 3.5, 4.5, 5.5};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0.0, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::plus<>(), 0.0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -205,7 +206,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     SECTION("Array<int, 7> reduce SIMPLE with std::plus<>") {
         std::array<int, 7> data = {1, 2, 3, 4, 5, 6, 7};
 
-        auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>(), 0, auto&& val, data, 4) {
+        auto result = ILP_REDUCE_RANGE(std::plus<>(), 0, auto&& val, data, 4) {
             return val;
         } ILP_END_REDUCE;
 
@@ -213,7 +214,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     }
 
     SECTION("Unsigned int reduce SIMPLE with std::plus<> and N=4") {
-        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0u, auto i, 0u, 10u, 4) {
+        auto result = ILP_REDUCE(std::plus<>(), 0u, auto i, 0u, 10u, 4) {
             return i;
         } ILP_END_REDUCE;
 
@@ -221,7 +222,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     }
 
     SECTION("Int reduce SIMPLE with std::plus<> and N=1") {
-        auto result = ILP_REDUCE_SIMPLE(std::plus<>(), 0, auto i, 0, 10, 1) {
+        auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 10, 1) {
             return i;
         } ILP_END_REDUCE;
 
@@ -230,20 +231,11 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
 
     SECTION("Index reduce with remainder") {
         // 11 iterations with unroll 4: 11 = 2*4 + 3
-        auto result = ILP_REDUCE_SUM(auto i, 0, 11, 4) {
+        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 11, 4) {
             return 1;
         } ILP_END_REDUCE;
 
         REQUIRE(result == 11);
-    }
-
-    SECTION("Step reduce with remainder") {
-        // 0 to 11 step 2 with unroll 4: visits 0,2,4,6,8,10 (6 values, 4+2)
-        auto result = ILP_REDUCE_STEP_SUM(auto i, 0, 11, 2, 4) {
-            return 1;
-        } ILP_END_REDUCE;
-
-        REQUIRE(result == 6);
     }
 
     SECTION("Reduce with break in cleanup loop") {
@@ -251,7 +243,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
 
         auto result = ILP_REDUCE_RANGE(std::plus<>(), 0, auto&& val, data, 4) {
             if (val == 9) {  // Last element, in cleanup
-                ILP_BREAK_RET(0);
+                ILP_REDUCE_BREAK(0);
             }
             return val;
         } ILP_END_REDUCE;
@@ -268,6 +260,7 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
                     ILP_RETURN(val * 10);
                 }
             } ILP_END_RET;
+            return std::nullopt;
         };
 
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};  // 7 elements, unroll 4

@@ -4,6 +4,11 @@
 
 #include <cstddef>
 #include <optional>
+#include <concepts>
+#include <type_traits>
+#include <ranges>
+
+#include "ctrl.hpp"
 
 // Helper for pragma stringification
 #define ILP_PRAGMA_STR_(x) #x
@@ -64,38 +69,73 @@ template<typename AccumT, typename ElemT>
              "For small, bounded ranges this warning can be safely ignored.")]]
 constexpr void warn_accumulator_overflow() {}
 
-// Check if accumulator might overflow during sum reduction
+// Check for potential overflow in sum operations
 template<typename AccumT, typename ElemT>
-constexpr void check_accumulator_overflow() {
-    // Only warn for integral types (floating point has better overflow characteristics)
+constexpr void check_sum_overflow() {
     if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // Warn if accumulator is same size or smaller than element type
-        // This is a heuristic - actual overflow depends on range size and values
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT)) {
+        // Warn only if accumulator is smaller than element type
+        // Same-size is fine - users know their data
+        if constexpr (sizeof(AccumT) < sizeof(ElemT)) {
             warn_accumulator_overflow<AccumT, ElemT>();
-        }
-        // Also warn if accumulator is only slightly larger than element
-        // and both are signed (e.g., accumulating int16_t into int32_t might still overflow)
-        else if constexpr (std::signed_integral<AccumT> && std::signed_integral<ElemT>) {
-            if constexpr (sizeof(AccumT) == sizeof(ElemT) + sizeof(ElemT)) {
-                // int32_t accumulating int16_t - warn if pattern suggests large accumulation
-                // This is conservative but helps catch common mistakes
-                warn_accumulator_overflow<AccumT, ElemT>();
-            }
         }
     }
 }
 
-// Stricter check for when we know this is definitely a sum operation
-template<typename AccumT, typename ElemT>
-constexpr void check_sum_overflow() {
-    if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // For sum operations, be more aggressive with warnings
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT) * 2) {
-            warn_accumulator_overflow<AccumT, ElemT>();
-        }
-    }
-}
+// =============================================================================
+// Body signature concepts
+// =============================================================================
+
+// Index-based for loop bodies
+template<typename F, typename T>
+concept ForBody = std::invocable<F, T>;
+
+template<typename F, typename T>
+concept ForCtrlBody = std::invocable<F, T, LoopCtrl<void>&>;
+
+template<typename F, typename T, typename R>
+concept ForRetBody = std::invocable<F, T, LoopCtrl<R>&>;
+
+// Range-based for loop bodies
+template<typename F, typename Ref>
+concept ForRangeBody = std::invocable<F, Ref>;
+
+template<typename F, typename Ref>
+concept ForRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&>;
+
+template<typename F, typename Ref, typename R>
+concept ForRangeRetBody = std::invocable<F, Ref, LoopCtrl<R>&>;
+
+// Reduce bodies - must return a value
+template<typename F, typename T>
+concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
+
+template<typename F, typename T>
+concept ReduceCtrlBody = std::invocable<F, T, LoopCtrl<void>&> &&
+    !std::same_as<std::invoke_result_t<F, T, LoopCtrl<void>&>, void>;
+
+template<typename F, typename Ref>
+concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
+
+template<typename F, typename Ref>
+concept ReduceRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&> &&
+    !std::same_as<std::invoke_result_t<F, Ref, LoopCtrl<void>&>, void>;
+
+// Find bodies - takes (index, sentinel) and returns bool, index, or optional
+template<typename F, typename T>
+concept FindBody = std::invocable<F, T, T>;
+
+// Predicate bodies - simple bool return
+template<typename F, typename T>
+concept PredicateBody = std::invocable<F, T> &&
+    std::same_as<std::invoke_result_t<F, T>, bool>;
+
+template<typename F, typename Ref>
+concept PredicateRangeBody = std::invocable<F, Ref> &&
+    std::same_as<std::invoke_result_t<F, Ref>, bool>;
+
+// Find range with index - body receives (value, index, end_iterator)
+template<typename F, typename Ref, typename Iter>
+concept FindRangeIdxBody = std::invocable<F, Ref, std::size_t, Iter>;
 
 } // namespace detail
 } // namespace ilp
