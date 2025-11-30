@@ -15,7 +15,7 @@ Compare assembly output across architectures to see the optimization differences
 
 Early-exit search comparing ILP multi-accumulator vs sequential checks
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/WbqKjcf7Y) | [x86-64 GCC](https://godbolt.org/z/7Txes4Eve) | [ARM64](https://godbolt.org/z/1qxhf6zxP)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/jrTb1GG4T) | [x86-64 GCC](https://godbolt.org/z/qY3dcd4EE) | [ARM64](https://godbolt.org/z/nbde8oKvP)
 
 [Source code](../godbolt_examples/find_first_match.cpp)
 
@@ -25,7 +25,7 @@ Early-exit search comparing ILP multi-accumulator vs sequential checks
 
 Parallel accumulator reduce breaking dependency chains
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/MPcsdG8jj) | [x86-64 GCC](https://godbolt.org/z/boavvsrbr) | [ARM64](https://godbolt.org/z/nPMzhddh9)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/4Ko7qfh9E) | [x86-64 GCC](https://godbolt.org/z/94c1G6TGr) | [ARM64](https://godbolt.org/z/5EcEnfodb)
 
 [Source code](../godbolt_examples/parallel_min.cpp)
 
@@ -35,7 +35,7 @@ Parallel accumulator reduce breaking dependency chains
 
 Reduce with break condition showing control flow handling
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/cseKTehno) | [x86-64 GCC](https://godbolt.org/z/745MYGG8o) | [ARM64](https://godbolt.org/z/GnrEzThPx)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/97j8ejMYz) | [x86-64 GCC](https://godbolt.org/z/7bx9esxr8) | [ARM64](https://godbolt.org/z/fYP7a6ajb)
 
 [Source code](../godbolt_examples/sum_with_break.cpp)
 
@@ -45,7 +45,7 @@ Reduce with break condition showing control flow handling
 
 In-place transformation without control flow (SIMPLE variant)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/7zed7GvKe) | [x86-64 GCC](https://godbolt.org/z/h9c6djh5b) | [ARM64](https://godbolt.org/z/38hqboqTW)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/dq5f9bx3r) | [x86-64 GCC](https://godbolt.org/z/3fs1Wjh9o) | [ARM64](https://godbolt.org/z/n89T56raP)
 
 [Source code](../godbolt_examples/transform_simple.cpp)
 
@@ -64,6 +64,6 @@ In-place transformation without control flow (SIMPLE variant)
 
 ## Compiler Settings
 
-- **x86-64 Clang**: Clang trunk (latest), `-std=c++2b -O3 -march=skylake`
+- **x86-64 Clang**: Clang 18, `-std=c++2b -O3 -march=skylake`
 - **x86-64 GCC**: GCC 14.1, `-std=c++2b -O3 -march=skylake`
-- **ARM64**: ARM64 GCC 12.2, `-std=c++2b -O3 -mcpu=cortex-a72`
+- **ARM64**: ARM Clang 18, `-std=c++2b -O3 -mcpu=apple-m1`
