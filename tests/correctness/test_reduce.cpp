@@ -22,9 +22,9 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // accumulators holding the values processed before the break.
         auto result = ILP_REDUCE_RANGE(std::plus<int>(), 0, auto&& val, data, 4) {
             if (val > 5) {
-                ILP_REDUCE_BREAK(0);
+                ILP_REDUCE_BREAK;
             }
-            return val;
+            ILP_REDUCE_RETURN(val);
         } ILP_END_REDUCE;
 
         // The elements processed should be 1, 1, 1, 1, 1, 1. The sum is 6.
@@ -33,7 +33,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // Let's trace the buggy version:
         // accs = {0,0,0,0}
         // Block 1: accs = {1,1,1,1}
-        // Block 2: 
+        // Block 2:
         //   - accs[0] += 1 (val=1) -> accs[0]=2
         //   - accs[1] += 1 (val=1) -> accs[1]=2
         //   - val=9, break! The lambda for 9 returns, ctrl.ok=false. Short-circuit stops next.
@@ -45,7 +45,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // Tracing the fixed version:
         // accs = {0,0,0,0}
         // Block 1: accs = {1,1,1,1}
-        // Block 2: 
+        // Block 2:
         //   - accs[0] += 1 (val=1) -> accs[0]=2
         //   - accs[1] += 1 (val=1) -> accs[1]=2
         //   - val=9, ILP_BREAK. The lambda for 9 returns, ctrl.ok=false.
@@ -60,9 +60,9 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
         // Sum numbers up to a value where the index triggers a break.
         auto result = ILP_REDUCE(std::plus<int>(), 0, auto i, 0, 100, 4) {
             if (i >= 10) {
-                ILP_REDUCE_BREAK(0);
+                ILP_REDUCE_BREAK;
             }
-            return (int)i;
+            ILP_REDUCE_RETURN((int)i);
         } ILP_END_REDUCE;
 
         // The sum should be 0 + 1 + ... + 9 = 45
@@ -243,9 +243,9 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
 
         auto result = ILP_REDUCE_RANGE(std::plus<>(), 0, auto&& val, data, 4) {
             if (val == 9) {  // Last element, in cleanup
-                ILP_REDUCE_BREAK(0);
+                ILP_REDUCE_BREAK;
             }
-            return val;
+            ILP_REDUCE_RETURN(val);
         } ILP_END_REDUCE;
 
         // Sum 1+2+3+4+5+6+7+8 = 36
@@ -269,6 +269,57 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
         REQUIRE(result.has_value());
         REQUIRE(result.value() == 70);
     }
+}
+
+// =============================================================================
+// Path detection tests - verify ReduceResult detection
+// =============================================================================
+
+TEST_CASE("ReduceResult is detected with ILP_REDUCE_RETURN", "[reduce][path]") {
+    using namespace ilp::detail;
+
+    // ReduceResult<T> has value and _break fields
+    auto lambda = [](int i, ilp::LoopCtrl<void>&) {
+        return ReduceResult<int>{i, false};
+    };
+    using R = std::invoke_result_t<decltype(lambda), int, ilp::LoopCtrl<void>&>;
+    static_assert(is_reduce_result_v<R>, "Should detect ReduceResult");
+
+    auto result = ILP_REDUCE_AUTO(std::plus<>{}, 0, auto i, 0, 10) {
+        ILP_REDUCE_RETURN(i);
+    } ILP_END_REDUCE;
+    CHECK(result == 45);
+}
+
+TEST_CASE("ReduceResult with break stops correctly", "[reduce][path]") {
+    using namespace ilp::detail;
+
+    auto result = ILP_REDUCE_AUTO(std::plus<>{}, 0, auto i, 0, 100) {
+        if (i >= 10) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(i);
+    } ILP_END_REDUCE;
+    CHECK(result == 45);  // 0+1+...+9
+}
+
+TEST_CASE("Range-based reduce with ILP_REDUCE_RETURN", "[reduce][path][range]") {
+    using namespace ilp::detail;
+    std::vector<int> data = {0, 1, 2, 3, 4};
+
+    auto result = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0, auto val, data) {
+        ILP_REDUCE_RETURN(val);
+    } ILP_END_REDUCE;
+    CHECK(result == 10);
+}
+
+TEST_CASE("Range-based reduce with break stops correctly", "[reduce][path][range]") {
+    using namespace ilp::detail;
+    std::vector<int> data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+    auto result = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0, auto val, data) {
+        if (val >= 5) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(val);
+    } ILP_END_REDUCE;
+    CHECK(result == 10);  // 0+1+2+3+4
 }
 
 #endif

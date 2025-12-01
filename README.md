@@ -147,7 +147,7 @@ ILP_FOR_RET(int, auto i, 0, n, 4) {
 |-------|--------|-------------|
 | `ILP_CONTINUE` | Any loop | Skip to next iteration |
 | `ILP_BREAK` | Loops | Exit loop |
-| `ILP_REDUCE_BREAK(identity)` | Reduce | Exit and return identity value |
+| `ILP_REDUCE_BREAK` | Reduce | Exit early from reduction |
 | `ILP_RETURN(val)` | `*_RET` loops | Return from enclosing function |
 
 ---
@@ -192,13 +192,13 @@ if (idx != n) {  // Found
 }
 ```
 
-### ILP_REDUCE_BREAK Requires Identity
+### ILP_REDUCE_BREAK for Early Exit
 
-When breaking early from a reduce, you must provide the identity value:
+Use `ILP_REDUCE_BREAK` to exit early from a reduction:
 
 ```cpp
 int sum = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, n, 4) {
-    if (data[i] < 0) ILP_REDUCE_BREAK(0);  // identity for plus
+    if (data[i] < 0) ILP_REDUCE_BREAK;  // Stop reduction
     return data[i];
 } ILP_END_REDUCE;
 ```

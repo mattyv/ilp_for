@@ -19,7 +19,7 @@ run_tests() {
     cd "$BUILD_DIR"
 
     cmake .. $cmake_flags
-    make -j
+    cmake --build . -j
 
     ./test_runner
 

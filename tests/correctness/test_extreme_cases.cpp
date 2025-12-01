@@ -43,8 +43,8 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
     auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-        ILP_REDUCE_BREAK(0);  // Immediately break
-        return i;
+        (void)i;
+        ILP_REDUCE_BREAK;  // Immediately break
     } ILP_END_REDUCE;
     // Should be 100, NOT 400
     INFO("Result should be init value (100), not N*init (400)");

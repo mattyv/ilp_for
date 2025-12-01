@@ -408,7 +408,7 @@ TEST_CASE("Array pointer iteration", "[mistake][pointer]") {
 // -----------------------------------------------------------------------------
 
 // Since reduce() auto-detects from signature, lambdas without ctrl work fine.
-// Use ILP_REDUCE_BREAK(identity) if you need early exit.
+// Use ILP_REDUCE_BREAK if you need early exit.
 
 // -----------------------------------------------------------------------------
 // Mistake 29: Comparing iterators incorrectly

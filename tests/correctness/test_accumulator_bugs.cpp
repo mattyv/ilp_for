@@ -152,7 +152,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
 TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break on first iteration") {
         auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-            ILP_REDUCE_BREAK(0);  // 0 is identity for plus
+            ILP_REDUCE_BREAK;  // 0 is identity for plus
         } ILP_END_REDUCE;
         INFO("Bug: Returns 400 instead of 100");
         REQUIRE(result == 100);  // Will FAIL with 400
@@ -160,8 +160,8 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
 
     SECTION("Break after first element") {
         auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-            if (i == 1) ILP_REDUCE_BREAK(0);
-            return i;
+            if (i == 1) ILP_REDUCE_BREAK;
+            ILP_REDUCE_RETURN(i);
         } ILP_END_REDUCE;
         // First iteration processes 0 in one accumulator
         // Then breaks

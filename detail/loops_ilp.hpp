@@ -21,8 +21,23 @@ namespace detail {
 // Identity element inference for common operations
 // =============================================================================
 
+// Trait to detect operations with compile-time known identity elements
 template<typename Op, typename T>
-constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T init) {
+constexpr bool has_known_identity_v =
+    std::is_same_v<std::decay_t<Op>, std::plus<>> ||
+    std::is_same_v<std::decay_t<Op>, std::plus<T>> ||
+    std::is_same_v<std::decay_t<Op>, std::multiplies<>> ||
+    std::is_same_v<std::decay_t<Op>, std::multiplies<T>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_and<>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_and<T>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_or<>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_or<T>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_xor<>> ||
+    std::is_same_v<std::decay_t<Op>, std::bit_xor<T>>;
+
+// Construct identity element directly (zero copies)
+template<typename Op, typename T>
+constexpr T make_identity() {
     if constexpr (std::is_same_v<std::decay_t<Op>, std::plus<>> ||
                   std::is_same_v<std::decay_t<Op>, std::plus<T>>) {
         return T{};
@@ -39,9 +54,36 @@ constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T
                          std::is_same_v<std::decay_t<Op>, std::bit_xor<T>>) {
         return T{};
     } else {
+        static_assert(has_known_identity_v<Op, T>, "make_identity requires known operation");
+    }
+}
+
+// Legacy: infer identity from init (copies init for unknown ops)
+template<typename Op, typename T>
+constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T init) {
+    if constexpr (has_known_identity_v<Op, T>) {
+        return make_identity<Op, T>();
+    } else {
         // For unknown operations (lambdas, etc.), fall back to using init as identity
         // This is only correct if init is actually the identity element
         return init;
+    }
+}
+
+// Create accumulator array - zero copies for known ops, N copies for unknown ops
+template<std::size_t N, typename BinaryOp, typename R, typename Init>
+std::array<R, N> make_accumulators([[maybe_unused]] const BinaryOp& op, [[maybe_unused]] Init&& init) {
+    if constexpr (has_known_identity_v<BinaryOp, R>) {
+        // Zero-copy: directly construct identity elements via guaranteed copy elision
+        return []<std::size_t... Is>(std::index_sequence<Is...>) {
+            return std::array<R, N>{((void)Is, make_identity<BinaryOp, R>())...};
+        }(std::make_index_sequence<N>{});
+    } else {
+        // Unknown ops: copy identity to all elements (N copies)
+        std::array<R, N> accs;
+        R identity = operation_identity(op, static_cast<R>(std::forward<Init>(init)));
+        accs.fill(identity);
+        return accs;
     }
 }
 
@@ -403,44 +445,78 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 // =============================================================================
 
 // Unified reduce implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
+// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires ReduceBody<F, T> || ReduceCtrlBody<F, T>
-auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
+auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     constexpr bool has_ctrl = ReduceCtrlBody<F, T>;
 
     if constexpr (has_ctrl) {
-        using R = std::invoke_result_t<F, T, LoopCtrl<void>&>;
-        R identity = operation_identity(op, static_cast<R>(init));
+        using ResultT = std::invoke_result_t<F, T, LoopCtrl<void>&>;
 
-        std::array<R, N> accs;
-        accs.fill(identity);
+        if constexpr (is_reduce_result_v<ResultT>) {
+            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
+            using R = decltype(std::declval<ResultT>().value);
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-        LoopCtrl<void> ctrl;
-        T i = start;
+            LoopCtrl<void> ctrl;
+            T i = start;
+            bool should_break = false;
 
-        for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-            for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
-                accs[j] = op(accs[j], body(i + static_cast<T>(j), ctrl));
+            for (; i + static_cast<T>(N) <= end && !should_break; i += static_cast<T>(N)) {
+                for (std::size_t j = 0; j < N && !should_break; ++j) {
+                    auto result = body(i + static_cast<T>(j), ctrl);
+                    if (result.did_break()) {
+                        should_break = true;
+                    } else {
+                        accs[j] = op(accs[j], result.value);
+                    }
+                }
             }
-        }
 
-        for (; i < end && ctrl.ok; ++i) {
-            accs[0] = op(accs[0], body(i, ctrl));
-        }
+            for (; i < end && !should_break; ++i) {
+                auto result = body(i, ctrl);
+                if (result.did_break()) {
+                    should_break = true;
+                } else {
+                    accs[0] = op(accs[0], result.value);
+                }
+            }
 
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = init;
-            ((result = op(result, accs[Is])), ...);
-            return result;
-        }(std::make_index_sequence<N>{});
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        } else {
+            // Simple API: plain return value (no break support)
+            using R = ResultT;
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+
+            LoopCtrl<void> ctrl;
+            T i = start;
+
+            for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+                for (std::size_t j = 0; j < N; ++j) {
+                    accs[j] = op(accs[j], body(i + static_cast<T>(j), ctrl));
+                }
+            }
+
+            for (; i < end; ++i) {
+                accs[0] = op(accs[0], body(i, ctrl));
+            }
+
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        }
     } else {
         static_assert(ReduceBody<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
         using R = std::invoke_result_t<F, T>;
-        R identity = operation_identity(op, static_cast<R>(init));
-
-        std::array<R, N> accs;
-        accs.fill(identity);
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
         T i = start;
 
@@ -455,7 +531,7 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = init;
+            R result = std::forward<Init>(init);
             ((result = op(result, accs[Is])), ...);
             return result;
         }(std::make_index_sequence<N>{});
@@ -463,8 +539,9 @@ auto reduce_impl(T start, T end, Init init, BinaryOp op, F&& body) {
 }
 
 // Unified range-based reduce - optimized for contiguous ranges
+// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
 template<std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F>
-auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = ReduceRangeCtrlBody<F, Ref>;
@@ -474,28 +551,64 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     std::size_t i = 0;
 
     if constexpr (has_ctrl) {
-        using R = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
-        R identity = operation_identity(op, static_cast<R>(init));
-        std::array<R, N> accs;
-        accs.fill(identity);
+        using ResultT = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
 
-        LoopCtrl<void> ctrl;
+        if constexpr (is_reduce_result_v<ResultT>) {
+            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
+            using R = decltype(std::declval<ResultT>().value);
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-        for (; i + N <= size && ctrl.ok; i += N) {
-            for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
-                accs[j] = op(accs[j], body(ptr[i + j], ctrl));
+            LoopCtrl<void> ctrl;
+            bool should_break = false;
+
+            for (; i + N <= size && !should_break; i += N) {
+                for (std::size_t j = 0; j < N && !should_break; ++j) {
+                    auto result = body(ptr[i + j], ctrl);
+                    if (result.did_break()) {
+                        should_break = true;
+                    } else {
+                        accs[j] = op(accs[j], result.value);
+                    }
+                }
             }
-        }
 
-        for (; i < size && ctrl.ok; ++i) {
-            accs[0] = op(accs[0], body(ptr[i], ctrl));
-        }
+            for (; i < size && !should_break; ++i) {
+                auto result = body(ptr[i], ctrl);
+                if (result.did_break()) {
+                    should_break = true;
+                } else {
+                    accs[0] = op(accs[0], result.value);
+                }
+            }
 
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = init;
-            ((result = op(result, accs[Is])), ...);
-            return result;
-        }(std::make_index_sequence<N>{});
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        } else {
+            // Simple API: plain return value (no break support)
+            using R = ResultT;
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+
+            LoopCtrl<void> ctrl;
+
+            for (; i + N <= size; i += N) {
+                for (std::size_t j = 0; j < N; ++j) {
+                    accs[j] = op(accs[j], body(ptr[i + j], ctrl));
+                }
+            }
+
+            for (; i < size; ++i) {
+                accs[0] = op(accs[0], body(ptr[i], ctrl));
+            }
+
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        }
     } else {
         // Dispatch to std::transform_reduce for SIMD vectorization
         return std::transform_reduce(
@@ -509,9 +622,10 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
 }
 
 // Unified range-based reduce - fallback for random access (non-contiguous) ranges
+// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires (!std::ranges::contiguous_range<Range>)
-auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
+auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = ReduceRangeCtrlBody<F, Ref>;
@@ -521,28 +635,64 @@ auto reduce_range_impl(Range&& range, Init init, BinaryOp op, F&& body) {
     std::size_t i = 0;
 
     if constexpr (has_ctrl) {
-        using R = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
-        R identity = operation_identity(op, static_cast<R>(init));
-        std::array<R, N> accs;
-        accs.fill(identity);
+        using ResultT = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
 
-        LoopCtrl<void> ctrl;
+        if constexpr (is_reduce_result_v<ResultT>) {
+            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
+            using R = decltype(std::declval<ResultT>().value);
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-        for (; i + N <= size && ctrl.ok; i += N) {
-            for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
-                accs[j] = op(accs[j], body(it[i + j], ctrl));
+            LoopCtrl<void> ctrl;
+            bool should_break = false;
+
+            for (; i + N <= size && !should_break; i += N) {
+                for (std::size_t j = 0; j < N && !should_break; ++j) {
+                    auto result = body(it[i + j], ctrl);
+                    if (result.did_break()) {
+                        should_break = true;
+                    } else {
+                        accs[j] = op(accs[j], result.value);
+                    }
+                }
             }
-        }
 
-        for (; i < size && ctrl.ok; ++i) {
-            accs[0] = op(accs[0], body(it[i], ctrl));
-        }
+            for (; i < size && !should_break; ++i) {
+                auto result = body(it[i], ctrl);
+                if (result.did_break()) {
+                    should_break = true;
+                } else {
+                    accs[0] = op(accs[0], result.value);
+                }
+            }
 
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = init;
-            ((result = op(result, accs[Is])), ...);
-            return result;
-        }(std::make_index_sequence<N>{});
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        } else {
+            // Simple API: plain return value (no break support)
+            using R = ResultT;
+            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+
+            LoopCtrl<void> ctrl;
+
+            for (; i + N <= size; i += N) {
+                for (std::size_t j = 0; j < N; ++j) {
+                    accs[j] = op(accs[j], body(it[i + j], ctrl));
+                }
+            }
+
+            for (; i < size; ++i) {
+                accs[0] = op(accs[0], body(it[i], ctrl));
+            }
+
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                R result = std::forward<Init>(init);
+                ((result = op(result, accs[Is])), ...);
+                return result;
+            }(std::make_index_sequence<N>{});
+        }
     } else {
         // Dispatch to std::transform_reduce for SIMD vectorization
         return std::transform_reduce(
@@ -678,38 +828,15 @@ std::optional<std::size_t> for_until_range(Range&& range, Pred&& pred) {
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceBody<F, T> || detail::ReduceCtrlBody<F, T>
-auto reduce(T start, T end, Init init, BinaryOp op, F&& body) {
-    return detail::reduce_impl<N>(start, end, init, op, std::forward<F>(body));
-}
-
-template<std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T>
-auto reduce_sum(T start, T end, F&& body) {
-    using R = std::invoke_result_t<F, T>;
-
-    // Check for potential overflow
-    detail::check_sum_overflow<R, T>();
-
-    return detail::reduce_impl<N>(start, end, R{}, std::plus<>{}, std::forward<F>(body));
+auto reduce(T start, T end, Init&& init, BinaryOp op, F&& body) {
+    return detail::reduce_impl<N>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
           || detail::ReduceRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
-auto reduce_range(Range&& range, Init init, BinaryOp op, F&& body) {
-    return detail::reduce_range_impl<N>(std::forward<Range>(range), init, op, std::forward<F>(body));
-}
-
-template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>>
-auto reduce_range_sum(Range&& range, F&& body) {
-    using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>>;
-    using ElemT = std::ranges::range_value_t<Range>;
-
-    // Check for potential overflow
-    detail::check_sum_overflow<R, ElemT>();
-
-    return detail::reduce_range_impl<N>(std::forward<Range>(range), R{}, std::plus<>{}, std::forward<F>(body));
+auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
+    return detail::reduce_range_impl<N>(std::forward<Range>(range), std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 // =============================================================================
@@ -722,31 +849,18 @@ auto find_auto(T start, T end, F&& body) {
     return detail::find_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
 }
 
-template<std::integral T, typename F>
-    requires std::invocable<F, T>
-auto reduce_sum_auto(T start, T end, F&& body) {
-    return reduce_sum<optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
-}
-
 template<std::integral T, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceBody<F, T> || detail::ReduceCtrlBody<F, T>
-auto reduce_auto(T start, T end, Init init, BinaryOp op, F&& body) {
-    return reduce<optimal_N<LoopType::Sum, T>>(start, end, init, op, std::forward<F>(body));
-}
-
-template<std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>>
-auto reduce_range_sum_auto(Range&& range, F&& body) {
-    using T = std::ranges::range_value_t<Range>;
-    return reduce_range_sum<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
+auto reduce_auto(T start, T end, Init&& init, BinaryOp op, F&& body) {
+    return reduce<optimal_N<LoopType::Sum, T>>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 template<std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
           || detail::ReduceRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
-auto reduce_range_auto(Range&& range, Init init, BinaryOp op, F&& body) {
+auto reduce_range_auto(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return reduce_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), init, op, std::forward<F>(body));
+    return reduce_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 template<std::integral T, typename Pred>

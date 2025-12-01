@@ -580,16 +580,16 @@ TEST_CASE("Large offset range", "[edge][offset]") {
 
 TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
     auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 100, 4) {
-        if (i >= 10) ILP_REDUCE_BREAK(0);
-        return i;
+        if (i >= 10) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(i);
     } ILP_END_REDUCE;
     REQUIRE(result == 45);  // 0+1+...+9
 }
 
 TEST_CASE("Reduce breaks on first", "[edge][reduce][control]") {
     auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
-        ILP_REDUCE_BREAK(0);
-        return i;
+        (void)i;
+        ILP_REDUCE_BREAK;
     } ILP_END_REDUCE;
     REQUIRE(result == 100);  // Initial value
 }

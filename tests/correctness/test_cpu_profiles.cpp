@@ -182,34 +182,34 @@ TEST_CASE("optimal_N with actual types", "[cpu]") {
 }
 
 TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
-    SECTION("reduce_sum with int") {
+    SECTION("reduce with int") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        auto sum = reduce_sum<4>(0, 100, [&](int i) {
-            return static_cast<int64_t>(data[i]);
+        auto sum = reduce<4>(0, 100, int64_t{}, std::plus<>{}, [&](int i, auto&) {
+            ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
         });
 
         REQUIRE(sum == 5050);
     }
 
-    SECTION("reduce_sum with short") {
+    SECTION("reduce with short") {
         std::vector<short> data(100);
         for (int i = 0; i < 100; ++i) data[i] = static_cast<short>(i + 1);
 
-        auto sum = reduce_sum<4>(short(0), short(100), [&](short i) {
-            return static_cast<int64_t>(data[i]);
+        auto sum = reduce<4>(short(0), short(100), int64_t{}, std::plus<>{}, [&](short i, auto&) {
+            ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
         });
 
         REQUIRE(sum == 5050);
     }
 
-    SECTION("reduce_range_sum") {
+    SECTION("reduce_range") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        auto sum = reduce_range_sum<4>(data, [&](int val) {
-            return static_cast<int64_t>(val);
+        auto sum = reduce_range<4>(data, int64_t{}, std::plus<>{}, [&](int val, auto&) {
+            ILP_REDUCE_RETURN(static_cast<int64_t>(val));
         });
 
         REQUIRE(sum == 5050);

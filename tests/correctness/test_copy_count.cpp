@@ -26,6 +26,11 @@ struct CopyMoveCounter {
     static void reset() { copies = moves = 0; }
 
     bool operator==(const CopyMoveCounter& o) const { return value == o.value; }
+
+    // Support std::plus<> for zero-copy reduce tests
+    friend CopyMoveCounter operator+(const CopyMoveCounter& a, const CopyMoveCounter& b) {
+        return CopyMoveCounter(a.value + b.value);
+    }
 };
 
 // Move-only type - compilation fails if copy is attempted
@@ -40,16 +45,16 @@ struct MoveOnly {
     MoveOnly& operator=(MoveOnly&&) noexcept = default;
 
     bool operator==(const MoveOnly& o) const { return value == o.value; }
+
+    // Support std::plus<> for zero-copy reduce tests
+    friend MoveOnly operator+(const MoveOnly& a, const MoveOnly& b) {
+        return MoveOnly(a.value + b.value);
+    }
 };
 
 // Binary operation for CopyMoveCounter - takes const refs to avoid copies
 CopyMoveCounter add_counters(const CopyMoveCounter& a, const CopyMoveCounter& b) {
     return CopyMoveCounter(a.value + b.value);
-}
-
-// Binary operation for MoveOnly
-MoveOnly add_move_only(MoveOnly&& a, MoveOnly&& b) {
-    return MoveOnly(a.value + b.value);
 }
 
 } // namespace
@@ -143,8 +148,13 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
     // 0 + 1 + 2 + 3 = 6
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    // N+3 copies expected: N for accs.fill + init copies in function calls
-    CHECK(CopyMoveCounter::copies <= 10);  // Reasonable for reduce with N accumulators
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    // Single accumulator - no fill needed
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    // ILP mode: N copies from accs.fill(identity) for unknown ops
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
 }
 
 TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
@@ -157,7 +167,11 @@ TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    CHECK(CopyMoveCounter::copies <= 10);  // Reasonable for reduce with N accumulators
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
 }
 
 // =============================================================================
@@ -193,7 +207,11 @@ TEST_CASE("Minimal copies in reduce_range return path", "[copy_count][range][red
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    CHECK(CopyMoveCounter::copies <= 10);  // Reasonable for reduce with N accumulators
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
 }
 
 // =============================================================================
@@ -233,4 +251,132 @@ TEST_CASE("Move-only type works with ILP_FOR_RET macro", "[copy_count][macro][co
     auto result = test_ilp_for_ret_move_only_helper();
     REQUIRE(result.has_value());
     CHECK(result->value == 50);
+}
+
+// =============================================================================
+// ReduceResult wrapper copy count tests
+// =============================================================================
+
+TEST_CASE("ReduceResult<Value> has minimal copy overhead", "[copy_count][reduce]") {
+    CopyMoveCounter::reset();
+
+    auto result = ILP_REDUCE_AUTO(add_counters, CopyMoveCounter{0}, auto i, 0, 4) {
+        ILP_REDUCE_RETURN(CopyMoveCounter(i));
+    } ILP_END_REDUCE;
+
+    CHECK(result.value == 6);  // 0+1+2+3
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
+}
+
+TEST_CASE("ReduceResult<Break> has minimal copy overhead", "[copy_count][reduce]") {
+    CopyMoveCounter::reset();
+
+    auto result = ILP_REDUCE_AUTO(add_counters, CopyMoveCounter{0}, auto i, 0, 10) {
+        if (i >= 4) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(CopyMoveCounter(i));
+    } ILP_END_REDUCE;
+
+    CHECK(result.value == 6);  // 0+1+2+3
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
+}
+
+// Note: Move-only types require known ops (std::plus<>, etc.) which use
+// make_identity for zero-copy accumulator initialization. Unknown ops
+// (custom lambdas) still require copying the identity value.
+
+TEST_CASE("Range-based reduce copy count with ILP_REDUCE_RETURN", "[copy_count][reduce][range]") {
+    CopyMoveCounter::reset();
+    std::vector<int> data = {0, 1, 2, 3};
+
+    auto result = ILP_REDUCE_RANGE_AUTO(add_counters, CopyMoveCounter{0}, auto val, data) {
+        ILP_REDUCE_RETURN(CopyMoveCounter(val));
+    } ILP_END_REDUCE;
+
+    CHECK(result.value == 6);
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 4);
+#endif
+}
+
+// =============================================================================
+// Zero-copy tests for known operations (std::plus, std::multiplies, etc.)
+// =============================================================================
+
+TEST_CASE("Zero copies with std::plus<> known identity", "[copy_count][reduce][zero_copy]") {
+    CopyMoveCounter::reset();
+
+    // std::plus<> is a known operation with compile-time identity (T{} = 0)
+    // Accumulators are directly initialized via make_identity, skipping fill
+    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, std::plus<>{},
+        [](int i) {
+            return CopyMoveCounter(i);
+        });
+
+    CHECK(result.value == 6);  // 0+1+2+3
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+    // 0 copies: make_identity returns prvalue, guaranteed copy elision into array elements
+    CHECK(CopyMoveCounter::copies == 0);
+}
+
+TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_copy]") {
+    CopyMoveCounter::reset();
+
+    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, std::plus<>{},
+        [](int i, ilp::LoopCtrl<void>&) {
+            return CopyMoveCounter(i);
+        });
+
+    CHECK(result.value == 6);
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+    CHECK(CopyMoveCounter::copies == 0);
+}
+
+TEST_CASE("Zero copies with ILP_REDUCE_RETURN and std::plus<>", "[copy_count][reduce][zero_copy]") {
+    CopyMoveCounter::reset();
+
+    auto result = ILP_REDUCE_AUTO(std::plus<>{}, CopyMoveCounter{0}, auto i, 0, 4) {
+        ILP_REDUCE_RETURN(CopyMoveCounter(i));
+    } ILP_END_REDUCE;
+
+    CHECK(result.value == 6);
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+    CHECK(CopyMoveCounter::copies == 0);
+}
+
+TEST_CASE("Zero copies with range-based reduce and std::plus<>", "[copy_count][reduce][range][zero_copy]") {
+    CopyMoveCounter::reset();
+    std::vector<int> data = {0, 1, 2, 3};
+
+    auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, std::plus<>{},
+        [](int val, ilp::LoopCtrl<void>&) {
+            return CopyMoveCounter(val);
+        });
+
+    CHECK(result.value == 6);
+    INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
+    CHECK(CopyMoveCounter::copies == 0);
+}
+
+TEST_CASE("Move-only type works with std::plus<> reduce", "[copy_count][reduce][zero_copy][compile-time]") {
+    // This compiles because std::plus<> uses make_identity (zero copies)
+    // instead of accs.fill() which would require copy constructor
+    auto result = ilp::reduce<4>(0, 4, MoveOnly{0}, std::plus<>{},
+        [](int i) {
+            return MoveOnly(i);
+        });
+
+    CHECK(result.value == 6);
 }

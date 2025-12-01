@@ -31,6 +31,26 @@ template<typename T>
 inline constexpr bool is_optional_v = is_optional<T>::value;
 
 // =============================================================================
+// Reduce result type
+// =============================================================================
+
+// Result from reduce body: value to accumulate, and whether to break early
+template<typename T>
+struct ReduceResult {
+    T value;
+    bool _break;
+
+    constexpr ReduceResult(T v, bool b) : value(std::move(v)), _break(b) {}
+    constexpr bool did_break() const { return _break; }
+};
+
+// Type trait to detect ReduceResult
+template<typename T> struct is_reduce_result : std::false_type {};
+template<typename T>
+struct is_reduce_result<ReduceResult<T>> : std::true_type {};
+template<typename T> inline constexpr bool is_reduce_result_v = is_reduce_result<T>::value;
+
+// =============================================================================
 // Compile-time validation
 // =============================================================================
 

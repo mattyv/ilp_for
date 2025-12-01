@@ -213,8 +213,8 @@ TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
 TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
     // Breaking returns 0 from body, but what about accumulated values?
     auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 100, 4) {
-        if (i == 10) ILP_REDUCE_BREAK(0);
-        return i;
+        if (i == 10) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(i);
     } ILP_END_REDUCE;
 
     // Expected: 0+1+2+3+4+5+6+7+8+9 = 45
@@ -224,8 +224,8 @@ TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
 TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
     // Break at position 0, 4, 8 (first of each unroll block)
     auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 12, 4) {
-        if (i % 4 == 0) ILP_REDUCE_BREAK(0);
-        return i;
+        if (i % 4 == 0) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(i);
     } ILP_END_REDUCE;
 
     // Breaks on first iteration

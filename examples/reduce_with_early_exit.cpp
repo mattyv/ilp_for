@@ -12,30 +12,24 @@
 // Sum first N elements only
 int sum_first_n(const std::vector<int>& data, size_t n) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
-        if (i >= n) {
-            ILP_REDUCE_BREAK(0);  // Stop, contribute 0 for this iteration
-        }
-        return data[i];
+        if (i >= n) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(data[i]);
     } ILP_END_REDUCE;
 }
 
 // Sum until sentinel value encountered
 int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
-        if (data[i] == sentinel) {
-            ILP_REDUCE_BREAK(0);  // Stop at sentinel
-        }
-        return data[i];
+        if (data[i] == sentinel) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(data[i]);
     } ILP_END_REDUCE;
 }
 
 // Count positive values, stop at first negative
 size_t count_positive_until_negative(const std::vector<int>& data) {
     return ILP_REDUCE(std::plus<>{}, 0uz, auto i, 0uz, data.size(), 4) {
-        if (data[i] < 0) {
-            ILP_REDUCE_BREAK(0uz);  // Negative found, stop
-        }
-        return data[i] > 0 ? 1uz : 0uz;
+        if (data[i] < 0) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(data[i] > 0 ? 1uz : 0uz);
     } ILP_END_REDUCE;
 }
 
@@ -43,23 +37,16 @@ size_t count_positive_until_negative(const std::vector<int>& data) {
 // Skip zeros, stop at negative
 int sum_nonzero_until_negative(const std::vector<int>& data) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
-        if (data[i] < 0) {
-            ILP_REDUCE_BREAK(0);  // Error marker, stop
-        }
-        if (data[i] == 0) {
-            return 0;  // Skip zeros (continue)
-        }
-        return data[i];
+        if (data[i] < 0) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(data[i]);  // Zeros contribute 0 (identity for +)
     } ILP_END_REDUCE;
 }
 
 // Product with early termination on zero
 int64_t product_until_zero(const std::vector<int>& data) {
     return ILP_REDUCE(std::multiplies<>{}, 1LL, auto i, 0uz, data.size(), 4) {
-        if (data[i] == 0) {
-            ILP_REDUCE_BREAK(1LL);  // Zero found, product is 0 anyway
-        }
-        return static_cast<int64_t>(data[i]);
+        if (data[i] == 0) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
     } ILP_END_REDUCE;
 }
 
