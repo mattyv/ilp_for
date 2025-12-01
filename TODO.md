@@ -6,11 +6,10 @@
 
 ## Testing
 - [ ] Add UBSan (Undefined Behavior Sanitizer) to test builds
-- [ ] Update copy count tests to expect moves instead of copies (0 copies is correct now)
 
 ## Build
 - [ ] Add UBSan CMake option (`-fsanitize=undefined`)
 - [ ] Consider ASan (Address Sanitizer) integration
 
 ## CI
-- [ ] Add all ILP modes (ILP, SIMPLE, PRAGMA) testing to GitHub CI
+- [x] Add all ILP modes (ILP, SIMPLE, PRAGMA) testing to GitHub CI

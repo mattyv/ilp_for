@@ -8,64 +8,38 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.os }}-${{ matrix.compiler }}
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.config.os }}-${{ matrix.config.compiler }}-${{ matrix.ilp_mode }}
+    runs-on: ${{ matrix.config.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Linux - GCC
-          - os: ubuntu-24.04
-            compiler: gcc-13
-            cc: gcc-13
-            cxx: g++-13
-          - os: ubuntu-24.04
-            compiler: gcc-14
-            cc: gcc-14
-            cxx: g++-14
-
-          # Linux - Clang (17 has C++23 compatibility issues with libstdc++14)
-          - os: ubuntu-24.04
-            compiler: clang-18
-            cc: clang-18
-            cxx: clang++-18
-
-          # macOS - AppleClang (default)
-          - os: macos-14
-            compiler: appleclang
-            cc: clang
-            cxx: clang++
-
-          # macOS - GCC (via Homebrew)
-          - os: macos-14
-            compiler: gcc-14
-            cc: gcc-14
-            cxx: g++-14
-
-          # Windows - MSVC
-          - os: windows-latest
-            compiler: msvc
-            cc: cl
-            cxx: cl
+        ilp_mode: [ILP, SIMPLE, PRAGMA]
+        config:
+          - { os: ubuntu-24.04, compiler: gcc-13, cc: gcc-13, cxx: g++-13 }
+          - { os: ubuntu-24.04, compiler: gcc-14, cc: gcc-14, cxx: g++-14 }
+          - { os: ubuntu-24.04, compiler: clang-18, cc: clang-18, cxx: clang++-18 }
+          - { os: macos-14, compiler: appleclang, cc: clang, cxx: clang++ }
+          - { os: macos-14, compiler: gcc-14, cc: gcc-14, cxx: g++-14 }
+          - { os: windows-latest, compiler: msvc, cc: cl, cxx: cl }
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install GCC (Linux)
-        if: runner.os == 'Linux' && startsWith(matrix.compiler, 'gcc')
+        if: runner.os == 'Linux' && startsWith(matrix.config.compiler, 'gcc')
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.cxx }}
+          sudo apt-get install -y ${{ matrix.config.cxx }}
 
       - name: Install Clang (Linux)
-        if: runner.os == 'Linux' && startsWith(matrix.compiler, 'clang')
+        if: runner.os == 'Linux' && startsWith(matrix.config.compiler, 'clang')
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.compiler }}
+          sudo apt-get install -y ${{ matrix.config.compiler }}
 
       - name: Install GCC (macOS)
-        if: runner.os == 'macOS' && startsWith(matrix.compiler, 'gcc')
+        if: runner.os == 'macOS' && startsWith(matrix.config.compiler, 'gcc')
         run: |
           brew install gcc@14
 
@@ -73,22 +47,34 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Set ILP mode flags
+        id: ilp_flags
+        shell: bash
+        run: |
+          if [ "${{ matrix.ilp_mode }}" = "SIMPLE" ]; then
+            echo "cxx_flags=-DILP_MODE_SIMPLE" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.ilp_mode }}" = "PRAGMA" ]; then
+            echo "cxx_flags=-DILP_MODE_PRAGMA" >> $GITHUB_OUTPUT
+          else
+            echo "cxx_flags=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p tests/build
           cd tests/build
-          cmake .. -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_CXX_STANDARD=23
+          cmake .. -DCMAKE_C_COMPILER=${{ matrix.config.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
         env:
-          CC: ${{ matrix.cc }}
-          CXX: ${{ matrix.cxx }}
+          CC: ${{ matrix.config.cc }}
+          CXX: ${{ matrix.config.cxx }}
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         run: |
           mkdir tests\build
           cd tests\build
-          cmake .. -G "NMake Makefiles" -DCMAKE_CXX_STANDARD=23
+          cmake .. -G "NMake Makefiles" -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
