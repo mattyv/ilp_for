@@ -18,9 +18,18 @@ Compile-time loop unrolling macros with full control flow support (break, contin
 #include "ilp_for.hpp"
 #include <vector>
 
+// SIMD-optimized: simple body dispatches to std::transform_reduce
 int64_t sum(const std::vector<int>& v) {
     return ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0LL, auto&& x, v) {
         return static_cast<int64_t>(x);
+    } ILP_END_REDUCE;
+}
+
+// With early exit: uses multi-accumulator ILP pattern
+int64_t sum_until_negative(const std::vector<int>& v) {
+    return ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0LL, auto&& x, v) {
+        if (x < 0) ILP_REDUCE_BREAK;
+        ILP_REDUCE_RETURN(static_cast<int64_t>(x));
     } ILP_END_REDUCE;
 }
 ```
@@ -29,20 +38,38 @@ int64_t sum(const std::vector<int>& v) {
 
 ## Types
 
-### LoopCtrl<R>
+### LoopCtrl\<void\>
 
 ```cpp
-// R = void (default)
 struct LoopCtrl<void> {
-    bool ok;  // false after ILP_BREAK
-};
-
-// R = return type
-struct LoopCtrl<R> {
-    bool ok;
-    std::optional<R> return_value;  // set by ILP_RETURN
+    bool ok = true;               // false after ILP_BREAK
+    void break_loop();            // sets ok = false
 };
 ```
+
+### LoopCtrl\<R\>
+
+```cpp
+struct LoopCtrl<R> {
+    bool ok = true;
+    std::optional<R> return_value;  // set by ILP_RETURN
+    void break_loop();              // sets ok = false
+    void return_with(R val);        // sets return_value, ok = false
+};
+```
+
+### ReduceResult\<T\>
+
+```cpp
+struct ReduceResult<T> {
+    T value;
+    bool _break;
+    bool did_break() const;  // true if ILP_REDUCE_BREAK was called
+};
+```
+
+- Created implicitly by `ILP_REDUCE_RETURN(val)` and `ILP_REDUCE_BREAK`
+- Not constructed directly by user code
 
 ### LoopType
 
@@ -149,6 +176,26 @@ ILP_FOR_RANGE(auto&& x, data, 4) {
 **Pitfalls:**
 - Range must satisfy `std::ranges::random_access_range`
 - Non-contiguous ranges (e.g., `std::deque`) have slower iteration
+- Empty range executes zero iterations (safe)
+
+---
+
+### ILP_FOR_RANGE_RET(ret_type, loop_var_decl, range, N)
+
+Range-based loop that can return from enclosing function.
+
+```cpp
+std::optional<int> find_negative(const std::vector<int>& v) {
+    ILP_FOR_RANGE_RET(std::optional<int>, auto&& x, v, 4) {
+        if (x < 0) ILP_RETURN(x);
+    } ILP_END_RET;
+    return std::nullopt;
+}
+```
+
+**Pitfalls:**
+- Must use `ILP_END_RET` (not `ILP_END`)
+- `ret_type` must match enclosing function return type exactly
 
 ---
 
@@ -189,6 +236,40 @@ auto it = ILP_FIND_RANGE(auto&& x, data, 4) {
 **Pitfalls:**
 - Returns `end()` iterator, not `std::nullopt`
 - Must dereference carefully if iterator may be end
+
+---
+
+### ILP_FIND_RANGE_AUTO(loop_var_decl, range)
+
+Range-based find with auto-selected N based on element type.
+
+```cpp
+std::vector<double> data = {1.0, 2.0, 3.0, 4.0};
+auto it = ILP_FIND_RANGE_AUTO(auto&& x, data) {
+    return x > 2.5;
+} ILP_END;
+```
+
+**Pitfalls:**
+- Uses `optimal_N<LoopType::Search, T>` (typically 4)
+
+---
+
+### ILP_FIND_RANGE_IDX(loop_var_decl, idx_var_decl, range, N)
+
+Range-based find with access to both element and index.
+
+```cpp
+std::vector<int> data = {10, 20, 30, 40};
+auto it = ILP_FIND_RANGE_IDX(auto&& x, auto idx, data, 4) {
+    return x > 25 && idx > 1;  // element > 25 AND index > 1
+} ILP_END;
+// *it == 30
+```
+
+**Pitfalls:**
+- `idx` is `std::size_t`, not the iterator type
+- Body receives `(element, index, end_iterator)`
 
 ---
 
@@ -243,8 +324,25 @@ int sum = ILP_REDUCE_RANGE(std::plus<>{}, 0, auto&& x, data, 4) {
 ```
 
 **Pitfalls:**
-- Contiguous ranges dispatch to `std::transform_reduce` for SIMD
-- Non-contiguous ranges use manual multi-accumulator pattern
+- Contiguous ranges with simple body (no ctrl) dispatch to `std::transform_reduce` for SIMD
+- Bodies using `ILP_REDUCE_RETURN`/`ILP_REDUCE_BREAK` use multi-accumulator pattern
+- Non-contiguous ranges always use multi-accumulator pattern
+
+---
+
+### ILP_REDUCE_AUTO(op, init, loop_var_decl, start, end)
+
+Index-based reduction with auto-selected N.
+
+```cpp
+double sum = ILP_REDUCE_AUTO(std::plus<>{}, 0.0, auto i, 0uz, 1000uz) {
+    return static_cast<double>(i);
+} ILP_END_REDUCE;
+// Uses optimal_N<LoopType::Sum, size_t> automatically
+```
+
+**Pitfalls:**
+- N selected based on index type, not accumulator type
 
 ---
 
@@ -266,7 +364,46 @@ double sum = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0.0, auto&& x, data) {
 
 ---
 
-### ilp::find_range<N>(range, predicate) -> iterator
+### ilp::for_until\<N\>(start, end, predicate) -> std::optional\<T\>
+
+Optimized early-exit search returning index of first match.
+
+```cpp
+std::vector<int> data(1000);
+data[500] = 42;
+auto idx = ilp::for_until<8>(0uz, data.size(), [&](std::size_t i) {
+    return data[i] == 42;
+});
+// idx == std::optional<size_t>{500}
+// idx == std::nullopt if not found
+```
+
+**Pitfalls:**
+- Returns `std::optional`, not sentinel value
+- Predicate must return exactly `bool`
+- Uses pragma-based unrolling internally (GCC optimizes well)
+
+---
+
+### ilp::for_until_range\<N\>(range, predicate) -> std::optional\<std::size_t\>
+
+Range-based early-exit search returning index.
+
+```cpp
+std::vector<int> data = {1, 2, 3, 42, 5};
+auto idx = ilp::for_until_range<4>(data, [](int x) {
+    return x == 42;
+});
+// idx == std::optional<size_t>{3}
+```
+
+**Pitfalls:**
+- Returns index (not iterator) as `std::optional<std::size_t>`
+- Range must be contiguous (uses `std::ranges::data`)
+
+---
+
+### ilp::find_range\<N\>(range, predicate) -> iterator
 
 Functional API for range-based find.
 
@@ -280,7 +417,7 @@ auto it = ilp::find_range<4>(data, [](int x) { return x > 3; });
 
 ---
 
-### ilp::reduce_range<N>(range, init, op, body) -> R
+### ilp::reduce_range\<N\>(range, init, op, body) -> R
 
 Functional API for range-based reduction.
 
@@ -292,6 +429,24 @@ int sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](int x) { return x; });
 **Pitfalls:**
 - Body without ctrl arg dispatches to `std::transform_reduce`
 - Body with `LoopCtrl<void>&` uses manual multi-accumulator
+
+---
+
+### ilp::find_range_idx\<N\>(range, body) -> iterator
+
+Range-based find with access to element, index, and end iterator.
+
+```cpp
+std::vector<int> data = {10, 20, 30, 40};
+auto it = ilp::find_range_idx<4>(data, [](int x, std::size_t idx, auto end) {
+    return x > 15 && idx >= 2;  // value > 15 AND index >= 2
+});
+// *it == 30
+```
+
+**Pitfalls:**
+- Body signature: `(element, index, end_iterator) -> bool | optional | iterator`
+- Returns `end()` if not found
 
 ---
 
