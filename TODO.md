@@ -5,11 +5,12 @@
 - [ ] Update ILP_FIND, ILP_FIND_RANGE_IDX with same pattern
 
 ## Testing
-- [ ] Add UBSan (Undefined Behavior Sanitizer) to test builds
+- [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
+- [x] Add ASan (Address Sanitizer) to test builds
 
 ## Build
-- [ ] Add UBSan CMake option (`-fsanitize=undefined`)
-- [ ] Consider ASan (Address Sanitizer) integration
+- [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)
+- [x] Add ASan CMake option (`-DENABLE_ASAN=ON`)
 
 ## CI
 - [x] Add all ILP modes (ILP, SIMPLE, PRAGMA) testing to GitHub CI

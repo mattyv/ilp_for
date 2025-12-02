@@ -372,7 +372,7 @@ TEST_CASE("Reduce of empty with identity ops", "[evil][empty]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("100000 iterations", "[evil][stress]") {
-    int64_t result = ILP_REDUCE(std::plus<>{}, 0, auto i, (int64_t)0, (int64_t)100000, 4) {
+    int64_t result = ILP_REDUCE(std::plus<>{}, 0LL, auto i, (int64_t)0, (int64_t)100000, 4) {
         return i;
     } ILP_END_REDUCE;
 

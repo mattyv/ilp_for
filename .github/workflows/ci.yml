@@ -99,3 +99,44 @@ jobs:
         run: |
           cd tests\build
           .\test_runner.exe
+
+  sanitizers:
+    name: sanitizers-${{ matrix.sanitizer }}
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [asan, ubsan]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18
+
+      - name: Configure
+        run: |
+          mkdir -p tests/build
+          cd tests/build
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            cmake .. -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_CXX_STANDARD=23 -DENABLE_ASAN=ON
+          else
+            cmake .. -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_CXX_STANDARD=23 -DENABLE_UBSAN=ON
+          fi
+
+      - name: Build
+        run: |
+          cd tests/build
+          make test_runner
+
+      - name: Run Tests
+        run: |
+          cd tests/build
+          if [ "${{ matrix.sanitizer }}" = "ubsan" ]; then
+            ./test_runner '~[overflow]'
+          else
+            ./test_runner
+          fi
