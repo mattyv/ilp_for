@@ -6,7 +6,7 @@
 - [x] Add ILP_FOR_AUTO and ILP_FOR_RANGE_AUTO macros
 - [ ] Update ILP_FIND, ILP_FIND_RANGE_IDX with same pattern
 - [ ] Remove vestigial _ilp_ctrl from other macros (cleaner code)
-- [ ] find used neat return. for consistency should we also allow/encourage use of ILP_RETURN?
+- [ ] ILP_FIND uses neat return. for consistency should we also allow/encourage use of ILP_RETURN?
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
