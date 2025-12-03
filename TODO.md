@@ -7,11 +7,13 @@
 - [ ] Update ILP_FIND, ILP_FIND_RANGE_IDX with same pattern
 - [ ] Remove vestigial _ilp_ctrl from other macros (cleaner code)
 - [ ] ILP_FIND uses neat return. for consistency should we also allow/encourage use of ILP_RETURN?
-- [ ] ILP_REDUCE_RANGE_AUTO example uses neat return. 
+- [ ] ILP_REDUCE_RANGE_AUTO example uses neat return.
+- [ ] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
 - [x] Add ASan (Address Sanitizer) to test builds
+- [ ] Update coverage report
 
 ## Build
 - [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)
