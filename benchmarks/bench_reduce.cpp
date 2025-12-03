@@ -201,7 +201,7 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 8) {
+        auto it = ILP_FIND_RANGE_AUTO(auto&& val, arr) {
             return val == target;
         } ILP_END;
         benchmark::DoNotOptimize(it);
@@ -329,7 +329,7 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 8) {
+        auto it = ILP_FIND_RANGE_AUTO(auto&& val, arr) {
             return val == target;
         } ILP_END;
         bool found = (it != arr.end());
@@ -518,7 +518,7 @@ BENCHMARK_DEFINE_F(FindIdxFixture, Simple)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(FindIdxFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE_IDX(auto&& val, auto idx, arr, 8) {
+        auto it = ILP_FIND_RANGE_IDX_AUTO(auto&& val, auto idx, arr) {
             (void)idx;  // Index available if needed
             return val == target;
         } ILP_END;

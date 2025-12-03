@@ -133,9 +133,11 @@ All loop macros end with `ILP_END`.
 | Macro | Returns | Description |
 |-------|---------|-------------|
 | `ILP_FIND(var, start, end, N)` | Index (or end if not found) | Find first match by index |
+| `ILP_FIND_AUTO(var, start, end)` | Index (or end if not found) | Auto-selects optimal N |
 | `ILP_FIND_RANGE(var, range, N)` | Index (or size() if not found) | Find in range (simple bool return) |
 | `ILP_FIND_RANGE_AUTO(var, range)` | Index (or size() if not found) | Auto-selects optimal N |
 | `ILP_FIND_RANGE_IDX(var, idx, range, N)` | Iterator (or end iterator) | Find in range with index access |
+| `ILP_FIND_RANGE_IDX_AUTO(var, idx, range)` | Iterator (or end iterator) | Auto-selects optimal N |
 
 ### Reduce Macros
 

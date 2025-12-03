@@ -126,6 +126,12 @@ namespace ilp::detail {
         return ::ilp::find<N>(start, end, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
+#define ILP_FIND_AUTO(loop_var_decl, start, end) \
+    [&]() { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::find_auto(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+
 #define ILP_FIND_RANGE(loop_var_decl, range, N) \
     [&]() { \
         [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
@@ -140,6 +146,12 @@ namespace ilp::detail {
     [&]() { \
         [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
         return ::ilp::find_range_idx<N>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] idx_var_decl, [[maybe_unused]] auto _ilp_end_)
+
+#define ILP_FIND_RANGE_IDX_AUTO(loop_var_decl, idx_var_decl, range) \
+    [&]() { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::find_range_idx_auto(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] idx_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 // ----- Reduce macros (multi-accumulator ILP) -----
