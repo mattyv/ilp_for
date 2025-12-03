@@ -129,20 +129,12 @@ concept ForRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&>;
 template<typename F, typename Ref, typename R>
 concept ForRangeRetBody = std::invocable<F, Ref, LoopCtrl<R>&>;
 
-// Reduce bodies - must return a value
+// Reduce bodies - must return a value (1-arg lambdas only, ctrl is vestigial for reduce)
 template<typename F, typename T>
 concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
 
-template<typename F, typename T>
-concept ReduceCtrlBody = std::invocable<F, T, LoopCtrl<void>&> &&
-    !std::same_as<std::invoke_result_t<F, T, LoopCtrl<void>&>, void>;
-
 template<typename F, typename Ref>
 concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
-
-template<typename F, typename Ref>
-concept ReduceRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&> &&
-    !std::same_as<std::invoke_result_t<F, Ref, LoopCtrl<void>&>, void>;
 
 // Find bodies - takes (index, sentinel) and returns bool, index, or optional
 template<typename F, typename T>

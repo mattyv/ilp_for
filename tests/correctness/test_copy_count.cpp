@@ -141,7 +141,7 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
     // Total: ~7 copies for N=4
 
     auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, add_counters,
-        [](int i, ilp::LoopCtrl<void>&) {
+        [](int i) {
             return CopyMoveCounter(i);
         });
 
@@ -202,7 +202,7 @@ TEST_CASE("Minimal copies in reduce_range return path - plain return (transform_
 
     // Plain return: uses transform_reduce path (SIMD optimized)
     auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, add_counters,
-        [](int val, ilp::LoopCtrl<void>&) {
+        [](int val) {
             return CopyMoveCounter(val);
         });
 
@@ -218,7 +218,7 @@ TEST_CASE("Minimal copies in reduce_range return path - ReduceResult (nested loo
 
     // ReduceResult return: uses nested loops path (supports early break)
     auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, add_counters,
-        [](int val, ilp::LoopCtrl<void>&) {
+        [](int val) {
             return ilp::detail::ReduceResult<CopyMoveCounter>{CopyMoveCounter(val), false};
         });
 
@@ -349,7 +349,7 @@ TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_co
     CopyMoveCounter::reset();
 
     auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, std::plus<>{},
-        [](int i, ilp::LoopCtrl<void>&) {
+        [](int i) {
             return CopyMoveCounter(i);
         });
 
@@ -375,7 +375,7 @@ TEST_CASE("Zero copies with range-based reduce and std::plus<>", "[copy_count][r
     std::vector<int> data = {0, 1, 2, 3};
 
     auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, std::plus<>{},
-        [](int val, ilp::LoopCtrl<void>&) {
+        [](int val) {
             return CopyMoveCounter(val);
         });
 

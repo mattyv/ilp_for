@@ -159,28 +159,16 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 // Unified reduce implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
 // Path selection based on return type: ReduceResult → loop with break, plain value → simple loop
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
-    requires ReduceBody<F, T> || ReduceCtrlBody<F, T>
+    requires ReduceBody<F, T>
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
-    constexpr bool has_ctrl = ReduceCtrlBody<F, T>;
-
-    // Unified invoker that works with both 1-arg and 2-arg lambdas
-    auto invoke_body = [&](T idx) {
-        if constexpr (has_ctrl) {
-            LoopCtrl<void> dummy;
-            return body(idx, dummy);
-        } else {
-            return body(idx);
-        }
-    };
-
-    using ResultT = decltype(invoke_body(std::declval<T>()));
+    using ResultT = decltype(body(std::declval<T>()));
 
     if constexpr (is_reduce_result_v<ResultT>) {
         // ReduceResult → loop with break support
         using R = decltype(std::declval<ResultT>().value);
         R acc = std::forward<Init>(init);
         for (T i = start; i < end; ++i) {
-            auto result = invoke_body(i);
+            auto result = body(i);
             if (result.did_break()) break;
             acc = op(std::move(acc), std::move(result.value));
         }
@@ -190,37 +178,25 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
         using R = ResultT;
         R acc = std::forward<Init>(init);
         for (T i = start; i < end; ++i) {
-            acc = op(std::move(acc), invoke_body(i));
+            acc = op(std::move(acc), body(i));
         }
         return acc;
     }
 }
 
-// Unified range-based reduce - handles both simple (no ctrl) and ctrl-enabled lambdas
+// Unified range-based reduce - handles simple (no ctrl) lambdas
 // Path selection based on return type: ReduceResult → simple loop, plain value → transform_reduce
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
-    constexpr bool has_ctrl = ReduceRangeCtrlBody<F, Ref>;
-
-    // Unified invoker that works with both 1-arg and 2-arg lambdas
-    auto invoke_body = [&](auto&& elem) {
-        if constexpr (has_ctrl) {
-            LoopCtrl<void> dummy;
-            return body(std::forward<decltype(elem)>(elem), dummy);
-        } else {
-            return body(std::forward<decltype(elem)>(elem));
-        }
-    };
-
-    using ResultT = decltype(invoke_body(std::declval<Ref>()));
+    using ResultT = decltype(body(std::declval<Ref>()));
 
     if constexpr (is_reduce_result_v<ResultT>) {
         // ReduceResult → simple loop (break support needed)
         using R = decltype(std::declval<ResultT>().value);
         R acc = std::forward<Init>(init);
         for (auto&& elem : range) {
-            auto result = invoke_body(elem);
+            auto result = body(std::forward<decltype(elem)>(elem));
             if (result.did_break()) break;
             acc = op(std::move(acc), std::move(result.value));
         }
@@ -232,7 +208,7 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
             std::ranges::end(range),
             std::forward<Init>(init),
             op,
-            invoke_body
+            std::forward<F>(body)
         );
     }
 }
@@ -333,14 +309,13 @@ auto find_range_auto(Range&& range, Pred&& pred) {
 // =============================================================================
 
 template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
-    requires detail::ReduceBody<F, T> || detail::ReduceCtrlBody<F, T>
+    requires detail::ReduceBody<F, T>
 auto reduce(T start, T end, Init&& init, BinaryOp op, F&& body) {
     return detail::reduce_impl<N>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
-          || detail::ReduceRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
 auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
     return detail::reduce_range_impl<N>(std::forward<Range>(range), std::forward<Init>(init), op, std::forward<F>(body));
 }
@@ -366,14 +341,13 @@ auto find_auto(T start, T end, F&& body) {
 }
 
 template<std::integral T, typename Init, typename BinaryOp, typename F>
-    requires detail::ReduceBody<F, T> || detail::ReduceCtrlBody<F, T>
+    requires detail::ReduceBody<F, T>
 auto reduce_auto(T start, T end, Init&& init, BinaryOp op, F&& body) {
     return reduce<optimal_N<LoopType::Sum, T>>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
 }
 
 template<std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
-          || detail::ReduceRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
 auto reduce_range_auto(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using T = std::ranges::range_value_t<Range>;
     return reduce_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<Init>(init), op, std::forward<F>(body));
