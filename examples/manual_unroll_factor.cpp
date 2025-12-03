@@ -15,7 +15,7 @@ template<size_t Size>
 int sum_small_array(const std::array<int, Size>& arr) {
     // For small arrays, N=2 reduces loop overhead while maintaining ILP
     int sum = 0;
-    ILP_FOR(auto i, 0uz, Size, 2) {
+    ILP_FOR(void, auto i, 0uz, Size, 2) {
         sum += arr[i];
     } ILP_END;
     return sum;
@@ -54,7 +54,7 @@ void compare_approaches(const std::vector<int>& data) {
 // Memory-bound operation: smaller N reduces register pressure
 void process_large_structs(std::vector<std::array<double, 8>>& data) {
     // Large struct = memory bound, N=2 is often optimal
-    ILP_FOR(auto i, 0uz, data.size(), 2) {
+    ILP_FOR(void, auto i, 0uz, data.size(), 2) {
         for (auto& v : data[i]) {
             v *= 2.0;
         }

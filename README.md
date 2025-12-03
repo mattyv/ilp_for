@@ -95,7 +95,7 @@ int min_val = ILP_REDUCE_RANGE(
 ### Loop with Break/Continue
 
 ```cpp
-ILP_FOR(auto i, 0, n, 4) {
+ILP_FOR(void, auto i, 0, n, 4) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
@@ -105,9 +105,10 @@ ILP_FOR(auto i, 0, n, 4) {
 ### Loop with Return
 
 ```cpp
-ILP_FOR_RET(int, auto i, 0, n, 4) {
+// Returns std::optional<int>
+auto result = ILP_FOR(int, auto i, 0, n, 4) {
     if (data[i] == target) ILP_RETURN(i);
-} ILP_END_RET;
+} ILP_END;
 ```
 
 ---
@@ -116,12 +117,16 @@ ILP_FOR_RET(int, auto i, 0, n, 4) {
 
 ### Loop Macros
 
-| Macro | Description | Ending |
-|-------|-------------|--------|
-| `ILP_FOR(var, start, end, N)` | Basic loop with break/continue | `ILP_END` |
-| `ILP_FOR_RET(type, var, start, end, N)` | Loop that can return from enclosing function | `ILP_END_RET` |
-| `ILP_FOR_RANGE(var, range, N)` | Range-based loop | `ILP_END` |
-| `ILP_FOR_RANGE_RET(type, var, range, N)` | Range loop with return | `ILP_END_RET` |
+| Macro | Description | Returns |
+|-------|-------------|---------|
+| `ILP_FOR(void, var, start, end, N)` | Basic loop with break/continue | void |
+| `ILP_FOR(type, var, start, end, N)` | Loop with return capability | `std::optional<type>` |
+| `ILP_FOR_RANGE(void, var, range, N)` | Range-based loop | void |
+| `ILP_FOR_RANGE(type, var, range, N)` | Range loop with return | `std::optional<type>` |
+| `ILP_FOR_AUTO(type, var, start, end)` | Auto-selects optimal N | depends on type |
+| `ILP_FOR_RANGE_AUTO(type, var, range)` | Range with auto N | depends on type |
+
+All loop macros end with `ILP_END`.
 
 ### Find Macros
 
@@ -147,7 +152,9 @@ ILP_FOR_RET(int, auto i, 0, n, 4) {
 |-------|--------|-------------|
 | `ILP_CONTINUE` | Any loop | Skip to next iteration |
 | `ILP_BREAK` | Loops | Exit loop |
+| `ILP_REDUCE_RETURN(val)` | Reduce | Return value (fast path, uses SIMD) |
 | `ILP_REDUCE_BREAK` | Reduce | Exit early from reduction |
+| `ILP_REDUCE_BREAK_VALUE(val)` | Reduce | Return value (use with `ILP_REDUCE_BREAK`) |
 | `ILP_RETURN(val)` | `*_RET` loops | Return from enclosing function |
 
 ---
@@ -175,7 +182,7 @@ This matters because range loops iterate over container elements directly. Using
 For index-based macros, use `auto` since indices are just integers:
 
 ```cpp
-ILP_FOR(auto i, 0, n, 4) { ... }  // 'i' is an int, copying is trivial
+ILP_FOR(void, auto i, 0, n, 4) { ... }  // 'i' is an int, copying is trivial
 ```
 
 ### ILP_FIND Returns Index, Not Optional
@@ -194,12 +201,20 @@ if (idx != n) {  // Found
 
 ### ILP_REDUCE_BREAK for Early Exit
 
-Use `ILP_REDUCE_BREAK` to exit early from a reduction:
+Use `ILP_REDUCE_BREAK` with `ILP_REDUCE_BREAK_VALUE` to exit early from a reduction:
 
 ```cpp
 int sum = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, n, 4) {
     if (data[i] < 0) ILP_REDUCE_BREAK;  // Stop reduction
-    return data[i];
+    ILP_REDUCE_BREAK_VALUE(data[i]);    // Must use with BREAK
+} ILP_END_REDUCE;
+```
+
+For simple reductions without early exit, use `ILP_REDUCE_RETURN` (fast path):
+
+```cpp
+int sum = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, n, 4) {
+    ILP_REDUCE_RETURN(data[i]);  // Uses transform_reduce (SIMD)
 } ILP_END_REDUCE;
 ```
 

@@ -170,7 +170,7 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 
 // =============================================================================
 // Reduce implementations (unified - auto-detect ctrl from signature)
-// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
+// Path selection based on return type: ReduceResult → pragma-unrolled with break, plain value → pragma-unrolled
 // =============================================================================
 
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
@@ -178,88 +178,82 @@ template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typen
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     constexpr bool has_ctrl = ReduceCtrlBody<F, T>;
 
-    if constexpr (has_ctrl) {
-        using ResultT = std::invoke_result_t<F, T, LoopCtrl<void>&>;
-
-        if constexpr (is_reduce_result_v<ResultT>) {
-            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
-            using R = decltype(std::declval<ResultT>().value);
-            R acc = std::forward<Init>(init);
-            LoopCtrl<void> ctrl;
-
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
-            for (T i = start; i < end; ++i) {
-                auto result = body(i, ctrl);
-                acc = op(std::move(acc), std::move(result.value));
-                if (result.did_break()) break;
-            }
-            return acc;
+    // Unified invoker that works with both 1-arg and 2-arg lambdas
+    auto invoke_body = [&](T idx) {
+        if constexpr (has_ctrl) {
+            LoopCtrl<void> dummy;
+            return body(idx, dummy);
         } else {
-            // Simple API: plain return value (no break support)
-            using R = ResultT;
-            R acc = std::forward<Init>(init);
-            LoopCtrl<void> ctrl;
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
-            for (T i = start; i < end; ++i) {
-                acc = op(std::move(acc), body(i, ctrl));
-            }
-            return acc;
+            return body(idx);
         }
+    };
+
+    using ResultT = decltype(invoke_body(std::declval<T>()));
+
+    if constexpr (is_reduce_result_v<ResultT>) {
+        // ReduceResult → pragma-unrolled loop with break support
+        using R = decltype(std::declval<ResultT>().value);
+        R acc = std::forward<Init>(init);
+
+        _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
+        for (T i = start; i < end; ++i) {
+            auto result = invoke_body(i);
+            acc = op(std::move(acc), std::move(result.value));
+            if (result.did_break()) break;
+        }
+        return acc;
     } else {
-        static_assert(ReduceBody<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
-        using R = std::invoke_result_t<F, T>;
+        // Plain value → pragma-unrolled loop
+        using R = ResultT;
         R acc = std::forward<Init>(init);
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
         for (T i = start; i < end; ++i) {
-            acc = op(std::move(acc), body(i));
+            acc = op(std::move(acc), invoke_body(i));
         }
         return acc;
     }
 }
 
+// Path selection based on return type: ReduceResult → pragma-unrolled loop, plain value → transform_reduce
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
     constexpr bool has_ctrl = ReduceRangeCtrlBody<F, Ref>;
 
-    auto it = std::ranges::begin(range);
-    auto size = std::ranges::size(range);
-
-    if constexpr (has_ctrl) {
-        using ResultT = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
-
-        if constexpr (is_reduce_result_v<ResultT>) {
-            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
-            using R = decltype(std::declval<ResultT>().value);
-            R acc = std::forward<Init>(init);
-            LoopCtrl<void> ctrl;
-
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
-            for (std::size_t i = 0; i < size; ++i) {
-                auto result = body(it[i], ctrl);
-                acc = op(std::move(acc), std::move(result.value));
-                if (result.did_break()) break;
-            }
-            return acc;
+    // Unified invoker that works with both 1-arg and 2-arg lambdas
+    auto invoke_body = [&](auto&& elem) {
+        if constexpr (has_ctrl) {
+            LoopCtrl<void> dummy;
+            return body(std::forward<decltype(elem)>(elem), dummy);
         } else {
-            // Simple API: plain return value (no break support)
-            using R = ResultT;
-            R acc = std::forward<Init>(init);
-            LoopCtrl<void> ctrl;
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
-            for (std::size_t i = 0; i < size; ++i) {
-                acc = op(std::move(acc), body(it[i], ctrl));
-            }
-            return acc;
+            return body(std::forward<decltype(elem)>(elem));
         }
+    };
+
+    using ResultT = decltype(invoke_body(std::declval<Ref>()));
+
+    if constexpr (is_reduce_result_v<ResultT>) {
+        // ReduceResult → pragma-unrolled loop (break support needed)
+        auto it = std::ranges::begin(range);
+        auto size = std::ranges::size(range);
+        using R = decltype(std::declval<ResultT>().value);
+        R acc = std::forward<Init>(init);
+
+        _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
+        for (std::size_t i = 0; i < size; ++i) {
+            auto result = invoke_body(it[i]);
+            acc = op(std::move(acc), std::move(result.value));
+            if (result.did_break()) break;
+        }
+        return acc;
     } else {
-        // Dispatch to std::transform_reduce for SIMD vectorization
+        // Plain value → std::transform_reduce (SIMD vectorization!)
         return std::transform_reduce(
             std::ranges::begin(range),
             std::ranges::end(range),
             std::forward<Init>(init),
             op,
-            std::forward<F>(body)
+            invoke_body
         );
     }
 }
@@ -268,26 +262,30 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
 // For loops with LoopCtrl (return support)
 // =============================================================================
 
-template<typename R, std::size_t N, std::integral T, typename F>
-    requires ForRetBody<F, T, R>
-std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
-    LoopCtrl<R> ctrl;
+template<typename return_type, std::size_t N, std::integral T, typename F>
+    requires ForRetBody<F, T, return_type>
+std::optional<return_type> for_loop_ret_impl(T start, T end, F&& body) {
+    LoopCtrl<return_type> ctrl;
     _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
-    for (T i = start; i < end && ctrl.ok; ++i) {
+    for (T i = start; i < end; ++i) {
         body(i, ctrl);
+        if (!ctrl.ok) [[unlikely]]
+            return std::move(ctrl.return_value);
     }
     return std::move(ctrl.return_value);
 }
 
-template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
-    requires ForRangeRetBody<F, std::ranges::range_reference_t<Range>, R>
-std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
-    LoopCtrl<R> ctrl;
+template<typename return_type, std::size_t N, std::ranges::random_access_range Range, typename F>
+    requires ForRangeRetBody<F, std::ranges::range_reference_t<Range>, return_type>
+std::optional<return_type> for_loop_range_ret_impl(Range&& range, F&& body) {
+    LoopCtrl<return_type> ctrl;
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4))
-    for (std::size_t i = 0; i < size && ctrl.ok; ++i) {
+    for (std::size_t i = 0; i < size; ++i) {
         body(it[i], ctrl);
+        if (!ctrl.ok) [[unlikely]]
+            return std::move(ctrl.return_value);
     }
     return std::move(ctrl.return_value);
 }
@@ -298,10 +296,14 @@ std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
 // Public API - Index-based loops
 // =============================================================================
 
-template<std::size_t N = 4, std::integral T, typename F>
-    requires detail::ForBody<F, T> || detail::ForCtrlBody<F, T>
-void for_loop(T start, T end, F&& body) {
-    detail::for_loop_impl<N>(start, end, std::forward<F>(body));
+// Unified for_loop: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::size_t N = 4, std::integral T, typename F>
+auto for_loop(T start, T end, F&& body) -> detail::for_result_t<return_type> {
+    if constexpr (std::is_void_v<return_type>) {
+        detail::for_loop_impl<N>(start, end, std::forward<F>(body));
+    } else {
+        return detail::for_loop_ret_impl<return_type, N>(start, end, std::forward<F>(body));
+    }
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -314,11 +316,14 @@ auto find(T start, T end, F&& body) {
 // Public API - Range-based loops
 // =============================================================================
 
-template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-    requires detail::ForRangeBody<F, std::ranges::range_reference_t<Range>>
-          || detail::ForRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
-void for_loop_range(Range&& range, F&& body) {
-    detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+// Unified for_loop_range: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+auto for_loop_range(Range&& range, F&& body) -> detail::for_result_t<return_type> {
+    if constexpr (std::is_void_v<return_type>) {
+        detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+    } else {
+        return detail::for_loop_range_ret_impl<return_type, N>(std::forward<Range>(range), std::forward<F>(body));
+    }
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -365,19 +370,20 @@ auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
     return detail::reduce_range_impl<N>(std::forward<Range>(range), std::forward<Init>(init), op, std::forward<F>(body));
 }
 
-template<typename R, std::size_t N = 4, std::integral T, typename F>
-    requires std::invocable<F, T, LoopCtrl<R>&>
-std::optional<R> for_loop_ret(T start, T end, F&& body) {
-    return detail::for_loop_ret_impl<R, N>(start, end, std::forward<F>(body));
-}
-
-template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-    requires std::invocable<F, std::ranges::range_reference_t<Range>, LoopCtrl<R>&>
-std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
-    return detail::for_loop_range_ret_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
-}
-
 // Auto-selecting functions
+
+// Unified for_loop_auto: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::integral T, typename F>
+auto for_loop_auto(T start, T end, F&& body) -> detail::for_result_t<return_type> {
+    return for_loop<return_type, optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
+}
+
+template<typename return_type, std::ranges::random_access_range Range, typename F>
+auto for_loop_range_auto(Range&& range, F&& body) -> detail::for_result_t<return_type> {
+    using T = std::ranges::range_value_t<Range>;
+    return for_loop_range<return_type, optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
+}
+
 template<std::integral T, typename F>
     requires std::invocable<F, T, T>
 auto find_auto(T start, T end, F&& body) {

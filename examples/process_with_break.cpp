@@ -11,7 +11,7 @@ void process_until_error(const std::vector<int>& data) {
     int sum = 0;
     int count = 0;
 
-    ILP_FOR(auto i, 0uz, data.size(), 4) {
+    ILP_FOR(void, auto i, 0uz, data.size(), 4) {
         if (data[i] < 0) {
             std::cout << "Error at index " << i << ", stopping\n";
             ILP_BREAK;
@@ -30,7 +30,7 @@ void process_until_error(const std::vector<int>& data) {
 bool validate_entries(const std::vector<int>& data, int min_val, int max_val) {
     bool valid = true;
 
-    ILP_FOR(auto i, 0uz, data.size(), 4) {
+    ILP_FOR(void, auto i, 0uz, data.size(), 4) {
         if (data[i] < min_val || data[i] > max_val) {
             std::cout << "Invalid value " << data[i] << " at index " << i << "\n";
             valid = false;

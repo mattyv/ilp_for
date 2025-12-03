@@ -216,12 +216,12 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
     }
 
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
-    SECTION("for_loop_ret search") {
+    SECTION("for_loop with return type search") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
         data[42] = 999;
 
-        auto result = for_loop_ret<int, 4>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop<int, 4>(0, 100, [&](int i, auto& ctrl) {
             if (data[i] == 999) {
                 ctrl.return_with(i);
             }
@@ -231,10 +231,10 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         REQUIRE(result.value() == 42);
     }
 
-    SECTION("for_loop_range_ret search") {
+    SECTION("for_loop_range with return type search") {
         std::vector<int> data = {1, 2, 3, 42, 5, 6};
 
-        auto result = for_loop_range_ret<int, 4>(data, [&](int val, auto& ctrl) {
+        auto result = for_loop_range<int, 4>(data, [&](int val, auto& ctrl) {
             if (val == 42) {
                 ctrl.return_with(val);
             }
@@ -248,7 +248,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
 
-        auto result = for_loop_ret<int, 4>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop<int, 4>(0, 100, [&](int i, auto& ctrl) {
             if (data[i] == 999) {  // Not in data
                 ctrl.return_with(i);
             }

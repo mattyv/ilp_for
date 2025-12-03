@@ -147,7 +147,7 @@ BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
             if (i >= stop_at) {
                 ILP_REDUCE_BREAK;
             }
-            ILP_REDUCE_RETURN(static_cast<uint64_t>(data[i]));
+            ILP_REDUCE_BREAK_VALUE(static_cast<uint64_t>(data[i]));
         } ILP_END_REDUCE;
         benchmark::DoNotOptimize(sum);
     }
@@ -388,7 +388,7 @@ BENCHMARK_DEFINE_F(ForBreakFixture, Simple)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(ForBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         size_t count = 0;
-        ILP_FOR(auto i, 0uz, data.size(), 4) {
+        ILP_FOR(void, auto i, 0uz, data.size(), 4) {
             if (data[i] > threshold) ILP_BREAK;
             ++count;
         } ILP_END;
@@ -405,8 +405,8 @@ BENCHMARK_REGISTER_F(ForBreakFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
-// ==================== ILP_FOR_RET WITH ILP_RETURN BENCHMARKS ====================
-// Tests returning a computed value from enclosing function
+// ==================== ILP_FOR WITH RETURN TYPE BENCHMARKS ====================
+// Tests returning a computed value using ILP_FOR with non-void return type
 class ForRetFixture : public benchmark::Fixture {
 public:
     std::vector<uint32_t> data;
@@ -431,7 +431,7 @@ public:
     }
 };
 
-// Helper functions that use ILP_FOR_RET (must be actual functions for ILP_RETURN)
+// Helper functions using ILP_FOR with return type
 static std::optional<uint64_t> find_and_compute_simple(
     const std::vector<uint32_t>& data, uint32_t target) {
     for (size_t i = 0; i < data.size(); ++i) {
@@ -444,12 +444,11 @@ static std::optional<uint64_t> find_and_compute_simple(
 
 static std::optional<uint64_t> find_and_compute_ilp(
     const std::vector<uint32_t>& data, uint32_t target) {
-    ILP_FOR_RET(std::optional<uint64_t>, auto i, 0uz, data.size(), 4) {
+    return ILP_FOR(uint64_t, auto i, 0uz, data.size(), 4) {
         if (data[i] == target) {
             ILP_RETURN(static_cast<uint64_t>(i) * data[i]);
         }
-    } ILP_END_RET;
-    return std::nullopt;
+    } ILP_END;
 }
 
 BENCHMARK_DEFINE_F(ForRetFixture, Simple)(benchmark::State& state) {

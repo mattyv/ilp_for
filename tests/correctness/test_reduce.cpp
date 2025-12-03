@@ -24,7 +24,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
             if (val > 5) {
                 ILP_REDUCE_BREAK;
             }
-            ILP_REDUCE_RETURN(val);
+            ILP_REDUCE_BREAK_VALUE(val);
         } ILP_END_REDUCE;
 
         // The elements processed should be 1, 1, 1, 1, 1, 1. The sum is 6.
@@ -62,7 +62,7 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
             if (i >= 10) {
                 ILP_REDUCE_BREAK;
             }
-            ILP_REDUCE_RETURN((int)i);
+            ILP_REDUCE_BREAK_VALUE((int)i);
         } ILP_END_REDUCE;
 
         // The sum should be 0 + 1 + ... + 9 = 45
@@ -245,22 +245,21 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
             if (val == 9) {  // Last element, in cleanup
                 ILP_REDUCE_BREAK;
             }
-            ILP_REDUCE_RETURN(val);
+            ILP_REDUCE_BREAK_VALUE(val);
         } ILP_END_REDUCE;
 
         // Sum 1+2+3+4+5+6+7+8 = 36
         REQUIRE(result == 36);
     }
 
-    SECTION("FOR_RANGE_RET cleanup loop") {
-        // Test lines 383-384: range-based FOR_RET with remainder
+    SECTION("FOR_RANGE with return type cleanup loop") {
+        // Test range-based FOR with return type and remainder
         auto helper = [](const std::vector<int>& data) -> std::optional<int> {
-            ILP_FOR_RANGE_RET(int, auto&& val, data, 4) {
+            return ILP_FOR_RANGE(int, auto&& val, data, 4) {
                 if (val == 7) {  // Last element in cleanup loop
                     ILP_RETURN(val * 10);
                 }
-            } ILP_END_RET;
-            return std::nullopt;
+            } ILP_END;
         };
 
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};  // 7 elements, unroll 4
@@ -296,7 +295,7 @@ TEST_CASE("ReduceResult with break stops correctly", "[reduce][path]") {
 
     auto result = ILP_REDUCE_AUTO(std::plus<>{}, 0, auto i, 0, 100) {
         if (i >= 10) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(i);
+        ILP_REDUCE_BREAK_VALUE(i);
     } ILP_END_REDUCE;
     CHECK(result == 45);  // 0+1+...+9
 }
@@ -317,7 +316,7 @@ TEST_CASE("Range-based reduce with break stops correctly", "[reduce][path][range
 
     auto result = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0, auto val, data) {
         if (val >= 5) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(val);
+        ILP_REDUCE_BREAK_VALUE(val);
     } ILP_END_REDUCE;
     CHECK(result == 10);  // 0+1+2+3+4
 }

@@ -13,7 +13,7 @@
 int sum_first_n(const std::vector<int>& data, size_t n) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (i >= n) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(data[i]);
+        ILP_REDUCE_BREAK_VALUE(data[i]);
     } ILP_END_REDUCE;
 }
 
@@ -21,7 +21,7 @@ int sum_first_n(const std::vector<int>& data, size_t n) {
 int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (data[i] == sentinel) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(data[i]);
+        ILP_REDUCE_BREAK_VALUE(data[i]);
     } ILP_END_REDUCE;
 }
 
@@ -29,7 +29,7 @@ int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
 size_t count_positive_until_negative(const std::vector<int>& data) {
     return ILP_REDUCE(std::plus<>{}, 0uz, auto i, 0uz, data.size(), 4) {
         if (data[i] < 0) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(data[i] > 0 ? 1uz : 0uz);
+        ILP_REDUCE_BREAK_VALUE(data[i] > 0 ? 1uz : 0uz);
     } ILP_END_REDUCE;
 }
 
@@ -38,7 +38,7 @@ size_t count_positive_until_negative(const std::vector<int>& data) {
 int sum_nonzero_until_negative(const std::vector<int>& data) {
     return ILP_REDUCE(std::plus<>{}, 0, auto i, 0uz, data.size(), 4) {
         if (data[i] < 0) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(data[i]);  // Zeros contribute 0 (identity for +)
+        ILP_REDUCE_BREAK_VALUE(data[i]);  // Zeros contribute 0 (identity for +)
     } ILP_END_REDUCE;
 }
 
@@ -46,7 +46,7 @@ int sum_nonzero_until_negative(const std::vector<int>& data) {
 int64_t product_until_zero(const std::vector<int>& data) {
     return ILP_REDUCE(std::multiplies<>{}, 1LL, auto i, 0uz, data.size(), 4) {
         if (data[i] == 0) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
+        ILP_REDUCE_BREAK_VALUE(static_cast<int64_t>(data[i]));
     } ILP_END_REDUCE;
 }
 

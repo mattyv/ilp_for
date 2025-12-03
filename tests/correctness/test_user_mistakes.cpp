@@ -15,7 +15,7 @@
 
 TEST_CASE("Inverted range (start > end)", "[mistake][range]") {
     int count = 0;
-    ILP_FOR(auto i, 10, 0, 4) {  // Start > End!
+    ILP_FOR(void, auto i, 10, 0, 4) {  // Start > End!
         count++;
     } ILP_END;
     // Should this be 0 iterations or undefined behavior?
@@ -45,7 +45,7 @@ TEST_CASE("Using SIMPLE when need control flow", "[mistake][type]") {
     // User tries to "break" in a SIMPLE loop - this would be a compile error
     // but they might not understand why
     int sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i >= 10) {
             // Can't break here! But loop continues
         }
@@ -67,7 +67,7 @@ TEST_CASE("Using SIMPLE when need control flow", "[mistake][type]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Empty loop body", "[mistake][empty]") {
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         // User forgot to do anything
         (void)i;
     } ILP_END;
@@ -88,7 +88,7 @@ TEST_CASE("Empty reduce body", "[mistake][empty]") {
 
 TEST_CASE("User tries to modify loop variable", "[mistake][modify]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         auto local_i = i;  // They can't actually modify i
         local_i *= 2;  // This doesn't affect iteration
         sum += local_i;
@@ -105,7 +105,7 @@ TEST_CASE("Capturing by value vs reference", "[mistake][capture]") {
     int result = 0;
 
     // The macro captures by [&], so this works
-    ILP_FOR(auto i, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
         result += value;  // Uses reference
     } ILP_END;
 
@@ -118,7 +118,7 @@ TEST_CASE("Capturing by value vs reference", "[mistake][capture]") {
 
 TEST_CASE("Absurdly large N=128", "[mistake][huge]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 128) {
+    ILP_FOR(void, auto i, 0, 10, 128) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -131,7 +131,7 @@ TEST_CASE("Absurdly large N=128", "[mistake][huge]") {
 TEST_CASE("int8_t iteration", "[mistake][overflow]") {
     // Iterating with int8_t type
     int count = 0;
-    ILP_FOR(auto i, (int8_t)0, (int8_t)100, 4) {
+    ILP_FOR(void, auto i, (int8_t)0, (int8_t)100, 4) {
         count++;
         (void)i;
     } ILP_END;
@@ -141,7 +141,7 @@ TEST_CASE("int8_t iteration", "[mistake][overflow]") {
 TEST_CASE("Unsigned underflow danger", "[mistake][underflow]") {
     // User might not realize unsigned can't go negative
     unsigned sum = 0;
-    ILP_FOR(auto i, 0u, 10u, 4) {
+    ILP_FOR(void, auto i, 0u, 10u, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -155,7 +155,7 @@ TEST_CASE("User confused about remainder", "[mistake][remainder]") {
     // N=4, range 0-9: main loop 0-7, remainder 8
     std::vector<int> values;
     values.reserve(9);
-    ILP_FOR(auto i, 0, 9, 4) {
+    ILP_FOR(void, auto i, 0, 9, 4) {
         values.push_back(i);
     } ILP_END;
 
@@ -236,7 +236,7 @@ TEST_CASE("Shadow outer variable with loop var", "[mistake][shadow]") {
     int i = 999;
     int sum = 0;
 
-    ILP_FOR(auto i, 0, 10, 4) {  // Shadows outer i
+    ILP_FOR(void, auto i, 0, 10, 4) {  // Shadows outer i
         sum += i;
     } ILP_END;
 
@@ -251,8 +251,8 @@ TEST_CASE("Shadow outer variable with loop var", "[mistake][shadow]") {
 TEST_CASE("Nested loops with same variable name", "[mistake][nested]") {
     int count = 0;
 
-    ILP_FOR(auto i, 0, 3, 4) {
-        ILP_FOR(auto i, 0, 3, 4) {  // Same name shadows outer
+    ILP_FOR(void, auto i, 0, 3, 4) {
+        ILP_FOR(void, auto i, 0, 3, 4) {  // Same name shadows outer
             count++;
         } ILP_END;
     } ILP_END;
@@ -295,7 +295,7 @@ TEST_CASE("Sum of large range", "[mistake][overflow]") {
 TEST_CASE("Mixed signed types", "[mistake][signed]") {
     // This might cause warnings or unexpected behavior
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         sum += static_cast<int>(i);
     } ILP_END;
     REQUIRE(sum == 45);
@@ -307,7 +307,7 @@ TEST_CASE("Mixed signed types", "[mistake][signed]") {
 
 TEST_CASE("String concatenation in loop", "[mistake][performance]") {
     std::string result;
-    ILP_FOR(auto i, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
         result += std::to_string(i);
     } ILP_END;
     REQUIRE(result == "01234");
@@ -320,7 +320,7 @@ TEST_CASE("String concatenation in loop", "[mistake][performance]") {
 TEST_CASE("Allocating vectors in loop", "[mistake][performance]") {
     std::vector<std::vector<int>> all;
     all.reserve(5);
-    ILP_FOR(auto i, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
         all.push_back(std::vector<int>{i});
     } ILP_END;
     REQUIRE(all.size() == 5);
@@ -333,7 +333,7 @@ TEST_CASE("Allocating vectors in loop", "[mistake][performance]") {
 TEST_CASE("Initializer list as range", "[mistake][init]") {
     int sum = 0;
     std::vector<int> temp = {1, 2, 3, 4, 5};
-    ILP_FOR_RANGE(auto&& val, temp, 4) {
+    ILP_FOR_RANGE(void, auto&& val, temp, 4) {
         sum += val;
     } ILP_END;
     REQUIRE(sum == 15);
@@ -365,7 +365,7 @@ TEST_CASE("Off-by-one expectations", "[mistake][semantics]") {
     // ILP: (0, 10) iterates 10 times (exclusive end)
 
     int count = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         count++;
     } ILP_END;
     REQUIRE(count == 10);  // NOT 11
@@ -379,7 +379,7 @@ TEST_CASE("Reading during iteration (safe)", "[mistake][modify]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
     int sum = 0;
 
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum += val;
         // User might want to modify data here - unsafe!
     } ILP_END;
@@ -396,7 +396,7 @@ TEST_CASE("Array pointer iteration", "[mistake][pointer]") {
     int sum = 0;
 
     // User needs to use index-based loop for raw arrays
-    ILP_FOR(auto i, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
         sum += arr[i];
     } ILP_END;
 
@@ -481,7 +481,7 @@ TEST_CASE("Temporary vector in range", "[mistake][temporary]") {
     // This is actually fine because macro captures reference
     int sum = 0;
     std::vector<int> v = {1, 2, 3, 4, 5};
-    ILP_FOR_RANGE(auto&& val, v, 4) {
+    ILP_FOR_RANGE(void, auto&& val, v, 4) {
         sum += val;
     } ILP_END;
     REQUIRE(sum == 15);
@@ -510,7 +510,7 @@ TEST_CASE("Const data iteration", "[mistake][const]") {
     const std::array<int, 5> data = {1, 2, 3, 4, 5};
     int sum = 0;
 
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum += val;
         // val is const& here
     } ILP_END;
@@ -529,7 +529,7 @@ TEST_CASE("Need index but using range loop", "[mistake][index]") {
     // Wrong way - can't easily get index
     // User should use ILP_FIND_RANGE_IDX instead
     int idx = 0;
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum_with_index += val * idx;
         idx++;
     } ILP_END;
@@ -547,7 +547,7 @@ TEST_CASE("Return vs break confusion", "[mistake][control]") {
     // ILP_BREAK exits loop, ILP_RETURN exits function
     int sum = 0;
 
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i >= 10) ILP_BREAK;  // Exit loop only
         sum += i;
     } ILP_END;

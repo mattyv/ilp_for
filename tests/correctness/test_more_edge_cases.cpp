@@ -20,7 +20,7 @@ TEST_CASE("Range size calculation overflow", "[edge][overflow]") {
     SECTION("Safe large range") {
         // Just verify we can handle reasonably large numbers
         int64_t sum = 0;
-        ILP_FOR(auto i, (int64_t)0, (int64_t)1000000, 4) {
+        ILP_FOR(void, auto i, (int64_t)0, (int64_t)1000000, 4) {
             sum += 1;
         } ILP_END;
         REQUIRE(sum == 1000000);
@@ -33,7 +33,7 @@ TEST_CASE("Range size calculation overflow", "[edge][overflow]") {
 
 TEST_CASE("Large negative ranges", "[edge][negative]") {
     int64_t sum = 0;
-    ILP_FOR(auto i, -1000, -900, 4) {
+    ILP_FOR(void, auto i, -1000, -900, 4) {
         sum += i;
     } ILP_END;
 
@@ -57,10 +57,10 @@ TEST_CASE("Range exactly = N*k + r for various r", "[edge][remainder]") {
     for (int r = 0; r < 4; ++r) {
         int range_size = 16 + r;  // 4*4 + r
         int s = 0;
-        if (r == 0) { ILP_FOR(auto i, 0, 16, 4) { s += i; } ILP_END; }
-        else if (r == 1) { ILP_FOR(auto i, 0, 17, 4) { s += i; } ILP_END; }
-        else if (r == 2) { ILP_FOR(auto i, 0, 18, 4) { s += i; } ILP_END; }
-        else { ILP_FOR(auto i, 0, 19, 4) { s += i; } ILP_END; }
+        if (r == 0) { ILP_FOR(void, auto i, 0, 16, 4) { s += i; } ILP_END; }
+        else if (r == 1) { ILP_FOR(void, auto i, 0, 17, 4) { s += i; } ILP_END; }
+        else if (r == 2) { ILP_FOR(void, auto i, 0, 18, 4) { s += i; } ILP_END; }
+        else { ILP_FOR(void, auto i, 0, 19, 4) { s += i; } ILP_END; }
 
         REQUIRE(s == sum(range_size));
     }
@@ -108,7 +108,7 @@ TEST_CASE("std::span iteration", "[edge][span]") {
     std::span<int> sp(data.data() + 2, 5);  // {3,4,5,6,7}
 
     int sum = 0;
-    ILP_FOR_RANGE(auto&& val, sp, 4) {
+    ILP_FOR_RANGE(void, auto&& val, sp, 4) {
         sum += val;
     } ILP_END;
 
@@ -122,7 +122,7 @@ TEST_CASE("std::span iteration", "[edge][span]") {
 TEST_CASE("Const element type", "[edge][const]") {
     const std::vector<int> data = {1, 2, 3, 4, 5};
     int sum = 0;
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum += val;
     } ILP_END;
     REQUIRE(sum == 15);
@@ -192,7 +192,7 @@ TEST_CASE("Empty struct in vector", "[edge][empty]") {
     std::vector<Empty> data(10);
 
     int count = 0;
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         count++;
         (void)val;
     } ILP_END;
@@ -277,7 +277,7 @@ TEST_CASE("Very long vector iteration - overflow bug", "[bug][overflow]") {
 
 TEST_CASE("Break on exactly last element", "[edge][control]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         sum += i;
         if (i == 9) ILP_BREAK;
     } ILP_END;
@@ -287,7 +287,7 @@ TEST_CASE("Break on exactly last element", "[edge][control]") {
 
 TEST_CASE("Continue on last element", "[edge][control]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         if (i == 9) ILP_CONTINUE;
         sum += i;
     } ILP_END;
@@ -336,7 +336,7 @@ TEST_CASE("Double-nested reduce", "[edge][nested][reduce]") {
 
 TEST_CASE("Odd N values - N=3", "[edge][oddN]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 3) {
+    ILP_FOR(void, auto i, 0, 10, 3) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -344,7 +344,7 @@ TEST_CASE("Odd N values - N=3", "[edge][oddN]") {
 
 TEST_CASE("Odd N values - N=5", "[edge][oddN]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 5) {
+    ILP_FOR(void, auto i, 0, 10, 5) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -352,7 +352,7 @@ TEST_CASE("Odd N values - N=5", "[edge][oddN]") {
 
 TEST_CASE("Odd N values - N=7", "[edge][oddN]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 10, 7) {
+    ILP_FOR(void, auto i, 0, 10, 7) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);

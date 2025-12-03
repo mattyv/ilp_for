@@ -127,22 +127,26 @@ void for_loop_impl(T start, T end, F&& body) {
     }
 }
 
-template<typename R, std::size_t N, std::integral T, typename F>
-    requires ForRetBody<F, T, R>
-std::optional<R> for_loop_ret_impl(T start, T end, F&& body) {
+template<typename return_type, std::size_t N, std::integral T, typename F>
+    requires ForRetBody<F, T, return_type>
+std::optional<return_type> for_loop_ret_impl(T start, T end, F&& body) {
     validate_unroll_factor<N>();
-    LoopCtrl<R> ctrl;
+    LoopCtrl<return_type> ctrl;
     T i = start;
 
-    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
-    for (; i + static_cast<T>(N) <= end && ctrl.ok; i += static_cast<T>(N)) {
-        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+    // Main unrolled loop - explicit early-exit check generates proper branches (not csel)
+    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+        for (std::size_t j = 0; j < N; ++j) {
             body(i + static_cast<T>(j), ctrl);
+            if (!ctrl.ok) [[unlikely]]
+                return std::move(ctrl.return_value);
         }
     }
 
-    for (; i < end && ctrl.ok; ++i) {
+    for (; i < end; ++i) {
         body(i, ctrl);
+        if (!ctrl.ok) [[unlikely]]
+            return std::move(ctrl.return_value);
     }
 
     return std::move(ctrl.return_value);
@@ -252,23 +256,28 @@ void for_loop_range_impl(Range&& range, F&& body) {
     }
 }
 
-template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_ret_impl(Range&& range, F&& body) {
+template<typename return_type, std::size_t N, std::ranges::random_access_range Range, typename F>
+    requires ForRangeRetBody<F, std::ranges::range_reference_t<Range>, return_type>
+std::optional<return_type> for_loop_range_ret_impl(Range&& range, F&& body) {
     validate_unroll_factor<N>();
-    LoopCtrl<R> ctrl;
+    LoopCtrl<return_type> ctrl;
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
     std::size_t i = 0;
 
-    // Main unrolled loop - nested loop pattern enables universal vectorization (GCC + Clang)
-    for (; i + N <= size && ctrl.ok; i += N) {
-        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
+    // Main unrolled loop - explicit early-exit check generates proper branches (not csel)
+    for (; i + N <= size; i += N) {
+        for (std::size_t j = 0; j < N; ++j) {
             body(it[i + j], ctrl);
+            if (!ctrl.ok) [[unlikely]]
+                return std::move(ctrl.return_value);
         }
     }
 
-    for (; i < size && ctrl.ok; ++i) {
+    for (; i < size; ++i) {
         body(it[i], ctrl);
+        if (!ctrl.ok) [[unlikely]]
+            return std::move(ctrl.return_value);
     }
 
     return std::move(ctrl.return_value);
@@ -445,89 +454,73 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 // =============================================================================
 
 // Unified reduce implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
-// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
+// Path selection based on return type: ReduceResult → nested loops with break, plain value → nested loops
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires ReduceBody<F, T> || ReduceCtrlBody<F, T>
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
     constexpr bool has_ctrl = ReduceCtrlBody<F, T>;
 
-    if constexpr (has_ctrl) {
-        using ResultT = std::invoke_result_t<F, T, LoopCtrl<void>&>;
+    // Unified invoker that works with both 1-arg and 2-arg lambdas
+    auto invoke_body = [&](T idx) {
+        if constexpr (has_ctrl) {
+            LoopCtrl<void> dummy;
+            return body(idx, dummy);
+        } else {
+            return body(idx);
+        }
+    };
 
-        if constexpr (is_reduce_result_v<ResultT>) {
-            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
-            using R = decltype(std::declval<ResultT>().value);
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+    using ResultT = decltype(invoke_body(std::declval<T>()));
 
-            LoopCtrl<void> ctrl;
-            T i = start;
-            bool should_break = false;
+    if constexpr (is_reduce_result_v<ResultT>) {
+        // ReduceResult → nested loops with break support
+        using R = decltype(std::declval<ResultT>().value);
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-            for (; i + static_cast<T>(N) <= end && !should_break; i += static_cast<T>(N)) {
-                for (std::size_t j = 0; j < N && !should_break; ++j) {
-                    auto result = body(i + static_cast<T>(j), ctrl);
-                    if (result.did_break()) {
-                        should_break = true;
-                    } else {
-                        accs[j] = op(accs[j], result.value);
-                    }
-                }
-            }
+        T i = start;
+        bool should_break = false;
 
-            for (; i < end && !should_break; ++i) {
-                auto result = body(i, ctrl);
+        for (; i + static_cast<T>(N) <= end && !should_break; i += static_cast<T>(N)) {
+            for (std::size_t j = 0; j < N && !should_break; ++j) {
+                auto result = invoke_body(i + static_cast<T>(j));
                 if (result.did_break()) {
                     should_break = true;
                 } else {
-                    accs[0] = op(accs[0], result.value);
+                    accs[j] = op(accs[j], result.value);
                 }
             }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
-        } else {
-            // Simple API: plain return value (no break support)
-            using R = ResultT;
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
-
-            LoopCtrl<void> ctrl;
-            T i = start;
-
-            for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-                for (std::size_t j = 0; j < N; ++j) {
-                    accs[j] = op(accs[j], body(i + static_cast<T>(j), ctrl));
-                }
-            }
-
-            for (; i < end; ++i) {
-                accs[0] = op(accs[0], body(i, ctrl));
-            }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
         }
+
+        for (; i < end && !should_break; ++i) {
+            auto result = invoke_body(i);
+            if (result.did_break()) {
+                should_break = true;
+            } else {
+                accs[0] = op(accs[0], result.value);
+            }
+        }
+
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            R result = std::forward<Init>(init);
+            ((result = op(result, accs[Is])), ...);
+            return result;
+        }(std::make_index_sequence<N>{});
     } else {
-        static_assert(ReduceBody<F, T>, "Lambda must be invocable with (T) or (T, LoopCtrl<void>&)");
-        using R = std::invoke_result_t<F, T>;
+        // Plain value → nested loops (ILP for pipelining)
+        using R = ResultT;
         auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
         T i = start;
 
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             for (std::size_t j = 0; j < N; ++j) {
-                accs[j] = op(accs[j], body(i + static_cast<T>(j)));
+                accs[j] = op(accs[j], invoke_body(i + static_cast<T>(j)));
             }
         }
 
         for (; i < end; ++i) {
-            accs[0] = op(accs[0], body(i));
+            accs[0] = op(accs[0], invoke_body(i));
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
@@ -539,7 +532,7 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
 }
 
 // Unified range-based reduce - optimized for contiguous ranges
-// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
+// Path selection based on return type: ReduceResult → nested loops, plain value → transform_reduce
 template<std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
@@ -548,81 +541,60 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
 
     auto* ptr = std::ranges::data(range);
     auto size = std::ranges::size(range);
-    std::size_t i = 0;
 
-    if constexpr (has_ctrl) {
-        using ResultT = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
+    // Unified invoker that works with both 1-arg and 2-arg lambdas
+    auto invoke_body = [&](auto&& elem) {
+        if constexpr (has_ctrl) {
+            LoopCtrl<void> dummy;
+            return body(std::forward<decltype(elem)>(elem), dummy);
+        } else {
+            return body(std::forward<decltype(elem)>(elem));
+        }
+    };
 
-        if constexpr (is_reduce_result_v<ResultT>) {
-            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
-            using R = decltype(std::declval<ResultT>().value);
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+    using ResultT = decltype(invoke_body(std::declval<Ref>()));
 
-            LoopCtrl<void> ctrl;
-            bool should_break = false;
+    if constexpr (is_reduce_result_v<ResultT>) {
+        // ReduceResult → nested loops (break support needed)
+        using R = decltype(std::declval<ResultT>().value);
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-            for (; i + N <= size && !should_break; i += N) {
-                for (std::size_t j = 0; j < N && !should_break; ++j) {
-                    auto result = body(ptr[i + j], ctrl);
-                    if (result.did_break()) {
-                        should_break = true;
-                    } else {
-                        accs[j] = op(accs[j], result.value);
-                    }
-                }
-            }
+        std::size_t i = 0;
+        bool should_break = false;
 
-            for (; i < size && !should_break; ++i) {
-                auto result = body(ptr[i], ctrl);
+        for (; i + N <= size && !should_break; i += N) {
+            for (std::size_t j = 0; j < N && !should_break; ++j) {
+                auto result = invoke_body(ptr[i + j]);
                 if (result.did_break()) {
                     should_break = true;
                 } else {
-                    accs[0] = op(accs[0], result.value);
+                    accs[j] = op(accs[j], result.value);
                 }
             }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
-        } else {
-            // Simple API: plain return value (no break support)
-            using R = ResultT;
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
-
-            LoopCtrl<void> ctrl;
-
-            for (; i + N <= size; i += N) {
-                for (std::size_t j = 0; j < N; ++j) {
-                    accs[j] = op(accs[j], body(ptr[i + j], ctrl));
-                }
-            }
-
-            for (; i < size; ++i) {
-                accs[0] = op(accs[0], body(ptr[i], ctrl));
-            }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
         }
+
+        for (; i < size && !should_break; ++i) {
+            auto result = invoke_body(ptr[i]);
+            if (result.did_break()) {
+                should_break = true;
+            } else {
+                accs[0] = op(accs[0], result.value);
+            }
+        }
+
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            R result = std::forward<Init>(init);
+            ((result = op(result, accs[Is])), ...);
+            return result;
+        }(std::make_index_sequence<N>{});
     } else {
-        // Dispatch to std::transform_reduce for SIMD vectorization
-        return std::transform_reduce(
-            std::ranges::begin(range),
-            std::ranges::end(range),
-            init,
-            op,
-            std::forward<F>(body)
-        );
+        // Plain value → std::transform_reduce (SIMD vectorization!)
+        return std::transform_reduce(ptr, ptr + size, std::forward<Init>(init), op, invoke_body);
     }
 }
 
 // Unified range-based reduce - fallback for random access (non-contiguous) ranges
-// Supports new ReduceResult return type for auto ctrl/non-ctrl path selection
+// Path selection based on return type: ReduceResult → nested loops, plain value → transform_reduce
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires (!std::ranges::contiguous_range<Range>)
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
@@ -632,75 +604,60 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
 
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
-    std::size_t i = 0;
 
-    if constexpr (has_ctrl) {
-        using ResultT = std::invoke_result_t<F, Ref, LoopCtrl<void>&>;
+    // Unified invoker that works with both 1-arg and 2-arg lambdas
+    auto invoke_body = [&](auto&& elem) {
+        if constexpr (has_ctrl) {
+            LoopCtrl<void> dummy;
+            return body(std::forward<decltype(elem)>(elem), dummy);
+        } else {
+            return body(std::forward<decltype(elem)>(elem));
+        }
+    };
 
-        if constexpr (is_reduce_result_v<ResultT>) {
-            // New API: ILP_REDUCE_RETURN/ILP_REDUCE_BREAK
-            using R = decltype(std::declval<ResultT>().value);
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+    using ResultT = decltype(invoke_body(std::declval<Ref>()));
 
-            LoopCtrl<void> ctrl;
-            bool should_break = false;
+    if constexpr (is_reduce_result_v<ResultT>) {
+        // ReduceResult → nested loops (break support needed)
+        using R = decltype(std::declval<ResultT>().value);
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
-            for (; i + N <= size && !should_break; i += N) {
-                for (std::size_t j = 0; j < N && !should_break; ++j) {
-                    auto result = body(it[i + j], ctrl);
-                    if (result.did_break()) {
-                        should_break = true;
-                    } else {
-                        accs[j] = op(accs[j], result.value);
-                    }
-                }
-            }
+        std::size_t i = 0;
+        bool should_break = false;
 
-            for (; i < size && !should_break; ++i) {
-                auto result = body(it[i], ctrl);
+        for (; i + N <= size && !should_break; i += N) {
+            for (std::size_t j = 0; j < N && !should_break; ++j) {
+                auto result = invoke_body(it[i + j]);
                 if (result.did_break()) {
                     should_break = true;
                 } else {
-                    accs[0] = op(accs[0], result.value);
+                    accs[j] = op(accs[j], result.value);
                 }
             }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
-        } else {
-            // Simple API: plain return value (no break support)
-            using R = ResultT;
-            auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
-
-            LoopCtrl<void> ctrl;
-
-            for (; i + N <= size; i += N) {
-                for (std::size_t j = 0; j < N; ++j) {
-                    accs[j] = op(accs[j], body(it[i + j], ctrl));
-                }
-            }
-
-            for (; i < size; ++i) {
-                accs[0] = op(accs[0], body(it[i], ctrl));
-            }
-
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                R result = std::forward<Init>(init);
-                ((result = op(result, accs[Is])), ...);
-                return result;
-            }(std::make_index_sequence<N>{});
         }
+
+        for (; i < size && !should_break; ++i) {
+            auto result = invoke_body(it[i]);
+            if (result.did_break()) {
+                should_break = true;
+            } else {
+                accs[0] = op(accs[0], result.value);
+            }
+        }
+
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            R result = std::forward<Init>(init);
+            ((result = op(result, accs[Is])), ...);
+            return result;
+        }(std::make_index_sequence<N>{});
     } else {
-        // Dispatch to std::transform_reduce for SIMD vectorization
+        // Plain value → std::transform_reduce (SIMD vectorization!)
         return std::transform_reduce(
             std::ranges::begin(range),
             std::ranges::end(range),
-            init,
+            std::forward<Init>(init),
             op,
-            std::forward<F>(body)
+            invoke_body
         );
     }
 }
@@ -747,15 +704,14 @@ std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
 // Public API - Index-based loops
 // =============================================================================
 
-template<std::size_t N = 4, std::integral T, typename F>
-    requires detail::ForBody<F, T> || detail::ForCtrlBody<F, T>
-void for_loop(T start, T end, F&& body) {
-    detail::for_loop_impl<N>(start, end, std::forward<F>(body));
-}
-
-template<typename R, std::size_t N = 4, std::integral T, typename F>
-std::optional<R> for_loop_ret(T start, T end, F&& body) {
-    return detail::for_loop_ret_impl<R, N>(start, end, std::forward<F>(body));
+// Unified for_loop: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::size_t N = 4, std::integral T, typename F>
+auto for_loop(T start, T end, F&& body) -> detail::for_result_t<return_type> {
+    if constexpr (std::is_void_v<return_type>) {
+        detail::for_loop_impl<N>(start, end, std::forward<F>(body));
+    } else {
+        return detail::for_loop_ret_impl<return_type, N>(start, end, std::forward<F>(body));
+    }
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -768,16 +724,14 @@ auto find(T start, T end, F&& body) {
 // Public API - Range-based loops
 // =============================================================================
 
-template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-    requires detail::ForRangeBody<F, std::ranges::range_reference_t<Range>>
-          || detail::ForRangeCtrlBody<F, std::ranges::range_reference_t<Range>>
-void for_loop_range(Range&& range, F&& body) {
-    detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
-}
-
-template<typename R, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-std::optional<R> for_loop_range_ret(Range&& range, F&& body) {
-    return detail::for_loop_range_ret_impl<R, N>(std::forward<Range>(range), std::forward<F>(body));
+// Unified for_loop_range: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+auto for_loop_range(Range&& range, F&& body) -> detail::for_result_t<return_type> {
+    if constexpr (std::is_void_v<return_type>) {
+        detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
+    } else {
+        return detail::for_loop_range_ret_impl<return_type, N>(std::forward<Range>(range), std::forward<F>(body));
+    }
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -842,6 +796,18 @@ auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
 // =============================================================================
 // Auto-selecting functions
 // =============================================================================
+
+// Unified for_loop_auto: return_type=void -> void, return_type=T -> std::optional<T>
+template<typename return_type, std::integral T, typename F>
+auto for_loop_auto(T start, T end, F&& body) -> detail::for_result_t<return_type> {
+    return for_loop<return_type, optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
+}
+
+template<typename return_type, std::ranges::random_access_range Range, typename F>
+auto for_loop_range_auto(Range&& range, F&& body) -> detail::for_result_t<return_type> {
+    using T = std::ranges::range_value_t<Range>;
+    return for_loop_range<return_type, optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
+}
 
 template<std::integral T, typename F>
     requires std::invocable<F, T, T>

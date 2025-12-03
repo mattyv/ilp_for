@@ -39,28 +39,27 @@ size_t idx = ILP_FIND_RANGE_AUTO(auto&& val, data) {
 
 ### Optional Mode (General Purpose)
 
-Return early from the enclosing function using `ILP_RETURN`:
+Return early using `ILP_RETURN`:
 
 ```cpp
 std::optional<int> find_expensive() {
-    ILP_FOR_RET(std::optional<int>, auto i, 0uz, data.size(), 4) {
+    return ILP_FOR(int, auto i, 0uz, data.size(), 4) {
         if (expensive_check(data[i])) {
             ILP_RETURN(compute(data[i]));
         }
-    } ILP_END_RET;
-    return std::nullopt;
+    } ILP_END;
 }
 ```
 
 ### Why Bool Mode is Faster
 
-When using `ILP_FOR_RET` with conditional returns, the compiler generates `csel` instructions:
+When using `ILP_FOR` with return type, the compiler generates `csel` instructions:
 
 ```cpp
 // Slower - generates csel dependency chain
-ILP_FOR_RET(size_t, auto i, 0uz, n, 4) {
+auto result = ILP_FOR(size_t, auto i, 0uz, n, 4) {
     if (data[i] == target) ILP_RETURN(i);
-} ILP_END_RET;
+} ILP_END;
 ```
 
 Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.

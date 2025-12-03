@@ -30,6 +30,10 @@ struct is_optional<std::optional<T>> : std::true_type {};
 template<typename T>
 inline constexpr bool is_optional_v = is_optional<T>::value;
 
+// Result type for unified for_loop: void -> void, T -> std::optional<T>
+template<typename R>
+using for_result_t = std::conditional_t<std::is_void_v<R>, void, std::optional<R>>;
+
 // =============================================================================
 // Reduce result type
 // =============================================================================

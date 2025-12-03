@@ -61,10 +61,10 @@ TEST_CASE("Zero elements with various N values", "[extreme][zero]") {
     // N must be compile-time constant, so we test specific values below
     (void)std::initializer_list<int>{1, 2, 3, 4, 5, 6, 7, 8};  // Document intent
 
-    int count1 = 0; ILP_FOR(auto i, 0, 0, 1) { count1++; } ILP_END;
-    int count2 = 0; ILP_FOR(auto i, 0, 0, 2) { count2++; } ILP_END;
-    int count4 = 0; ILP_FOR(auto i, 0, 0, 4) { count4++; } ILP_END;
-    int count8 = 0; ILP_FOR(auto i, 0, 0, 8) { count8++; } ILP_END;
+    int count1 = 0; ILP_FOR(void, auto i, 0, 0, 1) { count1++; } ILP_END;
+    int count2 = 0; ILP_FOR(void, auto i, 0, 0, 2) { count2++; } ILP_END;
+    int count4 = 0; ILP_FOR(void, auto i, 0, 0, 4) { count4++; } ILP_END;
+    int count8 = 0; ILP_FOR(void, auto i, 0, 0, 8) { count8++; } ILP_END;
 
     REQUIRE(count1 == 0);
     REQUIRE(count2 == 0);
@@ -127,7 +127,7 @@ TEST_CASE("Double precision edge case", "[extreme][float]") {
 
 TEST_CASE("N=16 with small range", "[extreme][unroll]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 3, 16) {  // Range 3 < N=16
+    ILP_FOR(void, auto i, 0, 3, 16) {  // Range 3 < N=16
         sum += i;
     } ILP_END;
     REQUIRE(sum == 3);  // 0+1+2
@@ -135,7 +135,7 @@ TEST_CASE("N=16 with small range", "[extreme][unroll]") {
 
 TEST_CASE("N=32 with medium range", "[extreme][unroll]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 50, 16) {
+    ILP_FOR(void, auto i, 0, 50, 16) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 1225);
@@ -155,7 +155,7 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 
     SECTION("Last element via index") {
         int sum = 0;
-        ILP_FOR(auto i, 0, 10, 4) {
+        ILP_FOR(void, auto i, 0, 10, 4) {
             sum += arr[i];
         } ILP_END;
         REQUIRE(sum == 45);
@@ -183,9 +183,9 @@ TEST_CASE("std::array iteration", "[extreme][container]") {
 TEST_CASE("Triple nested loops", "[extreme][nested]") {
     int total = 0;
 
-    ILP_FOR(auto i, 0, 5, 4) {
-        ILP_FOR(auto j, 0, 5, 4) {
-            ILP_FOR(auto k, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
+        ILP_FOR(void, auto j, 0, 5, 4) {
+            ILP_FOR(void, auto k, 0, 5, 4) {
                 total++;
             } ILP_END;
         } ILP_END;
@@ -197,8 +197,8 @@ TEST_CASE("Triple nested loops", "[extreme][nested]") {
 TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
     int total = 0;
 
-    ILP_FOR(auto i, 0, 5, 4) {
-        ILP_FOR(auto j, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
+        ILP_FOR(void, auto j, 0, 5, 4) {
             total += i * j;
         } ILP_END;
     } ILP_END;
@@ -343,7 +343,7 @@ TEST_CASE("Range-idx finds each index", "[extreme][rangeidx]") {
 TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
     // Test crossing from negative to positive
     int sum = 0;
-    ILP_FOR(auto i, -5, 5, 4) {
+    ILP_FOR(void, auto i, -5, 5, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == -5);  // -5 + -4 + -3 + -2 + -1 + 0 + 1 + 2 + 3 + 4 = -5
@@ -379,7 +379,7 @@ TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
 
 TEST_CASE("Volatile accumulator", "[extreme][volatile]") {
     volatile int sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 45);
@@ -392,7 +392,7 @@ TEST_CASE("Volatile accumulator", "[extreme][volatile]") {
 TEST_CASE("Multiple captures modified", "[extreme][capture]") {
     int a = 0, b = 0, c = 0;
 
-    ILP_FOR(auto i, 0, 12, 4) {
+    ILP_FOR(void, auto i, 0, 12, 4) {
         if (i % 3 == 0) a += i;
         else if (i % 3 == 1) b += i;
         else c += i;
@@ -409,7 +409,7 @@ TEST_CASE("Multiple captures modified", "[extreme][capture]") {
 
 TEST_CASE("Range of 2 with N=8", "[extreme][short]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 2, 8) {
+    ILP_FOR(void, auto i, 0, 2, 8) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 1);
@@ -417,7 +417,7 @@ TEST_CASE("Range of 2 with N=8", "[extreme][short]") {
 
 TEST_CASE("Range of 1 with N=16", "[extreme][short]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 1, 16) {
+    ILP_FOR(void, auto i, 0, 1, 16) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == 0);
@@ -434,11 +434,11 @@ TEST_CASE("Range = 2^n for various n", "[extreme][pow2]") {
         return s;
     };
 
-    int s1 = 0; ILP_FOR(auto i, 0, 2, 4) { s1 += i; } ILP_END;
-    int s2 = 0; ILP_FOR(auto i, 0, 4, 4) { s2 += i; } ILP_END;
-    int s3 = 0; ILP_FOR(auto i, 0, 8, 4) { s3 += i; } ILP_END;
-    int s4 = 0; ILP_FOR(auto i, 0, 16, 4) { s4 += i; } ILP_END;
-    int s5 = 0; ILP_FOR(auto i, 0, 32, 4) { s5 += i; } ILP_END;
+    int s1 = 0; ILP_FOR(void, auto i, 0, 2, 4) { s1 += i; } ILP_END;
+    int s2 = 0; ILP_FOR(void, auto i, 0, 4, 4) { s2 += i; } ILP_END;
+    int s3 = 0; ILP_FOR(void, auto i, 0, 8, 4) { s3 += i; } ILP_END;
+    int s4 = 0; ILP_FOR(void, auto i, 0, 16, 4) { s4 += i; } ILP_END;
+    int s5 = 0; ILP_FOR(void, auto i, 0, 32, 4) { s5 += i; } ILP_END;
 
     REQUIRE(s1 == sum(2));
     REQUIRE(s2 == sum(4));

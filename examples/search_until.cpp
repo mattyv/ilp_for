@@ -14,19 +14,19 @@ struct Record {
 
 // Find first active record
 std::optional<size_t> find_first_active(const std::vector<Record>& records) {
-    size_t idx = ILP_FIND_RANGE_AUTO(auto&& rec, records) {
+    auto it = ILP_FIND_RANGE_AUTO(auto&& rec, records) {
         return rec.active;
     } ILP_END;
-    return (idx != records.size()) ? std::optional(idx) : std::nullopt;
+    return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 // Find record by name
 std::optional<size_t> find_by_name(const std::vector<Record>& records,
                                     const std::string& target) {
-    size_t idx = ILP_FIND_RANGE_AUTO(auto&& rec, records) {
+    auto it = ILP_FIND_RANGE_AUTO(auto&& rec, records) {
         return rec.name == target;
     } ILP_END;
-    return (idx != records.size()) ? std::optional(idx) : std::nullopt;
+    return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 int main() {

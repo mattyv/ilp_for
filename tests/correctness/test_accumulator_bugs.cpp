@@ -161,7 +161,7 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break after first element") {
         auto result = ILP_REDUCE(std::plus<>(), 100, auto i, 0, 100, 4) {
             if (i == 1) ILP_REDUCE_BREAK;
-            ILP_REDUCE_RETURN(i);
+            ILP_REDUCE_BREAK_VALUE(i);
         } ILP_END_REDUCE;
         // First iteration processes 0 in one accumulator
         // Then breaks

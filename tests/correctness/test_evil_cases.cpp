@@ -19,7 +19,7 @@ TEST_CASE("Near max integer range", "[evil][limits]") {
     int start = std::numeric_limits<int>::max() - 10;
     int end = std::numeric_limits<int>::max() - 5;
 
-    ILP_FOR(auto i, start, end, 4) {
+    ILP_FOR(void, auto i, start, end, 4) {
         sum += i;
     } ILP_END;
 
@@ -34,7 +34,7 @@ TEST_CASE("Near min integer range", "[evil][limits]") {
     int start = std::numeric_limits<int>::min() + 5;
     int end = std::numeric_limits<int>::min() + 10;
 
-    ILP_FOR(auto i, start, end, 4) {
+    ILP_FOR(void, auto i, start, end, 4) {
         sum += i;
     } ILP_END;
 
@@ -48,7 +48,7 @@ TEST_CASE("Size_t near max", "[evil][limits]") {
     size_t end = std::numeric_limits<size_t>::max() - 10;
 
     int count = 0;
-    ILP_FOR(auto i, start, end, 4) {
+    ILP_FOR(void, auto i, start, end, 4) {
         count++;
         (void)i;
     } ILP_END;
@@ -63,7 +63,7 @@ TEST_CASE("Size_t near max", "[evil][limits]") {
 TEST_CASE("Inverted unsigned range", "[evil][inverted]") {
     // This is undefined territory - what happens?
     unsigned count = 0;
-    ILP_FOR(auto i, 10u, 0u, 4) {  // Inverted!
+    ILP_FOR(void, auto i, 10u, 0u, 4) {  // Inverted!
         count++;
     } ILP_END;
     // Should be 0 iterations for safety
@@ -72,7 +72,7 @@ TEST_CASE("Inverted unsigned range", "[evil][inverted]") {
 
 TEST_CASE("Inverted signed range", "[evil][inverted]") {
     int count = 0;
-    ILP_FOR(auto i, 100, -100, 4) {  // Inverted!
+    ILP_FOR(void, auto i, 100, -100, 4) {  // Inverted!
         count++;
     } ILP_END;
     REQUIRE(count == 0);
@@ -84,7 +84,7 @@ TEST_CASE("Inverted signed range", "[evil][inverted]") {
 
 TEST_CASE("Exactly 2N elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 8, 4) {  // 8 = 2*4
+    ILP_FOR(void, auto i, 0, 8, 4) {  // 8 = 2*4
         sum += i;
     } ILP_END;
     REQUIRE(sum == 28);  // 0+1+2+3+4+5+6+7
@@ -92,7 +92,7 @@ TEST_CASE("Exactly 2N elements", "[evil][boundary]") {
 
 TEST_CASE("Exactly 2N-1 elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 7, 4) {  // 7 = 2*4-1
+    ILP_FOR(void, auto i, 0, 7, 4) {  // 7 = 2*4-1
         sum += i;
     } ILP_END;
     REQUIRE(sum == 21);
@@ -100,7 +100,7 @@ TEST_CASE("Exactly 2N-1 elements", "[evil][boundary]") {
 
 TEST_CASE("Exactly 2N+1 elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 9, 4) {  // 9 = 2*4+1
+    ILP_FOR(void, auto i, 0, 9, 4) {  // 9 = 2*4+1
         sum += i;
     } ILP_END;
     REQUIRE(sum == 36);
@@ -148,7 +148,7 @@ TEST_CASE("Reduce with max int init", "[evil][reduce]") {
 TEST_CASE("Break at N boundary", "[evil][control]") {
     // N=4, break exactly at position 4
     int sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i == 4) ILP_BREAK;
         sum += i;
     } ILP_END;
@@ -157,7 +157,7 @@ TEST_CASE("Break at N boundary", "[evil][control]") {
 
 TEST_CASE("Break at N-1", "[evil][control]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i == 3) ILP_BREAK;
         sum += i;
     } ILP_END;
@@ -166,7 +166,7 @@ TEST_CASE("Break at N-1", "[evil][control]") {
 
 TEST_CASE("Break at N+1", "[evil][control]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i == 5) ILP_BREAK;
         sum += i;
     } ILP_END;
@@ -175,7 +175,7 @@ TEST_CASE("Break at N+1", "[evil][control]") {
 
 TEST_CASE("Break at 2N", "[evil][control]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         if (i == 8) ILP_BREAK;
         sum += i;
     } ILP_END;
@@ -190,7 +190,7 @@ TEST_CASE("Break at 2N", "[evil][control]") {
 
 TEST_CASE("Mixing int and size_t", "[evil][types]") {
     size_t sum = 0;
-    ILP_FOR(auto i, 0, 10, 4) {
+    ILP_FOR(void, auto i, 0, 10, 4) {
         sum += static_cast<size_t>(i);
     } ILP_END;
     REQUIRE(sum == 45);
@@ -198,7 +198,7 @@ TEST_CASE("Mixing int and size_t", "[evil][types]") {
 
 TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
     int16_t sum = 0;
-    ILP_FOR(auto i, 0, 100, 4) {
+    ILP_FOR(void, auto i, 0, 100, 4) {
         sum += static_cast<int16_t>(i);
     } ILP_END;
     REQUIRE(sum == 4950);
@@ -214,7 +214,7 @@ TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
     // Breaking returns 0 from body, but what about accumulated values?
     auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 100, 4) {
         if (i == 10) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(i);
+        ILP_REDUCE_BREAK_VALUE(i);
     } ILP_END_REDUCE;
 
     // Expected: 0+1+2+3+4+5+6+7+8+9 = 45
@@ -225,7 +225,7 @@ TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
     // Break at position 0, 4, 8 (first of each unroll block)
     auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 12, 4) {
         if (i % 4 == 0) ILP_REDUCE_BREAK;
-        ILP_REDUCE_RETURN(i);
+        ILP_REDUCE_BREAK_VALUE(i);
     } ILP_END_REDUCE;
 
     // Breaks on first iteration
@@ -241,7 +241,7 @@ TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
 TEST_CASE("Vector with one element less than N", "[evil][vector]") {
     std::vector<int> data = {1, 2, 3};  // 3 < N=4
     int sum = 0;
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum += val;
     } ILP_END;
     REQUIRE(sum == 6);
@@ -250,7 +250,7 @@ TEST_CASE("Vector with one element less than N", "[evil][vector]") {
 TEST_CASE("Vector exactly N elements", "[evil][vector]") {
     std::vector<int> data = {1, 2, 3, 4};  // 4 = N
     int sum = 0;
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         sum += val;
     } ILP_END;
     REQUIRE(sum == 10);
@@ -295,7 +295,7 @@ TEST_CASE("Strict iteration order for side effects", "[evil][order]") {
     std::vector<int> order;
     order.reserve(20);
 
-    ILP_FOR(auto i, 0, 20, 4) {
+    ILP_FOR(void, auto i, 0, 20, 4) {
         order.push_back(i);
     } ILP_END;
 
@@ -312,7 +312,7 @@ TEST_CASE("Range iteration order verification", "[evil][order]") {
     std::vector<int> order;
     order.reserve(20);
 
-    ILP_FOR_RANGE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(void, auto&& val, data, 4) {
         order.push_back(val);
     } ILP_END;
 
@@ -481,7 +481,7 @@ TEST_CASE("Nested reduce", "[evil][nested]") {
     // Sum of sums
     int total = 0;
 
-    ILP_FOR(auto i, 0, 5, 4) {
+    ILP_FOR(void, auto i, 0, 5, 4) {
         auto inner_sum = ILP_REDUCE(std::plus<>{}, 0, auto j, 0, 5, 4) {
             return j;
         } ILP_END_REDUCE;

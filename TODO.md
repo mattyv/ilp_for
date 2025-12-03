@@ -1,8 +1,11 @@
 # TODO
 
 ## Macros
-- [ ] Update ILP_FOR, ILP_FOR_RET, ILP_FOR_RANGE, ILP_FOR_RANGE_RET with same outer lambda pattern as ILP_REDUCE
+- [x] Consolidate ILP_FOR + ILP_FOR_RET into single ILP_FOR(ret_type, ...) macro
+- [x] Consolidate ILP_FOR_RANGE + ILP_FOR_RANGE_RET into single ILP_FOR_RANGE(ret_type, ...) macro
+- [x] Add ILP_FOR_AUTO and ILP_FOR_RANGE_AUTO macros
 - [ ] Update ILP_FIND, ILP_FIND_RANGE_IDX with same pattern
+- [ ] Remove vestigial _ilp_ctrl from other macros (cleaner code)
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
