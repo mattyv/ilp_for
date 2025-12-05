@@ -4,22 +4,22 @@ This library's goal is not to be a performance library, but to ensure performanc
 
 ## Benchmarks
 
-Clang 17 on Apple M2
+Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
-| Min | 3.4ms | 0.58ms | **5.9x** |
-| Any-of | 4.0ms | 0.75ms | **5.3x** |
-| Find | 1.9ms | 1.6ms | **1.2x** |
-| Sum with break | 1.8ms | 1.1ms | **1.6x** |
+| Min | 3.47ms | 0.58ms | **6.0x** |
+| Any-of | 3.96ms | 1.86ms | **2.1x** |
+| Sum with break | 1.80ms | 1.11ms | **1.6x** |
+| Find | 1.86ms | 1.86ms | ~1.0x |
 
 ### Simple Reductions
 
-| Operation | std/simple | ILP | Result |
+| Operation | Handrolled | ILP | Result |
 |-----------|------------|-----|--------|
-| Sum | 0.54ms | 0.58ms | **ILP ~7% slower** |
+| Sum | 0.75ms | 0.75ms | **equivalent** |
 
-Modern compilers auto-vectorize simple sums effectively. Use `ILP_REDUCE_SUM` only when you need break/return support.
+Modern compilers auto-vectorize simple sums effectively. ILP matches hand-optimized code.
 
 ## Early Return Performance
 
@@ -27,51 +27,51 @@ The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type.
 
 ### Bool Mode (Fastest)
 
-Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
+Return `bool` to get the iterator to the first match. This avoids `csel` (conditional select) dependencies:
 
 ```cpp
-// Matches std::find performance - use ILP_FOR_UNTIL for find operations
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
+// Matches std::find performance
+auto it = ilp::find_range_auto(data, [&](auto&& val) {
     return val == target;  // returns bool
-} ILP_END_UNTIL;
-// Returns: std::optional<size_t> - index if found, nullopt if not
+});
+// Returns: iterator - points to match, or end() if not found
 ```
 
 ### Optional Mode (General Purpose)
 
-Return `std::optional<T>` for computed values:
+Return early using `ILP_RETURN` (returns from enclosing function):
 
 ```cpp
-auto result = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
-    if (expensive_check(data[i])) {
-        return std::optional(compute(data[i]));
-    }
-    return std::nullopt;
-} ILP_END;
-// Returns: std::optional<T>
+std::optional<int> find_expensive() {
+    ILP_FOR(int, auto i, 0uz, data.size(), 4) {
+        if (expensive_check(data[i])) {
+            ILP_RETURN(compute(data[i]));  // Returns from find_expensive()
+        }
+    } ILP_END;
+    return std::nullopt;  // Not found
+}
 ```
 
 ### Why Bool Mode is Faster
 
-When your lambda does `if (cond) return value; return sentinel;`, the compiler generates `csel` instructions:
+When using `ILP_FOR` with return type, the compiler generates `csel` instructions:
 
 ```cpp
 // Slower - generates csel dependency chain
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
-    if (data[i] == target) return i;
-    return _ilp_end_;
+ILP_FOR(size_t, auto i, 0uz, n, 4) {
+    if (data[i] == target) ILP_RETURN(i);
 } ILP_END;
 ```
 
 Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
 
-With bool mode, comparisons run in parallel without dependencies:
+With `ilp::find`, comparisons run in parallel without dependencies:
 
 ```cpp
 // Fast - parallel comparisons, no csel
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
+size_t idx = ilp::find<4>(0uz, n, [&](auto i, auto) {
     return data[i] == target;
-} ILP_END;
+});
 ```
 
 ## Why Not Just Use `#pragma unroll`?

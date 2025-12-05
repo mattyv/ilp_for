@@ -4,6 +4,12 @@
 
 #include <cstddef>
 #include <optional>
+#include <concepts>
+#include <type_traits>
+#include <ranges>
+#include <utility>
+
+#include "ctrl.hpp"
 
 // Helper for pragma stringification
 #define ILP_PRAGMA_STR_(x) #x
@@ -16,14 +22,54 @@ namespace detail {
 // Type traits
 // =============================================================================
 
-template<typename T>
-struct is_optional : std::false_type {};
+// is_optional is defined in ctrl.hpp
 
-template<typename T>
-struct is_optional<std::optional<T>> : std::true_type {};
+// Sentinel type for void loops - never triggers return, but compiles in any context
+// operator* returns void so "return *_ilp_ret_" is valid in void functions
+struct no_return_t {
+    constexpr explicit operator bool() const noexcept { return false; }
+    [[noreturn]] void operator*() const noexcept { std::unreachable(); }
+};
 
+// Result type for unified for_loop: void -> no_return_t, T -> std::optional<T>
+template<typename R>
+using for_result_t = std::conditional_t<std::is_void_v<R>, no_return_t, std::optional<R>>;
+
+// =============================================================================
+// Reduce result type
+// =============================================================================
+
+// Result from reduce body: value to accumulate, and whether to break early
 template<typename T>
-inline constexpr bool is_optional_v = is_optional<T>::value;
+struct ReduceResult {
+    T value;
+    bool _break;
+
+    constexpr ReduceResult(T v, bool b) : value(std::move(v)), _break(b) {}
+    constexpr bool did_break() const { return _break; }
+};
+
+} // namespace detail
+
+// Helper to signal early break from reduce (returns empty value with break flag)
+template<typename T>
+constexpr auto reduce_break() {
+    return detail::ReduceResult<T>{T{}, true};
+}
+
+// Helper to return a value from reduce body (with no break)
+template<typename T>
+constexpr auto reduce_value(T&& val) {
+    return detail::ReduceResult<std::decay_t<T>>{std::forward<T>(val), false};
+}
+
+namespace detail {
+
+// Type trait to detect ReduceResult
+template<typename T> struct is_reduce_result : std::false_type {};
+template<typename T>
+struct is_reduce_result<ReduceResult<T>> : std::true_type {};
+template<typename T> inline constexpr bool is_reduce_result_v = is_reduce_result<T>::value;
 
 // =============================================================================
 // Compile-time validation
@@ -64,38 +110,73 @@ template<typename AccumT, typename ElemT>
              "For small, bounded ranges this warning can be safely ignored.")]]
 constexpr void warn_accumulator_overflow() {}
 
-// Check if accumulator might overflow during sum reduction
+// Check for potential overflow in sum operations
 template<typename AccumT, typename ElemT>
-constexpr void check_accumulator_overflow() {
-    // Only warn for integral types (floating point has better overflow characteristics)
+constexpr void check_sum_overflow() {
     if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // Warn if accumulator is same size or smaller than element type
-        // This is a heuristic - actual overflow depends on range size and values
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT)) {
+        // Warn only if accumulator is smaller than element type
+        // Same-size is fine - users know their data
+        if constexpr (sizeof(AccumT) < sizeof(ElemT)) {
             warn_accumulator_overflow<AccumT, ElemT>();
-        }
-        // Also warn if accumulator is only slightly larger than element
-        // and both are signed (e.g., accumulating int16_t into int32_t might still overflow)
-        else if constexpr (std::signed_integral<AccumT> && std::signed_integral<ElemT>) {
-            if constexpr (sizeof(AccumT) == sizeof(ElemT) + sizeof(ElemT)) {
-                // int32_t accumulating int16_t - warn if pattern suggests large accumulation
-                // This is conservative but helps catch common mistakes
-                warn_accumulator_overflow<AccumT, ElemT>();
-            }
         }
     }
 }
 
-// Stricter check for when we know this is definitely a sum operation
-template<typename AccumT, typename ElemT>
-constexpr void check_sum_overflow() {
-    if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-        // For sum operations, be more aggressive with warnings
-        if constexpr (sizeof(AccumT) <= sizeof(ElemT) * 2) {
-            warn_accumulator_overflow<AccumT, ElemT>();
-        }
-    }
-}
+// =============================================================================
+// Body signature concepts
+// =============================================================================
+
+// Index-based for loop bodies
+template<typename F, typename T>
+concept ForBody = std::invocable<F, T>;
+
+template<typename F, typename T>
+concept ForCtrlBody = std::invocable<F, T, LoopCtrl<void>&>;
+
+template<typename F, typename T, typename R>
+concept ForRetBody = std::invocable<F, T, LoopCtrl<R>&>;
+
+// Type-erased control bodies (new API without return type)
+template<typename F, typename T>
+concept ForUntypedCtrlBody = std::invocable<F, T, ForCtrl&>;
+
+// Range-based for loop bodies
+template<typename F, typename Ref>
+concept ForRangeBody = std::invocable<F, Ref>;
+
+template<typename F, typename Ref>
+concept ForRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&>;
+
+template<typename F, typename Ref, typename R>
+concept ForRangeRetBody = std::invocable<F, Ref, LoopCtrl<R>&>;
+
+// Type-erased range bodies (new API without return type)
+template<typename F, typename Ref>
+concept ForRangeUntypedCtrlBody = std::invocable<F, Ref, ForCtrl&>;
+
+// Reduce bodies - must return a value (1-arg lambdas only, ctrl is vestigial for reduce)
+template<typename F, typename T>
+concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
+
+template<typename F, typename Ref>
+concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
+
+// Find bodies - takes (index, sentinel) and returns bool, index, or optional
+template<typename F, typename T>
+concept FindBody = std::invocable<F, T, T>;
+
+// Predicate bodies - simple bool return
+template<typename F, typename T>
+concept PredicateBody = std::invocable<F, T> &&
+    std::same_as<std::invoke_result_t<F, T>, bool>;
+
+template<typename F, typename Ref>
+concept PredicateRangeBody = std::invocable<F, Ref> &&
+    std::same_as<std::invoke_result_t<F, Ref>, bool>;
+
+// Find range with index - body receives (value, index, end_iterator)
+template<typename F, typename Ref, typename Iter>
+concept FindRangeIdxBody = std::invocable<F, Ref, std::size_t, Iter>;
 
 } // namespace detail
 } // namespace ilp

@@ -34,7 +34,7 @@ inline constexpr bool is_optional_v = is_optional<T>::value;
 
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple_impl(T start, T end, F&& body) {
+auto find_impl(T start, T end, F&& body) {
     validate_unroll_factor<N>();
     using R = std::invoke_result_t<F, T, T>;
 
@@ -81,14 +81,14 @@ struct For_Context_USE_ILP_END {};
 
 template<std::size_t N, std::integral T, typename F>
     requires std::invocable<F, T, T>
-auto for_loop_ret_simple(T start, T end, F&& body) {
-    return detail::for_loop_ret_simple_impl<N>(start, end, std::forward<F>(body));
+auto find(T start, T end, F&& body) {
+    return detail::find_impl<N>(start, end, std::forward<F>(body));
 }
 
 } // namespace ilp
 
-#define ILP_FOR_RET_SIMPLE(loop_var_decl, start, end, N) \
-    ::ilp::for_loop_ret_simple<N>(start, end, \
+#define ILP_FIND(loop_var_decl, start, end, N) \
+    ::ilp::find<N>(start, end, \
         [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
 
 #define ILP_END )
@@ -98,11 +98,11 @@ auto for_loop_ret_simple(T start, T end, F&& body) {
 // ============================================================
 
 std::optional<size_t> find_first_above_ilp(const std::vector<int>& data, int threshold) {
-    size_t result = ILP_FOR_RET_SIMPLE(auto i, 0uz, data.size(), 4) {
+    size_t result = ILP_FIND(auto i, 0uz, data.size(), 4) {
         return data[i] > threshold;
     } ILP_END;
 
-    // ILP_FOR_RET_SIMPLE returns sentinel value (end) when not found
+    // ILP_FIND returns sentinel value (end) when not found
     if (result == data.size()) {
         return std::nullopt;
     }

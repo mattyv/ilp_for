@@ -9,6 +9,7 @@ tests/correctness/test_runner
 *.a
 *.so
 *.dylib
+*.exe
 
 # Generated assembly
 tests/asm_compare/**/*.s

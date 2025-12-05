@@ -1,96 +1,105 @@
 #pragma once
 
-// ILP CPU Profile: AMD Zen 5 (Ryzen 9000 / AI 300 series)
-// L1D: 48 KiB 12-way, L2: 1 MiB 16-way, AVX-512
-// ROB: 448 entries (vs 320 Zen 4), Dispatch: 8-wide (vs 6-wide Zen 4)
-// ALU Scheduler: 88 entries, AGU Scheduler: 56 entries, Int PRF: 240
-// Reference: https://www.amd.com/content/dam/amd/en/documents/epyc-business-docs/white-papers/5th-gen-amd-epyc-processor-architecture-white-paper.pdf
-
-#include <cstddef>
+// ILP CPU Profile: AMD Zen 4/5 (Ryzen 7000/9000 series)
+//
+// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
+// Source: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
+//
+// Zen 4/5 characteristics:
+// - 6-wide decode, 8-wide dispatch (Zen 5)
+// - 4 FP/SIMD pipes with excellent throughput
+// - ROB: 320 (Zen 4), 448 (Zen 5)
+//
+// Instruction metrics (AVX2 YMM registers):
+// +----------------+----------+---------+------+-------+
+// | Instruction    | Use Case | Latency | RThr | L×TPC |
+// +----------------+----------+---------+------+-------+
+// | VFMADD231PS/PD | FMA      |    4    | 0.50 |   8   |
+// | VADDPS/VADDPD  | FP Add   |    3    | 0.50 |   6   |
+// | VPADDB/W/D/Q   | Int Add  |    1    | 0.25 |   4   |
+// +----------------+----------+---------+------+-------+
 
 // =============================================================================
-// Macro definitions for pragma compatibility
+// Macro definitions (must be defined before including ilp_optimal_n.hpp)
 // =============================================================================
 
-// Sum - Zen 5 has deep OoO and wide execution, benefits from more ILP
-#define ILP_N_SUM_1  16
-#define ILP_N_SUM_2  8
-#define ILP_N_SUM_4  8
-#define ILP_N_SUM_8  8
+// Sum - Integer (VPADD*): L=1, RThr=0.25, TPC=4 → 1×4 = 4
+#define ILP_N_SUM_1   4   // VPADDB
+#define ILP_N_SUM_2   4   // VPADDW
+#define ILP_N_SUM_4I  4   // VPADDD
+#define ILP_N_SUM_8I  4   // VPADDQ
 
-// DotProduct - wide FMA units benefit from multiple accumulators
+// Sum - Floating Point (VADDPS/VADDPD): L=3, RThr=0.5, TPC=2 → 3×2 = 6
+#define ILP_N_SUM_4F  6   // VADDPS
+#define ILP_N_SUM_8F  6   // VADDPD
+
+// DotProduct - FMA (VFMADD231PS/PD): L=4, RThr=0.5, TPC=2 → 4×2 = 8
 #define ILP_N_DOTPRODUCT_4  8
 #define ILP_N_DOTPRODUCT_8  8
 
-// Search - 4 works well, good branch prediction handles early exits
-#define ILP_N_SEARCH_1  8
+// Search - branching loop, good branch prediction
+#define ILP_N_SEARCH_1  4
 #define ILP_N_SEARCH_2  4
 #define ILP_N_SEARCH_4  4
 #define ILP_N_SEARCH_8  4
 
-// Copy - can push more with improved memory subsystem
-#define ILP_N_COPY_1  16
-#define ILP_N_COPY_2  8
-#define ILP_N_COPY_4  8
+// Copy - improved memory subsystem in Zen 4/5
+#define ILP_N_COPY_1  8
+#define ILP_N_COPY_2  4
+#define ILP_N_COPY_4  4
 #define ILP_N_COPY_8  4
 
-// Transform - good ILP opportunities with wide dispatch
-#define ILP_N_TRANSFORM_1  8
-#define ILP_N_TRANSFORM_2  8
+// Transform - wide dispatch benefits ILP
+#define ILP_N_TRANSFORM_1  4
+#define ILP_N_TRANSFORM_2  4
 #define ILP_N_TRANSFORM_4  4
 #define ILP_N_TRANSFORM_8  4
 
-namespace ilp {
+// -----------------------------------------------------------------------------
+// New execution unit operations (verified from uops.info - Zen 4)
+// -----------------------------------------------------------------------------
 
-// =============================================================================
-// Loop Types
-// =============================================================================
+// Multiply - product reduction (acc *= val)
+// VMULPS: L=3, RThr=0.5, TPC=2 → 6
+// VPMULLD: L=3, RThr=0.5, TPC=2 → 6 (much faster than Intel!)
+#define ILP_N_MULTIPLY_4F  6    // float: VMULPS
+#define ILP_N_MULTIPLY_8F  6    // double: VMULPD
+#define ILP_N_MULTIPLY_4I  6    // int32: VPMULLD
+#define ILP_N_MULTIPLY_8I  6    // int64
 
-enum class LoopType {
-    Sum,          // sum += arr[i]
-    DotProduct,   // sum += a[i] * b[i]
-    Search,       // find with early exit
-    Copy,         // dst[i] = src[i]
-    Transform,    // dst[i] = f(src[i])
-};
+// Divide - VDIVPS/PD: high latency but better throughput than Intel
+// VDIVPS: L=11, RThr=3.0, TPC=0.33 → 4
+// VDIVPD: L=13, RThr=5.0, TPC=0.2 → 3
+#define ILP_N_DIVIDE_4F  4   // float: VDIVPS
+#define ILP_N_DIVIDE_8F  3   // double: VDIVPD
 
-// =============================================================================
-// Optimal Unroll Factors
-// =============================================================================
+// Sqrt - VSQRTPS/PD: high latency
+// VSQRTPS: L=15, RThr=5.0, TPC=0.2 → 3
+// VSQRTPD: L=21, RThr=8.4, TPC=0.12 → 3
+#define ILP_N_SQRT_4F  3   // float: VSQRTPS
+#define ILP_N_SQRT_8F  3   // double: VSQRTPD
 
-// Template on loop type and element size (bytes)
-// Smaller elements benefit from more unrolling (better SIMD packing)
+// MinMax - VMINPS/VMAXPS (FP), VPMINS*/VPMAXS* (Int)
+// VMINPS: L=2, RThr=0.5, TPC=2 → 4
+// VPMINSW: L=1, RThr=0.25, TPC=4 → 4
+#define ILP_N_MINMAX_1   4   // int8: VPMINSB
+#define ILP_N_MINMAX_2   4   // int16: VPMINSW
+#define ILP_N_MINMAX_4I  4   // int32: VPMINSD
+#define ILP_N_MINMAX_8I  4   // int64
+#define ILP_N_MINMAX_4F  4   // float: VMINPS
+#define ILP_N_MINMAX_8F  4   // double: VMINPD
 
-// Primary template - conservative default
-template<LoopType T, std::size_t ElementBytes = 4>
-inline constexpr std::size_t optimal_N = 4;
+// Bitwise - VPAND/VPOR/VPXOR: L=1, RThr=0.25, TPC=4 → 4
+#define ILP_N_BITWISE_1  4
+#define ILP_N_BITWISE_2  4
+#define ILP_N_BITWISE_4  4
+#define ILP_N_BITWISE_8  4
 
-// Sum
-template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 1> = ILP_N_SUM_1;
-template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 2> = ILP_N_SUM_2;
-template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 4> = ILP_N_SUM_4;
-template<> inline constexpr std::size_t optimal_N<LoopType::Sum, 8> = ILP_N_SUM_8;
+// Shift - VPSLL*/VPSRL*: L=2, RThr=0.5, TPC=2 → 4
+#define ILP_N_SHIFT_1  4
+#define ILP_N_SHIFT_2  4
+#define ILP_N_SHIFT_4  4
+#define ILP_N_SHIFT_8  4
 
-// DotProduct
-template<> inline constexpr std::size_t optimal_N<LoopType::DotProduct, 4> = ILP_N_DOTPRODUCT_4;
-template<> inline constexpr std::size_t optimal_N<LoopType::DotProduct, 8> = ILP_N_DOTPRODUCT_8;
-
-// Search
-template<> inline constexpr std::size_t optimal_N<LoopType::Search, 1> = ILP_N_SEARCH_1;
-template<> inline constexpr std::size_t optimal_N<LoopType::Search, 2> = ILP_N_SEARCH_2;
-template<> inline constexpr std::size_t optimal_N<LoopType::Search, 4> = ILP_N_SEARCH_4;
-template<> inline constexpr std::size_t optimal_N<LoopType::Search, 8> = ILP_N_SEARCH_8;
-
-// Copy
-template<> inline constexpr std::size_t optimal_N<LoopType::Copy, 1> = ILP_N_COPY_1;
-template<> inline constexpr std::size_t optimal_N<LoopType::Copy, 2> = ILP_N_COPY_2;
-template<> inline constexpr std::size_t optimal_N<LoopType::Copy, 4> = ILP_N_COPY_4;
-template<> inline constexpr std::size_t optimal_N<LoopType::Copy, 8> = ILP_N_COPY_8;
-
-// Transform
-template<> inline constexpr std::size_t optimal_N<LoopType::Transform, 1> = ILP_N_TRANSFORM_1;
-template<> inline constexpr std::size_t optimal_N<LoopType::Transform, 2> = ILP_N_TRANSFORM_2;
-template<> inline constexpr std::size_t optimal_N<LoopType::Transform, 4> = ILP_N_TRANSFORM_4;
-template<> inline constexpr std::size_t optimal_N<LoopType::Transform, 8> = ILP_N_TRANSFORM_8;
-
-} // namespace ilp
+// Include the shared computation logic
+#include "ilp_optimal_n.hpp"

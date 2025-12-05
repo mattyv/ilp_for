@@ -1,30 +1,22 @@
 #pragma once
 
-// ILP CPU Profile: Intel Skylake
+// ILP CPU Profile: Intel Alder Lake (Golden Cove P-cores)
 //
 // Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
 // Source: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
 //
-// Skylake characteristics:
-// - 4 scalar ALU ports (0, 1, 5, 6)
-// - 3 SIMD/FP ports (0, 1, 5)
-// - 2 load ports, 1 store port
+// Golden Cove characteristics:
+// - 6-wide decode
+// - Improved FP latency vs Skylake (3c vs 4c for FADD)
+// - Same FMA latency as Skylake (4c)
 //
 // Instruction metrics (AVX2 YMM registers):
 // +----------------+----------+---------+------+-------+
 // | Instruction    | Use Case | Latency | RThr | L×TPC |
 // +----------------+----------+---------+------+-------+
 // | VFMADD231PS/PD | FMA      |    4    | 0.50 |   8   |
-// | VADDPS/VADDPD  | FP Add   |    4    | 0.50 |   8   |
+// | VADDPS/VADDPD  | FP Add   |    3    | 0.50 |   6   |
 // | VPADDB/W/D/Q   | Int Add  |    1    | 0.33 |   3   |
-// | VMULPS/VMULPD  | FP Mul   |    4    | 0.50 |   8   |
-// | VPMULLD        | Int Mul  |   10    | 1.00 |  10   |
-// | VDIVPS         | FP Div   |   11    | 3.00 |   4   |
-// | VSQRTPS        | FP Sqrt  |   12    | 3.00 |   4   |
-// | VMINPS/VMAXPS  | FP MinMax|    4    | 0.50 |   8   |
-// | VPMINS*/VPMAXS*| Int MinMax|   1    | 0.33 |   3   |
-// | VPAND/POR/PXOR | Bitwise  |    1    | 0.33 |   3   |
-// | VPSLLW/VPSRLW  | Shift    |    1    | 0.50 |   2   |
 // +----------------+----------+---------+------+-------+
 
 // =============================================================================
@@ -37,9 +29,9 @@
 #define ILP_N_SUM_4I  3   // VPADDD
 #define ILP_N_SUM_8I  3   // VPADDQ
 
-// Sum - Floating Point (VADDPS/VADDPD): L=4, RThr=0.5, TPC=2 → 4×2 = 8
-#define ILP_N_SUM_4F  8   // VADDPS
-#define ILP_N_SUM_8F  8   // VADDPD
+// Sum - Floating Point (VADDPS/VADDPD): L=3, RThr=0.5, TPC=2 → 3×2 = 6
+#define ILP_N_SUM_4F  6   // VADDPS
+#define ILP_N_SUM_8F  6   // VADDPD
 
 // DotProduct - FMA (VFMADD231PS/PD): L=4, RThr=0.5, TPC=2 → 4×2 = 8
 #define ILP_N_DOTPRODUCT_4  8
@@ -51,7 +43,7 @@
 #define ILP_N_SEARCH_4  4
 #define ILP_N_SEARCH_8  4
 
-// Copy - memory bandwidth limited (2 load ports)
+// Copy - memory bandwidth limited
 #define ILP_N_COPY_1  8
 #define ILP_N_COPY_2  4
 #define ILP_N_COPY_4  4
@@ -64,7 +56,7 @@
 #define ILP_N_TRANSFORM_8  4
 
 // -----------------------------------------------------------------------------
-// New execution unit operations (verified from uops.info)
+// New execution unit operations (verified from uops.info - Alder Lake P-cores)
 // -----------------------------------------------------------------------------
 
 // Multiply - product reduction (acc *= val)
@@ -73,7 +65,7 @@
 #define ILP_N_MULTIPLY_4F  8    // float: VMULPS
 #define ILP_N_MULTIPLY_8F  8    // double: VMULPD
 #define ILP_N_MULTIPLY_4I  10   // int32: VPMULLD (high latency!)
-#define ILP_N_MULTIPLY_8I  4    // int64: no native, falls back
+#define ILP_N_MULTIPLY_8I  4    // int64: no native
 
 // Divide - VDIVPS/PD: very high latency, low throughput
 // VDIVPS: L=11, RThr=5.0, TPC=0.2 → 2
@@ -85,7 +77,7 @@
 // VSQRTPS: L=12, RThr=6.0, TPC=0.167 → 2
 // VSQRTPD: L=13, RThr=9.0, TPC=0.11 → 1
 #define ILP_N_SQRT_4F  2   // float: VSQRTPS
-#define ILP_N_SQRT_8F  2   // double: VSQRTPD (min 2 for some benefit)
+#define ILP_N_SQRT_8F  2   // double: VSQRTPD (min 2)
 
 // MinMax - VMINPS/VMAXPS (FP), VPMINS*/VPMAXS* (Int)
 // VMINPS: L=4, RThr=0.5, TPC=2 → 8
@@ -93,7 +85,7 @@
 #define ILP_N_MINMAX_1   2   // int8: VPMINSB
 #define ILP_N_MINMAX_2   2   // int16: VPMINSW
 #define ILP_N_MINMAX_4I  2   // int32: VPMINSD
-#define ILP_N_MINMAX_8I  2   // int64: no native SIMD
+#define ILP_N_MINMAX_8I  2   // int64
 #define ILP_N_MINMAX_4F  8   // float: VMINPS
 #define ILP_N_MINMAX_8F  8   // double: VMINPD
 

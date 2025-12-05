@@ -7,14 +7,16 @@
 // Mode Selection
 // =============================================================================
 // Define one of these before including to change behavior:
-//   ILP_MODE_SIMPLE  - Plain loops for testing/debugging
-//   ILP_MODE_PRAGMA  - Pragma-unrolled loops (best for GCC auto-vectorization)
+//   ILP_MODE_SIMPLE       - Plain loops for testing/debugging
+//   ILP_MODE_PRAGMA       - Pragma-unrolled loops (best for GCC auto-vectorization)
+//   ILP_MODE_SUPER_SIMPLE - Direct for-loop expansion (debug mode, native break/continue)
 // Default: Full ILP pattern (best for Clang ccmp optimization)
 
-#if defined(ILP_MODE_SIMPLE) && defined(ILP_MODE_PRAGMA)
-    #error "Cannot define both ILP_MODE_SIMPLE and ILP_MODE_PRAGMA"
+#if (defined(ILP_MODE_SIMPLE) + defined(ILP_MODE_PRAGMA) + defined(ILP_MODE_SUPER_SIMPLE)) > 1
+    #error "Cannot define more than one ILP_MODE_*"
 #endif
 
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -29,13 +31,9 @@
 namespace ilp::detail {
     // Context tags - names appear in error messages
     struct For_Context_USE_ILP_END {};
-    struct Reduce_Context_USE_ILP_END_REDUCE {};
-    struct ForRet_Context_USE_ILP_END_RET {};
 
     // Check functions - wrong context gives clear error
     constexpr void check_for_end([[maybe_unused]] For_Context_USE_ILP_END) {}
-    constexpr void check_reduce_end([[maybe_unused]] Reduce_Context_USE_ILP_END_REDUCE) {}
-    constexpr void check_for_ret_end([[maybe_unused]] ForRet_Context_USE_ILP_END_RET) {}
 }
 
 // CPU profile selection via -DILP_CPU=xxx
@@ -51,78 +49,69 @@ namespace ilp::detail {
     #include "cpu_profiles/ilp_cpu_default.hpp"
 #endif
 
+#include "detail/iota.hpp"
 #include "detail/loops.hpp"
 
 // =============================================================================
 // Macros
 // =============================================================================
 
-// ----- Simple loops (no control flow - maximum optimization) -----
+#ifdef ILP_MODE_SUPER_SIMPLE
 
-#define ILP_FOR_SIMPLE(loop_var_decl, start, end, N) \
-    ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+#include "detail/macros_super_simple.hpp"
 
-#define ILP_FOR_STEP_SIMPLE(loop_var_decl, start, end, step, N) \
-    ::ilp::for_loop_step_simple<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+#else // !ILP_MODE_SUPER_SIMPLE
 
-#define ILP_FOR_RANGE_SIMPLE(loop_var_decl, range, N) \
-    ::ilp::for_loop_range_simple<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+// Type-erased control flow - return type deduced from function context.
+// ILP_RETURN stores value in type-erased buffer, extracted via operator R().
 
-// ----- Simple loops with return (no control flow) -----
-// Returns sentinel value (end for index, end iterator for range) when not found
-
-#define ILP_FOR_RET_SIMPLE(loop_var_decl, start, end, N) \
-    ::ilp::for_loop_ret_simple<N>(start, end, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
-
-#define ILP_FOR_STEP_RET_SIMPLE(loop_var_decl, start, end, step, N) \
-    ::ilp::for_loop_step_ret_simple<N>(start, end, step, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
-
-#define ILP_FOR_RANGE_RET_SIMPLE(loop_var_decl, range, N) \
-    ::ilp::for_loop_range_ret_simple<N>(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
-
-#define ILP_FOR_RANGE_IDX_RET_SIMPLE(loop_var_decl, idx_var_decl, range, N) \
-    ::ilp::for_loop_range_idx_ret_simple<N>(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, idx_var_decl, [[maybe_unused]] auto _ilp_end_)
-
-// ----- Index-based loops with control flow -----
+// ----- Index-based loops -----
+// ILP_FOR(loop_var, start, end, N)
 
 #define ILP_FOR(loop_var_decl, start, end, N) \
-    ::ilp::for_loop<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop<N>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
-#define ILP_FOR_RET(ret_type, loop_var_decl, start, end, N) \
-    do { \
-        auto _ilp_r_ = ::ilp::for_loop_ret<ret_type, N>(start, end, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
-
-#define ILP_FOR_STEP(loop_var_decl, start, end, step, N) \
-    ::ilp::for_loop_step<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
-
-#define ILP_FOR_STEP_RET(ret_type, loop_var_decl, start, end, step, N) \
-    do { \
-        auto _ilp_r_ = ::ilp::for_loop_step_ret<ret_type, N>(start, end, step, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
-
-// ----- Range-based loops with control flow -----
+// ----- Range-based loops -----
+// ILP_FOR_RANGE(loop_var, range, N)
 
 #define ILP_FOR_RANGE(loop_var_decl, range, N) \
-    ::ilp::for_loop_range<N>(range, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_range<N>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
-#define ILP_FOR_RANGE_RET(ret_type, loop_var_decl, range, N) \
-    do { \
-        auto _ilp_r_ = ::ilp::for_loop_range_ret<ret_type, N>(range, \
-            [&, _ilp_ctx = ::ilp::detail::ForRet_Context_USE_ILP_END_RET{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
+// ----- Auto-selecting loops (use optimal N based on CPU profile) -----
+
+#define ILP_FOR_AUTO(loop_var_decl, start, end) \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_auto(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
+
+#define ILP_FOR_RANGE_AUTO(loop_var_decl, range) \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_range_auto(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
 // ----- Loop endings -----
 
-#define ILP_END )
+// Standard ending - works in void functions and when ILP_RETURN is not used
+// IMPORTANT: If ILP_RETURN is used, you MUST use ILP_END_RETURN instead!
+// This check runs in BOTH debug and release modes to prevent silent wrong results.
+// Note: static_assert isn't possible because ILP_RETURN is often conditional at runtime
+#define ILP_END ); }(); \
+    _ilp_ret_.has_return ? (::ilp::detail::ilp_end_with_return_error(), false) : false) {} \
+    else (void)0
 
-// For control-flow RET macros (returns from enclosing function)
-#define ILP_END_RET ); \
-        if (_ilp_r_) return *_ilp_r_; \
-    } while(0)
+// Use this in non-void functions when ILP_RETURN may be called
+// The return value is extracted via type deduction from the function's return type
+#define ILP_END_RETURN ); }(); _ilp_ret_) \
+    return *std::move(_ilp_ret_); \
+else (void)0
 
 // ----- Control flow -----
 
@@ -131,79 +120,7 @@ namespace ilp::detail {
 #define ILP_BREAK \
     do { _ilp_ctrl.ok = false; return; } while(0)
 
-// For reduce macros - breaks and returns a value (typically the neutral element)
-#define ILP_BREAK_RET(val) \
-    do { _ilp_ctrl.break_loop(); return val; } while(0)
-
 #define ILP_RETURN(x) \
-    do { _ilp_ctrl.ok = false; _ilp_ctrl.return_value = x; return; } while(0)
+    do { _ilp_ctrl.storage.set(x); _ilp_ctrl.return_set = true; _ilp_ctrl.ok = false; return; } while(0)
 
-// ----- For-until macros (optimized early exit with predicate) -----
-
-// Index-based for_until - body returns bool (true = stop)
-#define ILP_FOR_UNTIL(loop_var_decl, start, end, N) \
-    ::ilp::for_until<N>(start, end, [&](loop_var_decl) -> bool
-
-// Range-based for_until - body returns bool (true = stop)
-#define ILP_FOR_UNTIL_RANGE(loop_var_decl, range, N) \
-    ::ilp::for_until_range<N>(range, [&](loop_var_decl) -> bool
-
-// Auto-selecting versions
-#define ILP_FOR_UNTIL_AUTO(loop_var_decl, start, end) \
-    ::ilp::for_until_auto(start, end, [&](loop_var_decl) -> bool
-
-#define ILP_FOR_UNTIL_RANGE_AUTO(loop_var_decl, range) \
-    ::ilp::for_until_range_auto(range, [&](loop_var_decl) -> bool
-
-// End marker for for_until macros
-#define ILP_END_UNTIL )
-
-// ----- Reduce macros (multi-accumulator ILP) -----
-
-#define ILP_REDUCE(op, init, loop_var_decl, start, end, N) \
-    ::ilp::reduce<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
-
-#define ILP_REDUCE_SIMPLE(op, init, loop_var_decl, start, end, N) \
-    ::ilp::reduce_simple<N>(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_SUM(loop_var_decl, start, end, N) \
-    ::ilp::reduce_sum<N>(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_RANGE(op, init, loop_var_decl, range, N) \
-    ::ilp::reduce_range<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl, [[maybe_unused]] auto& _ilp_ctrl)
-
-#define ILP_REDUCE_RANGE_SIMPLE(op, init, loop_var_decl, range, N) \
-    ::ilp::reduce_range_simple<N>(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_RANGE_SUM(loop_var_decl, range, N) \
-    ::ilp::reduce_range_sum<N>(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_STEP_SIMPLE(op, init, loop_var_decl, start, end, step, N) \
-    ::ilp::reduce_step_simple<N>(start, end, step, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_STEP_SUM(loop_var_decl, start, end, step, N) \
-    ::ilp::reduce_step_sum<N>(start, end, step, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_END_REDUCE )
-
-// ----- Auto-selecting macros (use optimal_N) -----
-
-#define ILP_REDUCE_SUM_AUTO(loop_var_decl, start, end) \
-    ::ilp::reduce_sum_auto(start, end, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_SIMPLE_AUTO(op, init, loop_var_decl, start, end) \
-    ::ilp::reduce_simple_auto(start, end, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_RANGE_SUM_AUTO(loop_var_decl, range) \
-    ::ilp::reduce_range_sum_auto(range, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, loop_var_decl, range) \
-    ::ilp::reduce_range_simple_auto(range, init, op, [&, _ilp_ctx = ::ilp::detail::Reduce_Context_USE_ILP_END_REDUCE{}](loop_var_decl)
-
-#define ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(loop_var_decl, idx_var_decl, range) \
-    ::ilp::for_loop_range_idx_ret_simple_auto(range, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, idx_var_decl, [[maybe_unused]] auto _ilp_end_)
-
-#define ILP_FOR_RET_SIMPLE_AUTO(loop_var_decl, start, end) \
-    ::ilp::for_loop_ret_simple_auto(start, end, \
-        [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl, [[maybe_unused]] auto _ilp_end_)
+#endif // !ILP_MODE_SUPER_SIMPLE

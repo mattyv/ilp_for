@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. contian `break`, `continue`, `return`), where compilers typically cannot unroll.
+Compile-time loop unrolling for complex or early exit loops (i.e. contain `break`, `continue`, `return`), where compilers typically cannot unroll.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -17,19 +17,30 @@ The library unrolls your loop body N times, allowing the CPU to execute multiple
 
 ```cpp
 // Your code
-ILP_FOR_RET(int, auto i, 0, n, 4) {
-    if (data[i] == target) ILP_RETURN(i);
-} ILP_END_RET;
+ILP_FOR(void, auto i, 0, n, 4) {
+    if (data[i] == target) ILP_BREAK;
+    process(data[i]);
+} ILP_END;
 
 // Conceptually expands to:
-for (int i = 0; i + 4 <= n; i += 4) {
-    if (data[i+0] == target) return i+0;
-    if (data[i+1] == target) return i+1;
-    if (data[i+2] == target) return i+2;
-    if (data[i+3] == target) return i+3;
+size_t i = 0;
+for (; i + 4 <= n; i += 4) {
+    bool b0 = data[i+0] == target;  // Parallel evaluation
+    bool b1 = data[i+1] == target;
+    bool b2 = data[i+2] == target;
+    bool b3 = data[i+3] == target;
+    if (b0) break;                  // Sequential check
+    process(data[i+0]);
+    if (b1) break;
+    process(data[i+1]);
+    if (b2) break;
+    process(data[i+2]);
+    if (b3) break;
+    process(data[i+3]);
 }
-for (int i = /*remainder*/; i < n; i++) {  // cleanup loop
-    if (data[i] == target) return i;
+for (; i < n; ++i) {                // Remainder
+    if (data[i] == target) break;
+    process(data[i]);
 }
 ```
 
@@ -39,264 +50,249 @@ The unrolled comparisons have no data dependencies, so out-of-order CPUs can exe
 
 ## Quick Start
 
-**[View Assembly Examples →](docs/EXAMPLES.md)** - Compare ILP vs hand-rolled code on Compiler Explorer
+**[View Assembly Examples](docs/EXAMPLES.md)** - Compare ILP vs hand-rolled code on Compiler Explorer
 
-Use `*_AUTO` macros first - they select optimal unroll factors for your CPU:
+### Find First Match
 
 ```cpp
-// Find element
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(auto&& val, data) {
+// Returns index, or end value (sentinel) if not found
+auto idx = ilp::find<4>(0, data.size(), [&](auto i, auto) {
+    return data[i] == target;
+});
+
+if (idx != data.size()) {
+    std::cout << "Found at " << idx << "\n";
+}
+
+// Range version - returns iterator
+auto it = ilp::find_range<4>(data, [&](auto&& val) {
     return val == target;
-} ILP_END_UNTIL;
-// Returns std::optional<size_t> - index if found
+});
 
-// Sum
-auto sum = ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
+// Auto-selecting optimal N
+auto it = ilp::find_range_auto(data, [&](auto&& val) {
+    return val == target;
+});
+```
+
+### Sum / Reduce
+
+```cpp
+// Sum with explicit N
+int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
+    return data[i];
+});
+
+// Range sum with auto-selected N
+int sum = ilp::reduce_range_auto(data, 0, std::plus<>{}, [&](auto&& val) {
     return val;
-} ILP_END_REDUCE;
+});
 
-// Min
-auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO(
-    [](auto a, auto b) { return a < b ? a : b; },
-    INT_MAX, auto&& val, data
-) {
-    return val;
-} ILP_END_REDUCE;
+// Min/Max
+int min_val = ilp::reduce_range<4>(
+    data,
+    std::numeric_limits<int>::max(),
+    [](int a, int b) { return std::min(a, b); },
+    [&](auto&& val) { return val; }
+);
 ```
 
-Need more control? Specify N manually:
+### Reduce with Early Exit
 
 ```cpp
-ILP_FOR_RET(int, auto i, 0, n, 8) {
-    if (data[i] == target) ILP_RETURN(i);
-} ILP_END_RET;
+// Use reduce_break<T>() and reduce_value() for early termination
+int sum = ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
+    if (data[i] < 0) return ilp::reduce_break<int>();  // Stop reduction
+    return ilp::reduce_value(data[i]);
+});
 ```
 
-### ⚠️ Important: Use `auto&&` for Range Loops
-
-**For range-based macros**, always use `auto&&` for the loop variable to avoid copying:
+### Loop with Break/Continue
 
 ```cpp
-// ✅ CORRECT - Uses reference (fast)
-ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) { return val; } ILP_END_REDUCE;
-
-// ❌ WRONG - Copies each element (slow!)
-ILP_REDUCE_RANGE_SUM_AUTO(auto val, data) { return val; } ILP_END_REDUCE;
-```
-
-**For index-based macros**, use `auto` since indices are trivial to copy:
-
-```cpp
-// ✅ CORRECT - Index is just an integer
-ILP_FOR_RET_SIMPLE_AUTO(auto i, 0, data.size()) { ... } ILP_END;
-```
-
-The library will issue a deprecation warning if you accidentally use `auto` (by-value) with range macros.
-
----
-
-## Understanding the Variants
-
-| Suffix | Control Flow | Use When |
-|--------|-------------|----------|
-| `*_SIMPLE` | None | No break/return needed - tightest codegen |
-| (none) | `break`, `continue` | Need to exit loop early |
-| `*_RET` | `return` from function | Need to return value from enclosing function |
-
-**Why SIMPLE?** When the compiler knows there's no early exit, it generates tighter code. Use SIMPLE when you don't need control flow.
-
----
-
-## AUTO Macros (Recommended)
-
-These macros use CPU profiles defined in the header to select optimal unroll factors based on loop type and element size. Defaults to conservative values; set `ILP_CPU` at compile time to match your target architecture (see [Advanced](#cpu-architecture)).
-
-**Variable declarations:** You must specify the type in the macro parameter (e.g., `auto i`, `auto&& val`). The variable is defined by the macro - don't declare it beforehand. Use `auto&&` for range elements, `auto` for indices.
-
-### Loop Macros
-
-| Macro | Returns | Description |
-|-------|---------|-------------|
-| `ILP_FOR_UNTIL_RANGE_AUTO(var, range)` | `optional<size_t>` | Find first match (bool return) |
-| `ILP_FOR_UNTIL_AUTO(i, start, end)` | `optional<T>` | Index-based find |
-| `ILP_FOR_RET_SIMPLE_AUTO(i, start, end)` | `optional<T>` | Loop with early return |
-| `ILP_FOR_RANGE_IDX_RET_SIMPLE_AUTO(val, idx, range)` | `optional<T>` | Range with index access |
-
-### Reduce Macros
-
-| Macro | Description |
-|-------|-------------|
-| `ILP_REDUCE_RANGE_SUM_AUTO(var, range)` | Sum over range |
-| `ILP_REDUCE_SUM_AUTO(i, start, end)` | Index-based sum |
-| `ILP_REDUCE_RANGE_SIMPLE_AUTO(op, init, var, range)` | Custom reduce over range |
-| `ILP_REDUCE_SIMPLE_AUTO(op, init, i, start, end)` | Index-based custom reduce |
-
----
-
-## Manual N Macros
-
-For when you need specific unroll factors:
-
-### Loop Macros
-
-```cpp
-// Simple - no control flow
-ILP_FOR_SIMPLE(i, 0, n, 4) {
-    data[i] = data[i] * 2;
-} ILP_END;
-
-// With break/continue
-ILP_FOR(i, 0, n, 4) {
+ILP_FOR(void, auto i, 0, n, 4) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
 } ILP_END;
-
-// With return
-ILP_FOR_RET(int, i, 0, n, 4) {
-    if (data[i] == target) ILP_RETURN(i);
-} ILP_END_RET;
-
-// Range-based
-ILP_FOR_RANGE_SIMPLE(val, data, 4) {
-    process(val);
-} ILP_END;
-
-// Step loop
-ILP_FOR_STEP_SIMPLE(i, 0, n, 2, 4) {
-    data[i] = data[i] * 2;  // every 2nd element
-} ILP_END;
 ```
 
-### Reduce Macros
+### Loop with Return
 
 ```cpp
-// Sum
-int sum = ILP_REDUCE_RANGE_SUM(val, data, 4) {
-    return val;
-} ILP_END_REDUCE;
-
-// Custom operation
-int min_val = ILP_REDUCE_RANGE_SIMPLE(
-    [](int a, int b) { return std::min(a, b); },
-    INT_MAX, val, data, 4
-) {
-    return val;
-} ILP_END_REDUCE;
-
-// With break
-int sum = ILP_REDUCE(std::plus<>{}, 0, i, 0, n, 4) {
-    if (i >= stop_at) ILP_BREAK_RET(0);
-    return data[i];
-} ILP_END_REDUCE;
+// ILP_RETURN(x) returns from enclosing function
+int find_index(const std::vector<int>& data, int target) {
+    ILP_FOR(int, auto i, 0, static_cast<int>(data.size()), 4) {
+        if (data[i] == target) ILP_RETURN(i);  // Returns from find_index()
+    } ILP_END;
+    return -1;  // Not found
+}
 ```
 
 ---
 
-## Control Flow
+## API Reference
 
-| Macro | Use In | Description |
-|-------|--------|-------------|
+### Loop Macros
+
+| Macro | Description | Effect of `ILP_RETURN(x)` |
+|-------|-------------|---------------------------|
+| `ILP_FOR(void, var, start, end, N)` | Basic loop with break/continue | N/A |
+| `ILP_FOR(type, var, start, end, N)` | Loop with return capability | Returns `x` from enclosing function |
+| `ILP_FOR_RANGE(void, var, range, N)` | Range-based loop | N/A |
+| `ILP_FOR_RANGE(type, var, range, N)` | Range loop with return | Returns `x` from enclosing function |
+| `ILP_FOR_AUTO(type, var, start, end)` | Auto-selects optimal N | Returns `x` from enclosing function |
+| `ILP_FOR_RANGE_AUTO(type, var, range)` | Range with auto N | Returns `x` from enclosing function |
+
+All loop macros end with `ILP_END`.
+
+### Find Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ilp::find<N>(start, end, body)` | Index (or end if not found) | Find first match by index |
+| `ilp::find_auto(start, end, body)` | Index (or end if not found) | Auto-selects optimal N |
+| `ilp::find_range<N>(range, body)` | Iterator (or end()) | Find in range |
+| `ilp::find_range_auto(range, body)` | Iterator (or end()) | Auto-selects optimal N |
+| `ilp::find_range_idx<N>(range, body)` | Iterator (or end()) | Find in range with index |
+| `ilp::find_range_idx_auto(range, body)` | Iterator (or end()) | Auto-selects optimal N |
+
+### Reduce Functions
+
+| Function | Description |
+|----------|-------------|
+| `ilp::reduce<N>(start, end, init, op, body)` | Index-based reduce |
+| `ilp::reduce_auto(start, end, init, op, body)` | Auto-selects optimal N |
+| `ilp::reduce_range<N>(range, init, op, body)` | Range-based reduce |
+| `ilp::reduce_range_auto(range, init, op, body)` | Auto-selects optimal N |
+
+### Control Flow
+
+| Macro/Function | Use In | Description |
+|----------------|--------|-------------|
 | `ILP_CONTINUE` | Any loop | Skip to next iteration |
 | `ILP_BREAK` | Loops | Exit loop |
-| `ILP_BREAK_RET(val)` | Reduce | Exit and return value |
-| `ILP_RETURN(val)` | `*_RET` loops | Exit loop and return from enclosing function |
-
-### Loop Endings
-
-| Macro | Use With |
-|-------|----------|
-| `ILP_END` | All loops without return |
-| `ILP_END_RET` | `ILP_FOR_RET` |
-| `ILP_END_REDUCE` | All reduce macros |
-| `ILP_END_UNTIL` | `ILP_FOR_UNTIL*` macros |
-
----
-
-## When to Use ILP
-
-The goal is not to be a performance library, but to ensure performance doesn't stop you from using it.
-
-**Use ILP for:**
-- Early-exit operations (find, any-of)
-- Parallel comparisons (min, max)
-- Loops with break/return
-
-**Skip ILP for:**
-- Simple sums without early exit - compilers auto-vectorize these better
-
-```cpp
-// Use ILP - early exit benefits from multi-accumulator
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
-    return val == target;
-} ILP_END_UNTIL;
-
-// Skip ILP - compiler auto-vectorizes better
-int sum = std::accumulate(data.begin(), data.end(), 0);
-```
-
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and detailed analysis.
+| `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
+| `ilp::reduce_break<T>()` | Reduce body | Exit early from reduction |
+| `ilp::reduce_value(val)` | Reduce body | Return value with break support |
 
 ---
 
 ## Important Notes
 
-### Return Type Overflow
+### Use `auto&&` for Range Loops
 
-The return type is inferred from your lambda. Cast to larger types for big sums (compiler will warn about potential overflow):
+For range-based functions, always use `auto&&` to avoid copying each element:
 
 ```cpp
-// Overflow risk with int (compiler warning)
-auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+// CORRECT - Uses forwarding reference (zero copies)
+auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
     return val;
-} ILP_END_REDUCE;
+});
 
-// Safe
-auto result = ILP_REDUCE_RANGE_SUM(val, data, 4) {
-    return static_cast<int64_t>(val);
-} ILP_END_REDUCE;
+// WRONG - Copies each element into 'val' (slow for large types!)
+auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto val) {
+    return val;
+});
 ```
 
-### Non-Associative Operations
+This matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. For a `std::vector<std::string>`, using `auto` would copy every string!
 
-Only use associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
+For index-based functions, use `auto` since indices are just integers:
 
 ```cpp
-// Undefined - subtraction is not associative
-ILP_REDUCE_RANGE_SIMPLE(std::minus<>{}, 100, val, data, 4) { ... }
+ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) { return data[i]; });
 ```
 
-**Floating-point note:** IEEE floating-point arithmetic is not strictly associative due to rounding. Parallel reduction may yield results differing by a few ULPs from sequential evaluation. This is inherent to all parallel/unrolled reductions and typically negligible for well-conditioned data.
+### Find Returns Index or Iterator
 
-### ILP_FOR_UNTIL Return Type
-
-Returns `std::optional<T>` (index), not `bool`:
+`ilp::find` returns the index directly. If not found, it returns the end value (sentinel):
 
 ```cpp
-auto result = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
-    return val == target;
-} ILP_END_UNTIL;
+auto idx = ilp::find<4>(0, n, [&](auto i, auto) {
+    return data[i] == target;
+});
 
-if (result) {
-    std::cout << "Found at " << *result << "\n";
+if (idx != n) {  // Found
+    std::cout << "Found at " << idx << "\n";
 }
 ```
 
-### Init Values for Custom Lambdas
+Range versions return iterators:
+
+```cpp
+auto it = ilp::find_range<4>(data, [&](auto&& val) {
+    return val == target;
+});
+
+if (it != data.end()) {
+    std::cout << "Found: " << *it << "\n";
+}
+```
+
+### Reduce with Early Exit
+
+Use `ilp::reduce_break<T>()` and `ilp::reduce_value()` to exit early from a reduction:
+
+```cpp
+int sum = ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
+    if (data[i] < 0) return ilp::reduce_break<int>();  // Stop reduction
+    return ilp::reduce_value(data[i]);
+});
+```
+
+For simple reductions without early exit, just return the value directly:
+
+```cpp
+int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
+    return data[i];
+});
+```
+
+### Associative Operations Only
+
+Use only associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
+
+**Floating-point note:** IEEE floating-point is not strictly associative due to rounding. Parallel reduction may yield results differing by a few ULPs from sequential evaluation.
+
+### Init Values
 
 For custom operations, `init` must be the identity element:
 
 ```cpp
-// For addition lambda, init must be 0
-auto result = ILP_REDUCE_RANGE_SIMPLE(
-    [](int a, int b) { return a + b; },
-    0,  // identity for +
-    val, data, 4
-) { return val; } ILP_END_REDUCE;
+// For addition, init = 0
+ilp::reduce<4>(0, n, 0, std::plus<>{}, ...)
 
-// To add offset, do it after
-auto result = 100 + ILP_REDUCE_RANGE_SIMPLE(...);
+// For min, init = INT_MAX
+ilp::reduce<4>(0, n, INT_MAX, [](int a, int b) { return std::min(a,b); }, ...)
+
+// For multiplication, init = 1
+ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
 ```
+
+---
+
+## When to Use ILP
+
+**Use ILP for:**
+- Early-exit operations (find, any-of, all-of)
+- Parallel comparisons (min, max)
+- Loops with break/return that compilers can't unroll
+
+**Skip ILP for:**
+- Simple sums without early exit - compilers auto-vectorize these better
+
+```cpp
+// Use ILP - early exit benefits from parallel evaluation
+auto idx = ilp::find<4>(0, n, [&](auto i, auto) {
+    return data[i] == target;
+});
+
+// Skip ILP - compiler auto-vectorizes better
+int sum = std::accumulate(data.begin(), data.end(), 0);
+```
+
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
 
 ---
 
@@ -334,15 +330,11 @@ constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, sizeof(double)>;
 | Copy | 16 | 8 | 4 | 4 |
 | Transform | 8 | 4 | 4 | 4 |
 
-### Function API
-
-For those who prefer functions over macros, see the full API in `ilp_for.hpp`.
-
 ---
 
 ## Test Coverage
 
-**[View Coverage Report →](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
+**[View Coverage Report](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
 
 All core functionality including cleanup loops, bitwise operations, and edge cases are fully tested.
 

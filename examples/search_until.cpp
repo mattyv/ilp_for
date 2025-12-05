@@ -1,4 +1,4 @@
-// Example: Search with ILP_FOR_UNTIL_RANGE_AUTO
+// Example: Search with ilp::find_range_auto
 // Demonstrates the recommended pattern for early-exit search
 
 #include "../ilp_for.hpp"
@@ -14,17 +14,19 @@ struct Record {
 
 // Find first active record
 std::optional<size_t> find_first_active(const std::vector<Record>& records) {
-    return ILP_FOR_UNTIL_RANGE_AUTO(auto&& rec, records) {
+    auto it = ilp::find_range_auto(records, [&](auto&& rec) {
         return rec.active;
-    } ILP_END_UNTIL;
+    });
+    return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 // Find record by name
 std::optional<size_t> find_by_name(const std::vector<Record>& records,
                                     const std::string& target) {
-    return ILP_FOR_UNTIL_RANGE_AUTO(auto&& rec, records) {
+    auto it = ilp::find_range_auto(records, [&](auto&& rec) {
         return rec.name == target;
-    } ILP_END_UNTIL;
+    });
+    return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 int main() {

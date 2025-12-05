@@ -5,7 +5,7 @@
 #include <optional>
 
 // These tests compare against asm_compare implementations (Unix only)
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(ILP_MODE_SUPER_SIMPLE)
 
 // Hand-rolled declarations
 unsigned sum_range_handrolled(std::span<const unsigned> data);
@@ -14,7 +14,7 @@ std::optional<std::size_t> find_value_no_ctrl_handrolled(std::span<const int> da
 
 // ILP declarations
 unsigned sum_range_ilp(std::span<const unsigned> data);
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 std::optional<std::size_t> find_value_ilp(std::span<const int> data, int target);
 std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, int target);
 #endif
@@ -78,7 +78,7 @@ TEST_CASE("Range-based sum", "[range]") {
     }
 }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 TEST_CASE("Find value (early return)", "[range][return]") {
     std::vector<int> data = {10, 20, 30, 40, 50, 60, 70, 80};
 
@@ -126,7 +126,7 @@ TEST_CASE("Find value (early return)", "[range][return]") {
 }
 #endif
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 TEST_CASE("Find value no ctrl (return-only, no control flow)", "[range][return]") {
     std::vector<int> data = {10, 20, 30, 40, 50, 60, 70, 80};
 
@@ -178,4 +178,4 @@ TEST_CASE("Find value no ctrl (return-only, no control flow)", "[range][return]"
 }
 #endif
 
-#endif // _MSC_VER
+#endif // !_MSC_VER && !ILP_MODE_SUPER_SIMPLE

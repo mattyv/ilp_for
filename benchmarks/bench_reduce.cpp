@@ -4,7 +4,11 @@
 #include <algorithm>
 #include <limits>
 #include <span>
+#include <random>
 #include "ilp_for.hpp"
+
+// Fixed seed for reproducible benchmarks
+static constexpr uint32_t BENCH_SEED = 42;
 
 // Fixture for sum benchmarks
 class SumFixture : public benchmark::Fixture {
@@ -24,6 +28,15 @@ public:
         data.shrink_to_fit();
     }
 };
+
+// std::accumulate baseline
+BENCHMARK_DEFINE_F(SumFixture, StdAccumulate)(benchmark::State& state) {
+    for (auto _ : state) {
+        uint64_t sum = std::accumulate(data.begin(), data.end(), 0ull);
+        benchmark::DoNotOptimize(sum);
+    }
+    state.SetItemsProcessed(state.iterations() * data.size());
+}
 
 // Handrolled 4 accumulators
 BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
@@ -45,26 +58,25 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// ILP library
+// ILP library (function API)
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint64_t sum = ILP_REDUCE_RANGE_SIMPLE_AUTO(std::plus<>{}, 0ull, auto&& val, arr) {
-            return static_cast<uint64_t>(val);
-        } ILP_END_REDUCE;
+        uint64_t sum = ilp::reduce_range_auto(arr, 0ull, std::plus<>{},
+            [](auto&& val) { return static_cast<uint64_t>(val); });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
 // Register benchmarks with different sizes
+BENCHMARK_REGISTER_F(SumFixture, StdAccumulate)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
 #if !defined(ILP_MODE_PRAGMA)
 BENCHMARK_REGISTER_F(SumFixture, Handrolled)
-    ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000)
-    ->Arg(1000000)
-    ->Arg(10000000)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 #endif
 
@@ -111,12 +123,10 @@ BENCHMARK_DEFINE_F(SumBreakFixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, auto i, 0u, (unsigned)data.size(), 4) {
-            if (i >= stop_at) {
-                ILP_BREAK_RET(0ull);
-            }
-            return static_cast<uint64_t>(data[i]);
-        } ILP_END_REDUCE;
+        uint64_t sum = ilp::reduce<4>(0u, (unsigned)data.size(), 0ull, std::plus<>{}, [&](auto i) {
+            if (i >= stop_at) return ilp::reduce_break<uint64_t>();
+            return ilp::reduce_value(static_cast<uint64_t>(data[i]));
+        });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * stop_at);
@@ -135,14 +145,20 @@ class FindFixture : public benchmark::Fixture {
 public:
     std::vector<uint32_t> data;
     uint32_t target;
+    size_t expected_pos;  // For accurate items processed count
 
     void SetUp(const benchmark::State& state) override {
         size_t size = state.range(0);
         data.resize(size);
         for (size_t i = 0; i < size; ++i) {
-            data[i] = i;  // Unique values
+            data[i] = static_cast<uint32_t>(i);
         }
-        target = size - 1; // Last element - worst case
+        // Shuffle data for realistic branch prediction behavior
+        std::mt19937 rng(BENCH_SEED);
+        std::shuffle(data.begin(), data.end(), rng);
+        // Pick target at ~50% position on average
+        expected_pos = size / 2;
+        target = data[expected_pos];
     }
 
     void TearDown(const benchmark::State&) override {
@@ -159,14 +175,14 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// Optimized for_until - matches std::find performance
+// Optimized find - matches std::find performance
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
+        auto it = ilp::find_range_auto(arr, [&](auto&& val) {
             return val == target;
-        } ILP_END_UNTIL;
-        benchmark::DoNotOptimize(idx);
+        });
+        benchmark::DoNotOptimize(it);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
 }
@@ -231,10 +247,10 @@ BENCHMARK_DEFINE_F(MinFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto min_val = ILP_REDUCE_RANGE_SIMPLE_AUTO([](auto a, auto b){ return a < b ? a : b; },
-            std::numeric_limits<uint32_t>::max(), auto&& val, arr) {
-            return val;
-        } ILP_END_REDUCE;
+        auto min_val = ilp::reduce_range_auto(arr,
+            std::numeric_limits<uint32_t>::max(),
+            [](auto a, auto b){ return a < b ? a : b; },
+            [](auto&& val) { return val; });
         benchmark::DoNotOptimize(min_val);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -257,14 +273,20 @@ class AnyFixture : public benchmark::Fixture {
 public:
     std::vector<uint32_t> data;
     uint32_t target;
+    size_t expected_pos;
 
     void SetUp(const benchmark::State& state) override {
         size_t size = state.range(0);
         data.resize(size);
         for (size_t i = 0; i < size; ++i) {
-            data[i] = i;  // Unique values
+            data[i] = static_cast<uint32_t>(i);
         }
-        target = size - 1;  // Last element - worst case
+        // Shuffle data for realistic branch prediction behavior
+        std::mt19937 rng(BENCH_SEED + 1);  // Different seed than Find
+        std::shuffle(data.begin(), data.end(), rng);
+        // Pick target at ~50% position on average
+        expected_pos = size / 2;
+        target = data[expected_pos];
     }
 
     void TearDown(const benchmark::State&) override {
@@ -281,14 +303,14 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// Optimized for_until for any_of pattern
+// Optimized find for any_of pattern
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto idx = ILP_FOR_UNTIL_RANGE(auto&& val, arr, 8) {
+        auto it = ilp::find_range_auto(arr, [&](auto&& val) {
             return val == target;
-        } ILP_END_UNTIL;
-        bool found = idx.has_value();
+        });
+        bool found = (it != arr.end());
         benchmark::DoNotOptimize(found);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -301,3 +323,194 @@ BENCHMARK_REGISTER_F(AnyFixture, StdAnyOf)
 BENCHMARK_REGISTER_F(AnyFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
+
+// ==================== ILP_FOR WITH ILP_BREAK BENCHMARKS ====================
+// Tests early exit from a FOR loop (not reduce) - e.g., validate until first failure
+class ForBreakFixture : public benchmark::Fixture {
+public:
+    std::vector<uint32_t> data;
+    uint32_t threshold;
+    size_t break_pos;
+
+    void SetUp(const benchmark::State& state) override {
+        size_t size = state.range(0);
+        data.resize(size);
+        // Fill with values 0-99, place a "bad" value (1000) at ~50% position
+        std::mt19937 rng(BENCH_SEED + 2);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = rng() % 100;
+        }
+        break_pos = size / 2;
+        data[break_pos] = 1000;  // Value that triggers break
+        threshold = 500;
+    }
+
+    void TearDown(const benchmark::State&) override {
+        data.clear();
+        data.shrink_to_fit();
+    }
+};
+
+BENCHMARK_DEFINE_F(ForBreakFixture, Simple)(benchmark::State& state) {
+    for (auto _ : state) {
+        size_t count = 0;
+        for (size_t i = 0; i < data.size(); ++i) {
+            if (data[i] > threshold) break;
+            ++count;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+    state.SetItemsProcessed(state.iterations() * break_pos);
+}
+
+BENCHMARK_DEFINE_F(ForBreakFixture, ILP)(benchmark::State& state) {
+    for (auto _ : state) {
+        size_t count = 0;
+        ILP_FOR(auto i, 0uz, data.size(), 4) {
+            if (data[i] > threshold) ILP_BREAK;
+            ++count;
+        } ILP_END;
+        benchmark::DoNotOptimize(count);
+    }
+    state.SetItemsProcessed(state.iterations() * break_pos);
+}
+
+BENCHMARK_REGISTER_F(ForBreakFixture, Simple)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(ForBreakFixture, ILP)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+// ==================== ILP_FOR WITH RETURN TYPE BENCHMARKS ====================
+// Tests returning a computed value using ILP_FOR with non-void return type
+class ForRetFixture : public benchmark::Fixture {
+public:
+    std::vector<uint32_t> data;
+    uint32_t target;
+    size_t target_pos;
+
+    void SetUp(const benchmark::State& state) override {
+        size_t size = state.range(0);
+        data.resize(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = static_cast<uint32_t>(i);
+        }
+        std::mt19937 rng(BENCH_SEED + 3);
+        std::shuffle(data.begin(), data.end(), rng);
+        target_pos = size / 2;
+        target = data[target_pos];
+    }
+
+    void TearDown(const benchmark::State&) override {
+        data.clear();
+        data.shrink_to_fit();
+    }
+};
+
+// Helper functions using ILP_FOR with return type
+static std::optional<uint64_t> find_and_compute_simple(
+    const std::vector<uint32_t>& data, uint32_t target) {
+    for (size_t i = 0; i < data.size(); ++i) {
+        if (data[i] == target) {
+            return static_cast<uint64_t>(i) * data[i];  // Return computed value
+        }
+    }
+    return std::nullopt;
+}
+
+static std::optional<uint64_t> find_and_compute_ilp(
+    const std::vector<uint32_t>& data, uint32_t target) {
+    ILP_FOR(auto i, 0uz, data.size(), 4) {
+        if (data[i] == target) {
+            ILP_RETURN(static_cast<uint64_t>(i) * data[i]);
+        }
+    } ILP_END_RETURN;
+    return std::nullopt;
+}
+
+BENCHMARK_DEFINE_F(ForRetFixture, Simple)(benchmark::State& state) {
+    for (auto _ : state) {
+        auto result = find_and_compute_simple(data, target);
+        benchmark::DoNotOptimize(result);
+    }
+    state.SetItemsProcessed(state.iterations() * target_pos);
+}
+
+BENCHMARK_DEFINE_F(ForRetFixture, ILP)(benchmark::State& state) {
+    for (auto _ : state) {
+        auto result = find_and_compute_ilp(data, target);
+        benchmark::DoNotOptimize(result);
+    }
+    state.SetItemsProcessed(state.iterations() * target_pos);
+}
+
+BENCHMARK_REGISTER_F(ForRetFixture, Simple)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(ForRetFixture, ILP)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+// ==================== FIND WITH INDEX BENCHMARKS ====================
+// Tests finding with both value and index access
+class FindIdxFixture : public benchmark::Fixture {
+public:
+    std::vector<uint32_t> data;
+    uint32_t target;
+    size_t target_pos;
+
+    void SetUp(const benchmark::State& state) override {
+        size_t size = state.range(0);
+        data.resize(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = static_cast<uint32_t>(i);
+        }
+        std::mt19937 rng(BENCH_SEED + 4);
+        std::shuffle(data.begin(), data.end(), rng);
+        target_pos = size / 2;
+        target = data[target_pos];
+    }
+
+    void TearDown(const benchmark::State&) override {
+        data.clear();
+        data.shrink_to_fit();
+    }
+};
+
+BENCHMARK_DEFINE_F(FindIdxFixture, Simple)(benchmark::State& state) {
+    for (auto _ : state) {
+        auto it = data.end();
+        for (auto curr = data.begin(); curr != data.end(); ++curr) {
+            if (*curr == target) {
+                it = curr;
+                break;
+            }
+        }
+        benchmark::DoNotOptimize(it);
+    }
+    state.SetItemsProcessed(state.iterations() * target_pos);
+}
+
+BENCHMARK_DEFINE_F(FindIdxFixture, ILP)(benchmark::State& state) {
+    for (auto _ : state) {
+        std::span<const uint32_t> arr(data);
+        auto it = ilp::find_range_idx_auto(arr, [&](auto&& val, auto, auto) {
+            return val == target;
+        });
+        benchmark::DoNotOptimize(it);
+    }
+    state.SetItemsProcessed(state.iterations() * target_pos);
+}
+
+BENCHMARK_REGISTER_F(FindIdxFixture, Simple)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(FindIdxFixture, ILP)
+    ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_MAIN();

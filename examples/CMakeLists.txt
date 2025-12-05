@@ -17,7 +17,6 @@ add_executable(search_until search_until.cpp)
 add_executable(process_with_break process_with_break.cpp)
 add_executable(find_and_return find_and_return.cpp)
 add_executable(range_with_index range_with_index.cpp)
-add_executable(stride_iteration stride_iteration.cpp)
 add_executable(reduce_with_early_exit reduce_with_early_exit.cpp)
 add_executable(manual_unroll_factor manual_unroll_factor.cpp)
 
@@ -31,7 +30,6 @@ set(EXAMPLE_TARGETS
     process_with_break
     find_and_return
     range_with_index
-    stride_iteration
     reduce_with_early_exit
     manual_unroll_factor
 )
