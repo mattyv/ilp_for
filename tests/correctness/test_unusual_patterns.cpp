@@ -5,6 +5,8 @@
 #include <exception>
 #include <bit>
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
 // =============================================================================
 // UNUSUAL PATTERNS - Testing weird/rare use cases
 // =============================================================================
@@ -17,7 +19,7 @@ TEST_CASE("Exception thrown in loop body", "[unusual][exception]") {
     int count = 0;
 
     try {
-        ILP_FOR(void, auto i, 0, 100, 4) {
+        ILP_FOR(auto i, 0, 100, 4) {
             count++;
             if (i == 50) throw std::runtime_error("test");
         } ILP_END;
@@ -30,10 +32,10 @@ TEST_CASE("Exception thrown in loop body", "[unusual][exception]") {
 
 TEST_CASE("Exception in reduce body", "[unusual][exception]") {
     try {
-        auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 100, 4) {
+        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
             if (i == 50) throw std::runtime_error("test");
             return i;
-        } ILP_END_REDUCE;
+        });
         (void)result;
         REQUIRE(false);
     } catch (const std::runtime_error&) {
@@ -47,7 +49,7 @@ TEST_CASE("Exception in reduce body", "[unusual][exception]") {
 
 TEST_CASE("ptrdiff_t boundary", "[unusual][types]") {
     ptrdiff_t sum = 0;
-    ILP_FOR(void, auto i, (ptrdiff_t)-5, (ptrdiff_t)5, 4) {
+    ILP_FOR(auto i, (ptrdiff_t)-5, (ptrdiff_t)5, 4) {
         sum += i;
     } ILP_END;
     REQUIRE(sum == -5);
@@ -60,10 +62,10 @@ TEST_CASE("ptrdiff_t boundary", "[unusual][types]") {
 TEST_CASE("Any_of pattern", "[unusual][pattern]") {
     std::vector<int> data = {1, 3, 5, 7, 8, 9};  // 8 is even
 
-    auto result = ILP_FIND_RANGE_IDX(auto&& val, auto idx, data, 4) {
+    auto result = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
         if (val % 2 == 0) return std::ranges::begin(data) + idx;
-        return _ilp_end_;
-    } ILP_END;
+        return end;
+    });
 
     REQUIRE(result != data.end());
     REQUIRE(result - data.begin() == 4);  // Index 4
@@ -72,10 +74,10 @@ TEST_CASE("Any_of pattern", "[unusual][pattern]") {
 TEST_CASE("All_of pattern (inverted)", "[unusual][pattern]") {
     std::vector<int> data = {2, 4, 6, 8, 10};
 
-    auto result = ILP_FIND_RANGE_IDX(auto&& val, auto idx, data, 4) {
+    auto result = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
         if (val % 2 != 0) return std::ranges::begin(data) + idx;  // Find first non-even
-        return _ilp_end_;
-    } ILP_END;
+        return end;
+    });
 
     REQUIRE(result == data.end());  // All even
 }
@@ -85,17 +87,17 @@ TEST_CASE("All_of pattern (inverted)", "[unusual][pattern]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce always returns zero", "[unusual][reduce]") {
-    auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 100, 4) {
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
         return 0;  // Always zero
-    } ILP_END_REDUCE;
+    });
     REQUIRE(result == 0);
 }
 
 TEST_CASE("Reduce always returns same value", "[unusual][reduce]") {
-    auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 100, 4) {
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
         (void)i;
         return 42;
-    } ILP_END_REDUCE;
+    });
     REQUIRE(result == 4200);  // 42 * 100
 }
 
@@ -106,7 +108,7 @@ TEST_CASE("Reduce always returns same value", "[unusual][reduce]") {
 TEST_CASE("Parallel array modification", "[unusual][array]") {
     std::array<int, 10> arr = {};
 
-    ILP_FOR(void, auto i, 0, 10, 4) {
+    ILP_FOR(auto i, 0, 10, 4) {
         arr[i] = i * i;
     } ILP_END;
 
@@ -124,7 +126,7 @@ TEST_CASE("Indirect array access", "[unusual][indirect]") {
     std::vector<int> data = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
 
     int sum = 0;
-    ILP_FOR_RANGE(void, auto&& idx, indices, 4) {
+    ILP_FOR_RANGE(auto&& idx, indices, 4) {
         sum += data[idx];
     } ILP_END;
 
@@ -138,7 +140,7 @@ TEST_CASE("Indirect array access", "[unusual][indirect]") {
 TEST_CASE("FizzBuzz-style conditional", "[unusual][conditional]") {
     int fizz = 0, buzz = 0, fizzbuzz = 0, other = 0;
 
-    ILP_FOR(void, auto i, 1, 101, 4) {
+    ILP_FOR(auto i, 1, 101, 4) {
         if (i % 15 == 0) fizzbuzz++;
         else if (i % 3 == 0) fizz++;
         else if (i % 5 == 0) buzz++;
@@ -159,7 +161,7 @@ TEST_CASE("Pointer arithmetic", "[unusual][pointer]") {
     int arr[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     int* max_ptr = &arr[0];
-    ILP_FOR(void, auto i, 0, 10, 4) {
+    ILP_FOR(auto i, 0, 10, 4) {
         if (arr[i] > *max_ptr) {
             max_ptr = &arr[i];
         }
@@ -175,11 +177,9 @@ TEST_CASE("Pointer arithmetic", "[unusual][pointer]") {
 TEST_CASE("Float NaN propagation", "[unusual][float]") {
     std::vector<double> data = {1.0, 2.0, std::nan(""), 4.0};
 
-    auto result = ILP_REDUCE_RANGE(
-        std::plus<>(), 0.0, auto&& val, data, 4
-    ) {
+    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) {
         return val;
-    } ILP_END_REDUCE;
+    });
 
     REQUIRE(std::isnan(result));
 }
@@ -187,11 +187,9 @@ TEST_CASE("Float NaN propagation", "[unusual][float]") {
 TEST_CASE("Float infinity", "[unusual][float]") {
     std::vector<double> data = {1.0, 2.0, std::numeric_limits<double>::infinity()};
 
-    auto result = ILP_REDUCE_RANGE(
-        std::plus<>(), 0.0, auto&& val, data, 4
-    ) {
+    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) {
         return val;
-    } ILP_END_REDUCE;
+    });
 
     REQUIRE(std::isinf(result));
 }
@@ -204,7 +202,7 @@ TEST_CASE("Returning multiple values", "[unusual][multiret]") {
     int sum = 0;
     int count = 0;
 
-    ILP_FOR(void, auto i, 0, 10, 4) {
+    ILP_FOR(auto i, 0, 10, 4) {
         sum += i;
         count++;
     } ILP_END;
@@ -218,9 +216,9 @@ TEST_CASE("Returning multiple values", "[unusual][multiret]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Bit counting", "[unusual][bits]") {
-    auto popcount = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 256, 4) {
+    auto popcount = ilp::reduce<4>(0, 256, 0, std::plus<>{}, [&](auto i) {
         return std::popcount(static_cast<unsigned>(i));
-    } ILP_END_REDUCE;
+    });
 
     // Sum of popcount for 0-255
     // Each bit position 0-7 is set in exactly 128 numbers
@@ -235,7 +233,7 @@ TEST_CASE("String concatenation order", "[unusual][string]") {
     std::string result;
     result.reserve(10);
 
-    ILP_FOR(void, auto i, 0, 5, 4) {
+    ILP_FOR(auto i, 0, 5, 4) {
         result += static_cast<char>('a' + i);
     } ILP_END;
 
@@ -251,7 +249,7 @@ TEST_CASE("Struct field access", "[unusual][struct]") {
     std::vector<Point> points = {{1,2}, {3,4}, {5,6}, {7,8}};
 
     int x_sum = 0, y_sum = 0;
-    ILP_FOR_RANGE(void, auto&& p, points, 4) {
+    ILP_FOR_RANGE(auto&& p, points, 4) {
         x_sum += p.x;
         y_sum += p.y;
     } ILP_END;
@@ -268,11 +266,11 @@ TEST_CASE("Find first duplicate", "[unusual][pattern]") {
     std::vector<int> data = {1, 2, 3, 2, 4, 5};
     std::vector<bool> seen(10, false);
 
-    auto result = ILP_FIND_RANGE_IDX(auto&& val, auto idx, data, 4) {
+    auto result = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
         if (seen[val]) return std::ranges::begin(data) + idx;
         seen[val] = true;
-        return _ilp_end_;
-    } ILP_END;
+        return end;
+    });
 
     REQUIRE(result != data.end());
     REQUIRE(result - data.begin() == 3);  // Index 3 is first duplicate (value 2)
@@ -286,7 +284,7 @@ TEST_CASE("Atomic-like increments", "[unusual][atomic]") {
     // Without actual atomics, but verifying no torn writes
     int counter = 0;
 
-    ILP_FOR(void, auto i, 0, 1000, 4) {
+    ILP_FOR(auto i, 0, 1000, 4) {
         (void)i;
         counter++;
     } ILP_END;
@@ -302,9 +300,9 @@ TEST_CASE("Large capture set", "[unusual][capture]") {
     int a = 1, b = 2, c = 3, d = 4, e = 5;
     int f = 6, g = 7, h = 8, i_outer = 9, j = 10;
 
-    auto result = ILP_REDUCE(std::plus<>{}, 0, auto i, 0, 5, 4) {
+    auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) {
         return a + b + c + d + e + f + g + h + i_outer + j + i;
-    } ILP_END_REDUCE;
+    });
 
     // (1+2+3+4+5+6+7+8+9+10) = 55 for each, plus 0+1+2+3+4 = 10
     REQUIRE(result == 55 * 5 + 10);
@@ -321,7 +319,7 @@ TEST_CASE("Count comparisons", "[unusual][compare]") {
     int equal_to_5 = 0;
     int greater_than_5 = 0;
 
-    ILP_FOR_RANGE(void, auto&& val, data, 4) {
+    ILP_FOR_RANGE(auto&& val, data, 4) {
         if (val < 5) less_than_5++;
         else if (val == 5) equal_to_5++;
         else greater_than_5++;
@@ -346,10 +344,11 @@ TEST_CASE("Reduce to pair", "[unusual][nonnum]") {
     auto init = Pair{std::numeric_limits<int>::max(),
                      std::numeric_limits<int>::min()};
 
-    auto result = ILP_REDUCE(op, init, auto i, 0, 100, 4) {
+    auto result = ilp::reduce<4>(0, 100, init, op, [&](auto i) {
         return Pair{i, i};  // Both min and max candidate is i
-    } ILP_END_REDUCE;
+    });
 
     REQUIRE(result.first == 0);   // Min
     REQUIRE(result.second == 99); // Max
 }
+#endif // !ILP_MODE_SUPER_SIMPLE

@@ -1,5 +1,5 @@
 // Example: Range iteration with index tracking
-// Demonstrates ILP_FIND_RANGE_IDX
+// Demonstrates ilp::find_range_idx
 
 #include "../ilp_for.hpp"
 #include <vector>
@@ -13,29 +13,31 @@ struct Item {
 
 // Find item by name, return iterator
 auto find_item(std::vector<Item>& items, const std::string& target) {
-    return ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
-        return item.name == target;
-    } ILP_END;
+    return ilp::find_range_idx<4>(items, [&](auto&& item, auto idx, auto end) {
+        if (item.name == target) return std::ranges::begin(items) + idx;
+        return end;
+    });
 }
 
 // Find highest priority item
 auto find_highest_priority(std::vector<Item>& items) {
-    return ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
-        return item.priority >= 10;
-    } ILP_END;
+    return ilp::find_range_idx<4>(items, [&](auto&& item, auto idx, auto end) {
+        if (item.priority >= 10) return std::ranges::begin(items) + idx;
+        return end;
+    });
 }
 
 // Find first item matching predicate, also get its index
 void find_and_report(const std::vector<Item>& items, int min_priority) {
     size_t found_idx = items.size();
 
-    auto it = ILP_FIND_RANGE_IDX(auto&& item, auto idx, items, 4) {
+    auto it = ilp::find_range_idx<4>(items, [&](auto&& item, auto idx, auto end) {
         if (item.priority >= min_priority) {
             found_idx = idx;
-            return true;
+            return std::ranges::begin(items) + idx;
         }
-        return false;
-    } ILP_END;
+        return end;
+    });
 
     if (it != items.end()) {
         std::cout << "Found '" << it->name << "' at index " << found_idx

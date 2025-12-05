@@ -7,6 +7,7 @@
 #include <concepts>
 #include <type_traits>
 #include <ranges>
+#include <utility>
 
 #include "ctrl.hpp"
 
@@ -21,18 +22,18 @@ namespace detail {
 // Type traits
 // =============================================================================
 
-template<typename T>
-struct is_optional : std::false_type {};
+// is_optional is defined in ctrl.hpp
 
-template<typename T>
-struct is_optional<std::optional<T>> : std::true_type {};
+// Sentinel type for void loops - never triggers return, but compiles in any context
+// operator* returns void so "return *_ilp_ret_" is valid in void functions
+struct no_return_t {
+    constexpr explicit operator bool() const noexcept { return false; }
+    [[noreturn]] void operator*() const noexcept { std::unreachable(); }
+};
 
-template<typename T>
-inline constexpr bool is_optional_v = is_optional<T>::value;
-
-// Result type for unified for_loop: void -> void, T -> std::optional<T>
+// Result type for unified for_loop: void -> no_return_t, T -> std::optional<T>
 template<typename R>
-using for_result_t = std::conditional_t<std::is_void_v<R>, void, std::optional<R>>;
+using for_result_t = std::conditional_t<std::is_void_v<R>, no_return_t, std::optional<R>>;
 
 // =============================================================================
 // Reduce result type
@@ -47,6 +48,22 @@ struct ReduceResult {
     constexpr ReduceResult(T v, bool b) : value(std::move(v)), _break(b) {}
     constexpr bool did_break() const { return _break; }
 };
+
+} // namespace detail
+
+// Helper to signal early break from reduce (returns empty value with break flag)
+template<typename T>
+constexpr auto reduce_break() {
+    return detail::ReduceResult<T>{T{}, true};
+}
+
+// Helper to return a value from reduce body (with no break)
+template<typename T>
+constexpr auto reduce_value(T&& val) {
+    return detail::ReduceResult<std::decay_t<T>>{std::forward<T>(val), false};
+}
+
+namespace detail {
 
 // Type trait to detect ReduceResult
 template<typename T> struct is_reduce_result : std::false_type {};
@@ -119,6 +136,10 @@ concept ForCtrlBody = std::invocable<F, T, LoopCtrl<void>&>;
 template<typename F, typename T, typename R>
 concept ForRetBody = std::invocable<F, T, LoopCtrl<R>&>;
 
+// Type-erased control bodies (new API without return type)
+template<typename F, typename T>
+concept ForUntypedCtrlBody = std::invocable<F, T, ForCtrl&>;
+
 // Range-based for loop bodies
 template<typename F, typename Ref>
 concept ForRangeBody = std::invocable<F, Ref>;
@@ -128,6 +149,10 @@ concept ForRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&>;
 
 template<typename F, typename Ref, typename R>
 concept ForRangeRetBody = std::invocable<F, Ref, LoopCtrl<R>&>;
+
+// Type-erased range bodies (new API without return type)
+template<typename F, typename Ref>
+concept ForRangeUntypedCtrlBody = std::invocable<F, Ref, ForCtrl&>;
 
 // Reduce bodies - must return a value (1-arg lambdas only, ctrl is vestigial for reduce)
 template<typename F, typename T>

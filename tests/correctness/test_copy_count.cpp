@@ -8,6 +8,8 @@
 #include "catch.hpp"
 #include "../../ilp_for.hpp"
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
 namespace {
 
 // Tracks copy/move operations at runtime
@@ -60,38 +62,42 @@ CopyMoveCounter add_counters(const CopyMoveCounter& a, const CopyMoveCounter& b)
 } // namespace
 
 // =============================================================================
-// for_loop with return type copy count tests
+// for_loop with type-erased return path copy count tests
 // =============================================================================
 
 TEST_CASE("No copies in for_loop return path", "[copy_count]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::for_loop<CopyMoveCounter, 4>(0, 10,
-        [](int i, ilp::LoopCtrl<CopyMoveCounter>& ctrl) {
+    auto result = ilp::for_loop<4>(0, 10,
+        [](int i, ilp::ForCtrl& ctrl) {
             if (i == 5) {
-                ctrl.return_value = CopyMoveCounter(i * 10);
+                ctrl.storage.set(CopyMoveCounter(i * 10));
+                ctrl.return_set = true;
                 ctrl.ok = false;
             }
         });
 
-    REQUIRE(result.has_value());
-    CHECK(result->value == 50);
+    REQUIRE(result.has_return);
+    CopyMoveCounter value = *std::move(result);
+    CHECK(value.value == 50);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
     CHECK(CopyMoveCounter::copies == 0);
 }
 
 TEST_CASE("Move-only type works with for_loop", "[copy_count][compile-time]") {
     // If this compiles, no copies are attempted
-    auto result = ilp::for_loop<MoveOnly, 4>(0, 10,
-        [](int i, ilp::LoopCtrl<MoveOnly>& ctrl) {
+    auto result = ilp::for_loop<4>(0, 10,
+        [](int i, ilp::ForCtrl& ctrl) {
             if (i == 5) {
-                ctrl.return_value = MoveOnly(i * 10);
+                ctrl.storage.set(MoveOnly(i * 10));
+                ctrl.return_set = true;
                 ctrl.ok = false;
             }
         });
 
-    REQUIRE(result.has_value());
-    CHECK(result->value == 50);
+    REQUIRE(result.has_return);
+    MoveOnly value = *std::move(result);
+    CHECK(value.value == 50);
 }
 
 // =============================================================================
@@ -182,16 +188,18 @@ TEST_CASE("No copies in for_loop_range", "[copy_count][range]") {
     CopyMoveCounter::reset();
     std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-    auto result = ilp::for_loop_range<CopyMoveCounter, 4>(data,
-        [](int val, ilp::LoopCtrl<CopyMoveCounter>& ctrl) {
+    auto result = ilp::for_loop_range<4>(data,
+        [](int val, ilp::ForCtrl& ctrl) {
             if (val == 5) {
-                ctrl.return_value = CopyMoveCounter(val * 10);
+                ctrl.storage.set(CopyMoveCounter(val * 10));
+                ctrl.return_set = true;
                 ctrl.ok = false;
             }
         });
 
-    REQUIRE(result.has_value());
-    CHECK(result->value == 50);
+    REQUIRE(result.has_return);
+    CopyMoveCounter value = *std::move(result);
+    CHECK(value.value == 50);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
     CHECK(CopyMoveCounter::copies == 0);
 }
@@ -239,19 +247,21 @@ TEST_CASE("Minimal copies in reduce_range return path - ReduceResult (nested loo
 namespace {
     std::optional<CopyMoveCounter> test_ilp_for_helper() {
         CopyMoveCounter::reset();
-        return ILP_FOR(CopyMoveCounter, auto i, 0, 10, 4) {
+        ILP_FOR(auto i, 0, 10, 4) {
             if (i == 5) {
                 ILP_RETURN(CopyMoveCounter(i * 10));
             }
-        } ILP_END;
+        } ILP_END_RETURN;
+        return std::nullopt;
     }
 
     std::optional<MoveOnly> test_ilp_for_move_only_helper() {
-        return ILP_FOR(MoveOnly, auto i, 0, 10, 4) {
+        ILP_FOR(auto i, 0, 10, 4) {
             if (i == 5) {
                 ILP_RETURN(MoveOnly(i * 10));
             }
-        } ILP_END;
+        } ILP_END_RETURN;
+        return std::nullopt;
     }
 }
 
@@ -276,9 +286,9 @@ TEST_CASE("Move-only type works with ILP_FOR macro", "[copy_count][macro][compil
 TEST_CASE("ReduceResult<Value> has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ILP_REDUCE_AUTO(add_counters, CopyMoveCounter{0}, auto i, 0, 4) {
-        ILP_REDUCE_RETURN(CopyMoveCounter(i));
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, add_counters, [&](auto i) {
+        return CopyMoveCounter(i);
+    });
 
     CHECK(result.value == 6);  // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -292,10 +302,10 @@ TEST_CASE("ReduceResult<Value> has minimal copy overhead", "[copy_count][reduce]
 TEST_CASE("ReduceResult<Break> has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ILP_REDUCE_AUTO(add_counters, CopyMoveCounter{0}, auto i, 0, 10) {
-        if (i >= 4) ILP_REDUCE_BREAK;
-        ILP_REDUCE_BREAK_VALUE(CopyMoveCounter(i));
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_auto(0, 10, CopyMoveCounter{0}, add_counters, [&](auto i) {
+        if (i >= 4) return ilp::reduce_break<CopyMoveCounter>();
+        return ilp::reduce_value(CopyMoveCounter(i));
+    });
 
     CHECK(result.value == 6);  // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -315,9 +325,9 @@ TEST_CASE("Range-based reduce copy count with ILP_REDUCE_RETURN", "[copy_count][
     std::vector<int> data = {0, 1, 2, 3};
 
     // ILP_REDUCE_RETURN now returns plain value → uses transform_reduce → 0 copies
-    auto result = ILP_REDUCE_RANGE_AUTO(add_counters, CopyMoveCounter{0}, auto val, data) {
-        ILP_REDUCE_RETURN(CopyMoveCounter(val));
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_range_auto(data, CopyMoveCounter{0}, add_counters, [&](auto val) {
+        return CopyMoveCounter(val);
+    });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -361,9 +371,9 @@ TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_co
 TEST_CASE("Zero copies with ILP_REDUCE_RETURN and std::plus<>", "[copy_count][reduce][zero_copy]") {
     CopyMoveCounter::reset();
 
-    auto result = ILP_REDUCE_AUTO(std::plus<>{}, CopyMoveCounter{0}, auto i, 0, 4) {
-        ILP_REDUCE_RETURN(CopyMoveCounter(i));
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, std::plus<>{}, [&](auto i) {
+        return CopyMoveCounter(i);
+    });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -394,3 +404,5 @@ TEST_CASE("Move-only type works with std::plus<> reduce", "[copy_count][reduce][
 
     CHECK(result.value == 6);
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

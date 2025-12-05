@@ -73,9 +73,9 @@ This library automatically generates the multi-accumulator pattern:
 
 ```cpp
 // You write:
-auto sum = ILP_REDUCE_RANGE_SUM(val, data, 4) {
+auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](auto&& val) {
     return val;
-} ILP_END_REDUCE;
+});
 
 // Library generates (conceptually):
 std::array<T, 4> accs = {0, 0, 0, 0};

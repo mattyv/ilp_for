@@ -4,6 +4,8 @@
 #include <span>
 #include <optional>
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
 // Hand-rolled find with index
 std::optional<std::size_t> handrolled_find(std::span<const int> arr, int target) {
     const int* ptr = arr.data();
@@ -28,24 +30,24 @@ std::optional<std::size_t> handrolled_find(std::span<const int> arr, int target)
 
 // ILP find using bool mode (returns index)
 std::size_t ilp_find_bool(std::span<const int> arr, int target) {
-    return ILP_FIND(auto i, 0uz, arr.size(), 4) {
+    return ilp::find<4>(0uz, arr.size(), [&](auto i, auto) {
         return arr[i] == target;  // bool mode
-    } ILP_END;
+    });
 }
 
 // ILP find using optional mode (returns value)
 std::optional<int> ilp_find_optional(std::span<const int> arr, int target) {
-    return ILP_FIND(auto i, 0uz, arr.size(), 4) -> std::optional<int> {
+    return ilp::find<4>(0uz, arr.size(), [&](auto i, auto) -> std::optional<int> {
         if (arr[i] == target) return arr[i] * 2;  // return computed value
         return std::nullopt;
-    } ILP_END;
+    });
 }
 
 // ILP range-based find using bool mode (returns iterator)
 auto ilp_range_find_bool(std::span<const int> arr, int target) {
-    return ILP_FIND_RANGE_IDX(auto&& val, auto idx, arr, 4) {
+    return ilp::find_range_idx<4>(arr, [&](auto&& val, auto idx, auto) {
         return val == target;  // bool mode - returns iterator
-    } ILP_END;
+    });
 }
 
 TEST_CASE("Bool mode find (returns index)", "[find][bool]") {
@@ -163,3 +165,5 @@ TEST_CASE("Find edge cases", "[find][edge]") {
         }
     }
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

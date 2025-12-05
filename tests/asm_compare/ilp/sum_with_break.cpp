@@ -1,3 +1,4 @@
+#if !defined(ILP_MODE_SUPER_SIMPLE)
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 #include <cstddef>
 #include <functional>
@@ -5,9 +6,11 @@
 
 __attribute__((noinline))
 unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
-    return ILP_REDUCE(std::plus<>{}, 0u, auto i, 0u, n, 4) {
-        if (i >= stop_at) ILP_REDUCE_BREAK;
-        ILP_REDUCE_BREAK_VALUE(i);
-    } ILP_END_REDUCE;
+    return ilp::reduce<4>(0u, n, 0u, std::plus<>{}, [&](auto i) {
+        if (i >= stop_at) return ilp::reduce_break<unsigned>();
+        return ilp::reduce_value(i);
+    });
 }
 #endif
+
+#endif // !ILP_MODE_SUPER_SIMPLE

@@ -1,3 +1,4 @@
+#if !defined(ILP_MODE_SUPER_SIMPLE)
 #include <cstddef>
 #include <span>
 #include "ilp_for.hpp"
@@ -6,9 +7,11 @@
 __attribute__((noinline))
 unsigned sum_range_ilp(std::span<const unsigned> data) {
     escape(data);
-    auto result = ILP_REDUCE_RANGE(std::plus<>{}, 0u, auto&& val, data, 4) {
-        ILP_REDUCE_RETURN(val);
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_range<4>(data, 0u, std::plus<>{}, [](auto&& val) {
+        return val;
+    });
     escape(result);
     return result;
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

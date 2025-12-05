@@ -4,6 +4,8 @@
 #include <numeric>
 #include <cstdint>
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
 using namespace ilp;
 
 TEST_CASE("CPU profile optimal_N values", "[cpu]") {
@@ -186,8 +188,8 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        auto sum = reduce<4>(0, 100, int64_t{}, std::plus<>{}, [&](int i) {
-            ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
+        auto sum = ilp::reduce<4>(0, 100, int64_t{}, std::plus<>{}, [&](int i) {
+            return static_cast<int64_t>(data[i]);
         });
 
         REQUIRE(sum == 5050);
@@ -197,8 +199,8 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<short> data(100);
         for (int i = 0; i < 100; ++i) data[i] = static_cast<short>(i + 1);
 
-        auto sum = reduce<4>(short(0), short(100), int64_t{}, std::plus<>{}, [&](short i) {
-            ILP_REDUCE_RETURN(static_cast<int64_t>(data[i]));
+        auto sum = ilp::reduce<4>(short(0), short(100), int64_t{}, std::plus<>{}, [&](short i) {
+            return static_cast<int64_t>(data[i]);
         });
 
         REQUIRE(sum == 5050);
@@ -208,53 +210,63 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 1);
 
-        auto sum = reduce_range<4>(data, int64_t{}, std::plus<>{}, [&](int val) {
-            ILP_REDUCE_RETURN(static_cast<int64_t>(val));
+        auto sum = ilp::reduce_range<4>(data, int64_t{}, std::plus<>{}, [&](int val) {
+            return static_cast<int64_t>(val);
         });
 
         REQUIRE(sum == 5050);
     }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
     SECTION("for_loop with return type search") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
         data[42] = 999;
 
-        auto result = for_loop<int, 4>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop<4>(0, 100, [&](int i, ForCtrl& ctrl) {
             if (data[i] == 999) {
-                ctrl.return_with(i);
+                ctrl.storage.set(i);
+                ctrl.return_set = true;
+                ctrl.ok = false;
             }
         });
 
-        REQUIRE(result.has_value());
-        REQUIRE(result.value() == 42);
+        REQUIRE(result.has_return);
+        int value = *std::move(result);
+        REQUIRE(value == 42);
     }
 
     SECTION("for_loop_range with return type search") {
         std::vector<int> data = {1, 2, 3, 42, 5, 6};
 
-        auto result = for_loop_range<int, 4>(data, [&](int val, auto& ctrl) {
+        auto result = for_loop_range<4>(data, [&](int val, ForCtrl& ctrl) {
             if (val == 42) {
-                ctrl.return_with(val);
+                ctrl.storage.set(val);
+                ctrl.return_set = true;
+                ctrl.ok = false;
             }
         });
 
-        REQUIRE(result.has_value());
-        REQUIRE(result.value() == 42);
+        REQUIRE(result.has_return);
+        int value = *std::move(result);
+        REQUIRE(value == 42);
     }
 
     SECTION("search not found") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
 
-        auto result = for_loop<int, 4>(0, 100, [&](int i, auto& ctrl) {
+        auto result = for_loop<4>(0, 100, [&](int i, ForCtrl& ctrl) {
             if (data[i] == 999) {  // Not in data
-                ctrl.return_with(i);
+                ctrl.storage.set(i);
+                ctrl.return_set = true;
+                ctrl.ok = false;
             }
         });
 
-        REQUIRE_FALSE(result.has_value());
+        REQUIRE_FALSE(result.has_return);
     }
 #endif
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

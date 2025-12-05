@@ -2,7 +2,7 @@
 #include "../../ilp_for.hpp"
 
 // ============== ASM Compare Tests (Unix only - requires asm_compare libs) ==============
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(ILP_MODE_SUPER_SIMPLE)
 
 // Hand-rolled declarations
 unsigned sum_plain_handrolled(unsigned n);
@@ -12,7 +12,7 @@ int sum_negative_handrolled(int start, int end);
 
 // ILP declarations
 unsigned sum_plain_ilp(unsigned n);
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 unsigned sum_with_break_ilp(unsigned n, unsigned stop_at);
 #endif
 unsigned sum_odd_ilp(unsigned n);
@@ -33,7 +33,7 @@ TEST_CASE("Plain accumulation", "[basic]") {
     }
 }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 TEST_CASE("Break on condition", "[control]") {
     SECTION("breaks early") {
         REQUIRE(sum_with_break_ilp(100, 50) == sum_with_break_handrolled(100, 50));
@@ -80,41 +80,42 @@ TEST_CASE("Negative range", "[signed]") {
     }
 }
 
-#endif // _MSC_VER
+#endif // !_MSC_VER && !ILP_MODE_SUPER_SIMPLE
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
 TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
-    SECTION("FOR_RET_SIMPLE with optional and remainder") {
+    SECTION("find with optional and remainder") {
         // 7 elements with unroll 4: hits cleanup for last 3 elements
-        auto result = ILP_FIND(auto i, 0, 7, 4) -> std::optional<int> {
+        auto result = ilp::find<4>(0, 7, [](auto i, auto) -> std::optional<int> {
             if (i == 6) return std::optional<int>(i);  // Last element in cleanup
             return std::nullopt;
-        } ILP_END;
+        });
 
         REQUIRE(result.has_value());
         REQUIRE(result.value() == 6);
     }
 
-    SECTION("FIND_RANGE_IDX with bool and remainder - found") {
+    SECTION("find_range_idx with bool and remainder - found") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};  // 9 elements
 
-        auto it = ILP_FIND_RANGE_IDX(auto&& val, auto idx, data, 4) {
+        auto it = ilp::find_range_idx<4>(data, [](auto&& val, auto idx, auto) {
             return idx == 8;  // Last index in cleanup
-        } ILP_END;
+        });
 
         REQUIRE(it != std::ranges::end(data));
         REQUIRE(*it == 9);
     }
 
-    SECTION("FOR_RANGE_IDX_RET_SIMPLE with bool - not found") {
-        // Test line 480: cleanup loop when nothing found
+    SECTION("find_range_idx with bool - not found") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        auto it = ILP_FIND_RANGE_IDX(auto&& val, auto idx, data, 4) {
+        auto it = ilp::find_range_idx<4>(data, [](auto&& val, auto idx, auto) {
             return idx == 999;  // Never found
-        } ILP_END;
+        });
 
         REQUIRE(it == std::ranges::end(data));
     }
 
 }
+#endif // !ILP_MODE_SUPER_SIMPLE
 

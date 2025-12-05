@@ -27,10 +27,11 @@ run_tests() {
     echo ""
 }
 
-# Test all three modes
+# Test all four modes
 run_tests "ILP (default)" ""
 run_tests "SIMPLE" "-DCMAKE_CXX_FLAGS=-DILP_MODE_SIMPLE"
 run_tests "PRAGMA" "-DCMAKE_CXX_FLAGS=-DILP_MODE_PRAGMA"
+run_tests "SUPER_SIMPLE" "-DCMAKE_CXX_FLAGS=-DILP_MODE_SUPER_SIMPLE"
 
 echo "=========================================="
 echo "All modes passed!"

@@ -213,32 +213,30 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     }
 }
 
-// =============================================================================
-// For loops with LoopCtrl (return support)
-// =============================================================================
-
-template<typename return_type, std::size_t N, std::integral T, typename F>
-    requires ForRetBody<F, T, return_type>
-std::optional<return_type> for_loop_ret_impl(T start, T end, F&& body) {
-    LoopCtrl<return_type> ctrl;
+// Type-erased for_loop (new API - no return type parameter)
+template<std::size_t N, std::integral T, typename F>
+    requires ForUntypedCtrlBody<F, T>
+ForResult for_loop_untyped_impl(T start, T end, F&& body) {
+    ForCtrl ctrl;
     for (T i = start; i < end; ++i) {
         body(i, ctrl);
         if (!ctrl.ok) [[unlikely]]
-            return std::move(ctrl.return_value);
+            return ForResult{ctrl.return_set, std::move(ctrl.storage)};
     }
-    return std::move(ctrl.return_value);
+    return ForResult{false, {}};
 }
 
-template<typename return_type, std::size_t N, std::ranges::random_access_range Range, typename F>
-    requires ForRangeRetBody<F, std::ranges::range_reference_t<Range>, return_type>
-std::optional<return_type> for_loop_range_ret_impl(Range&& range, F&& body) {
-    LoopCtrl<return_type> ctrl;
+// Type-erased range for_loop (new API - no return type parameter)
+template<std::size_t N, std::ranges::random_access_range Range, typename F>
+    requires ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
+ForResult for_loop_range_untyped_impl(Range&& range, F&& body) {
+    ForCtrl ctrl;
     for (auto&& elem : range) {
         body(elem, ctrl);
         if (!ctrl.ok) [[unlikely]]
-            return std::move(ctrl.return_value);
+            return ForResult{ctrl.return_set, std::move(ctrl.storage)};
     }
-    return std::move(ctrl.return_value);
+    return ForResult{false, {}};
 }
 
 } // namespace detail
@@ -247,14 +245,11 @@ std::optional<return_type> for_loop_range_ret_impl(Range&& range, F&& body) {
 // Public API - Index-based loops
 // =============================================================================
 
-// Unified for_loop: return_type=void -> void, return_type=T -> std::optional<T>
-template<typename return_type, std::size_t N = 4, std::integral T, typename F>
-auto for_loop(T start, T end, F&& body) -> detail::for_result_t<return_type> {
-    if constexpr (std::is_void_v<return_type>) {
-        detail::for_loop_impl<N>(start, end, std::forward<F>(body));
-    } else {
-        return detail::for_loop_ret_impl<return_type, N>(start, end, std::forward<F>(body));
-    }
+// Type-erased for_loop - return type deduced from function context
+template<std::size_t N = 4, std::integral T, typename F>
+    requires detail::ForUntypedCtrlBody<F, T>
+ForResult for_loop(T start, T end, F&& body) {
+    return detail::for_loop_untyped_impl<N>(start, end, std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::integral T, typename F>
@@ -267,14 +262,11 @@ auto find(T start, T end, F&& body) {
 // Public API - Range-based loops
 // =============================================================================
 
-// Unified for_loop_range: return_type=void -> void, return_type=T -> std::optional<T>
-template<typename return_type, std::size_t N = 4, std::ranges::random_access_range Range, typename F>
-auto for_loop_range(Range&& range, F&& body) -> detail::for_result_t<return_type> {
-    if constexpr (std::is_void_v<return_type>) {
-        detail::for_loop_range_impl<N>(std::forward<Range>(range), std::forward<F>(body));
-    } else {
-        return detail::for_loop_range_ret_impl<return_type, N>(std::forward<Range>(range), std::forward<F>(body));
-    }
+// Type-erased for_loop_range - return type deduced from function context
+template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
+    requires detail::ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
+ForResult for_loop_range(Range&& range, F&& body) {
+    return detail::for_loop_range_untyped_impl<N>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -322,16 +314,18 @@ auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
 
 // Auto-selecting functions
 
-// Unified for_loop_auto: return_type=void -> void, return_type=T -> std::optional<T>
-template<typename return_type, std::integral T, typename F>
-auto for_loop_auto(T start, T end, F&& body) -> detail::for_result_t<return_type> {
-    return for_loop<return_type, optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
+// Type-erased for_loop_auto - return type deduced from function context
+template<std::integral T, typename F>
+    requires detail::ForUntypedCtrlBody<F, T>
+ForResult for_loop_auto(T start, T end, F&& body) {
+    return for_loop<optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
 }
 
-template<typename return_type, std::ranges::random_access_range Range, typename F>
-auto for_loop_range_auto(Range&& range, F&& body) -> detail::for_result_t<return_type> {
+template<std::ranges::random_access_range Range, typename F>
+    requires detail::ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
+ForResult for_loop_range_auto(Range&& range, F&& body) {
     using T = std::ranges::range_value_t<Range>;
-    return for_loop_range<return_type, optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
+    return for_loop_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
 }
 
 template<std::integral T, typename F>

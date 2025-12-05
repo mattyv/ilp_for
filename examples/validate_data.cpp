@@ -7,9 +7,9 @@
 
 // Check if any value is out of valid range [0, 255]
 bool has_invalid_byte(const std::vector<int>& data) {
-    size_t idx = ILP_FIND(auto i, 0uz, data.size(), 4) {
+    size_t idx = ilp::find<4>(0uz, data.size(), [&](auto i, auto) {
         return data[i] < 0 || data[i] > 255;
-    } ILP_END;
+    });
 
     return idx != data.size();
 }

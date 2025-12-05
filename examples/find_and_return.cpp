@@ -1,31 +1,31 @@
-// Example: ILP_FOR with return type using ILP_RETURN
-// Returns std::optional<T> from the loop
+// Example: ILP_FOR with ILP_RETURN
+// ILP_RETURN(x) returns x from the enclosing function
 
 #include "../ilp_for.hpp"
 #include <vector>
 #include <iostream>
 
-// Search returning index (using optional with value_or)
+// Search returning index - ILP_RETURN exits find_index() directly
 int find_index(const std::vector<int>& data, int target) {
-    auto result = ILP_FOR(int, auto i, 0, static_cast<int>(data.size()), 4) {
+    ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] == target) ILP_RETURN(i);
-    } ILP_END;
-    return result.value_or(-1);  // Not found
+    } ILP_END_RETURN;
+    return -1;  // Not found
 }
 
 // Search returning the value itself
 int find_first_above_threshold(const std::vector<int>& data, int threshold) {
-    auto result = ILP_FOR(int, auto i, 0, static_cast<int>(data.size()), 4) {
+    ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] > threshold) ILP_RETURN(data[i]);
-    } ILP_END;
-    return result.value_or(-1);  // Not found
+    } ILP_END_RETURN;
+    return -1;  // Not found
 }
 
 // Search with complex condition
 struct Point { int x, y; };
 
 Point find_point_in_quadrant(const std::vector<Point>& points, int quadrant) {
-    auto result = ILP_FOR(Point, auto i, 0, static_cast<int>(points.size()), 4) {
+    ILP_FOR(auto i, 0, static_cast<int>(points.size()), 4) {
         bool match = false;
         switch (quadrant) {
             case 1: match = points[i].x > 0 && points[i].y > 0; break;
@@ -34,8 +34,8 @@ Point find_point_in_quadrant(const std::vector<Point>& points, int quadrant) {
             case 4: match = points[i].x > 0 && points[i].y < 0; break;
         }
         if (match) ILP_RETURN(points[i]);
-    } ILP_END;
-    return result.value_or(Point{0, 0});  // Not found
+    } ILP_END_RETURN;
+    return Point{0, 0};  // Not found
 }
 
 int main() {

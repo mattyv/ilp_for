@@ -4,17 +4,16 @@
 - [x] Consolidate ILP_FOR + ILP_FOR_RET into single ILP_FOR(ret_type, ...) macro
 - [x] Consolidate ILP_FOR_RANGE + ILP_FOR_RANGE_RET into single ILP_FOR_RANGE(ret_type, ...) macro
 - [x] Add ILP_FOR_AUTO and ILP_FOR_RANGE_AUTO macros
-- [x] Update ILP_FIND, ILP_FIND_RANGE_IDX with same pattern (added AUTO versions)
-- [x] Remove vestigial _ilp_ctrl from other macros (cleaner code)
-- [ ] ILP_FIND uses neat return. for consistency should we also allow/encourage use of ILP_RETURN?
-- [ ] ILP_REDUCE_RANGE_AUTO example uses neat return.
-- [ ] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc. For this to work current syntax for ILP DSL needs to be a lot more tidy and conformant.
+- [x] Remove ILP_FIND* and ILP_REDUCE* macros (use ilp::find, ilp::reduce functions instead)
+- [ ] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
 - [x] Add ASan (Address Sanitizer) to test builds
 - [ ] Update coverage report
 - [ ] Regen godbolt links
+- [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
+- [ ] Test `#if defined(__GNUC__) && !defined(__clang__)` macro on Windows (MSVC, MinGW)
 
 ## Build
 - [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)

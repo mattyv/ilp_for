@@ -1,3 +1,4 @@
+#if !defined(ILP_MODE_SUPER_SIMPLE)
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
 #include <cstddef>
 #include <optional>
@@ -6,8 +7,11 @@
 
 __attribute__((noinline))
 std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, [[maybe_unused]] int target) {
-    return ILP_FOR(std::size_t, auto i, 0uz, data.size(), 4) {
+    ILP_FOR(auto i, 0uz, data.size(), 4) {
         if (data[i] == target) ILP_RETURN(i);
-    } ILP_END;
+    } ILP_END_RETURN;
+    return std::nullopt;
 }
 #endif
+
+#endif // !ILP_MODE_SUPER_SIMPLE

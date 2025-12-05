@@ -4,18 +4,20 @@
 #include <span>
 #include <array>
 
-// Helper function using ILP_FIND_RANGE - returns iterator
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
+// Helper function using ilp::find_range - returns iterator
 auto ilp_find_range_test(std::span<const int> arr, int target) {
-    return ILP_FIND_RANGE(auto&& val, arr, 4) {
+    return ilp::find_range<4>(arr, [&](auto&& val) {
         return val == target;
-    } ILP_END;
+    });
 }
 
-// Helper function using ILP_FIND_RANGE_AUTO - returns iterator
+// Helper function using ilp::find_range_auto - returns iterator
 auto ilp_find_range_auto_test(std::span<const int> arr, int target) {
-    return ILP_FIND_RANGE_AUTO(auto&& val, arr) {
+    return ilp::find_range_auto(arr, [&](auto&& val) {
         return val == target;
-    } ILP_END;
+    });
 }
 
 // Helper to convert iterator result to index for testing
@@ -23,7 +25,7 @@ size_t to_index(std::span<const int> arr, auto it) {
     return static_cast<size_t>(it - arr.begin());
 }
 
-TEST_CASE("ILP_FIND_RANGE basic functionality", "[find_range][basic]") {
+TEST_CASE("ilp::find_range basic functionality", "[find_range][basic]") {
     std::vector<int> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23};
     std::span<const int> arr(data);
 
@@ -54,7 +56,7 @@ TEST_CASE("ILP_FIND_RANGE basic functionality", "[find_range][basic]") {
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE edge cases", "[find_range][edge]") {
+TEST_CASE("ilp::find_range edge cases", "[find_range][edge]") {
     SECTION("empty range") {
         std::vector<int> empty;
         std::span<const int> arr(empty);
@@ -99,7 +101,7 @@ TEST_CASE("ILP_FIND_RANGE edge cases", "[find_range][edge]") {
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE cleanup loop (size not divisible by N)", "[find_range][cleanup]") {
+TEST_CASE("ilp::find_range cleanup loop (size not divisible by N)", "[find_range][cleanup]") {
     SECTION("size = 5 (5 mod 4 = 1) - find in cleanup") {
         std::vector<int> data = {1, 2, 3, 4, 5};
         std::span<const int> arr(data);
@@ -141,36 +143,36 @@ TEST_CASE("ILP_FIND_RANGE cleanup loop (size not divisible by N)", "[find_range]
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE with different N values", "[find_range][unroll]") {
+TEST_CASE("ilp::find_range with different N values", "[find_range][unroll]") {
     std::vector<int> data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
     std::span<const int> arr(data);
 
     SECTION("N = 2") {
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 2) {
+        auto it = ilp::find_range<2>(arr, [](auto&& val) {
             return val == 17;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
 
     SECTION("N = 4") {
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 4) {
+        auto it = ilp::find_range<4>(arr, [](auto&& val) {
             return val == 17;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
 
     SECTION("N = 8") {
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 8) {
+        auto it = ilp::find_range<8>(arr, [](auto&& val) {
             return val == 17;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE_AUTO selects reasonable N", "[find_range][auto]") {
+TEST_CASE("ilp::find_range_auto selects reasonable N", "[find_range][auto]") {
     std::vector<int> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23};
     std::span<const int> arr(data);
 
@@ -198,12 +200,12 @@ TEST_CASE("ILP_FIND_RANGE_AUTO selects reasonable N", "[find_range][auto]") {
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE with different container types", "[find_range][containers]") {
+TEST_CASE("ilp::find_range with different container types", "[find_range][containers]") {
     SECTION("std::vector") {
         std::vector<int> vec = {1, 2, 3, 4, 5};
-        auto it = ILP_FIND_RANGE(auto&& val, vec, 4) {
+        auto it = ilp::find_range<4>(vec, [](auto&& val) {
             return val == 3;
-        } ILP_END;
+        });
         REQUIRE(it != vec.end());
         REQUIRE(*it == 3);
     }
@@ -211,24 +213,24 @@ TEST_CASE("ILP_FIND_RANGE with different container types", "[find_range][contain
     SECTION("std::span") {
         std::vector<int> vec = {1, 2, 3, 4, 5};
         std::span<const int> sp(vec);
-        auto it = ILP_FIND_RANGE(auto&& val, sp, 4) {
+        auto it = ilp::find_range<4>(sp, [](auto&& val) {
             return val == 3;
-        } ILP_END;
+        });
         REQUIRE(it != sp.end());
         REQUIRE(*it == 3);
     }
 
     SECTION("std::array") {
         std::array<int, 5> arr = {1, 2, 3, 4, 5};
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 4) {
+        auto it = ilp::find_range<4>(arr, [](auto&& val) {
             return val == 3;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 3);
     }
 }
 
-TEST_CASE("ILP_FIND_RANGE finds first match when duplicates exist", "[find_range][duplicates]") {
+TEST_CASE("ilp::find_range finds first match when duplicates exist", "[find_range][duplicates]") {
     std::vector<int> data = {1, 5, 5, 5, 9};
     std::span<const int> arr(data);
 
@@ -238,23 +240,25 @@ TEST_CASE("ILP_FIND_RANGE finds first match when duplicates exist", "[find_range
     REQUIRE(to_index(arr, it) == 1);  // First occurrence
 }
 
-TEST_CASE("ILP_FIND_RANGE with complex predicate", "[find_range][predicate]") {
+TEST_CASE("ilp::find_range with complex predicate", "[find_range][predicate]") {
     std::vector<int> data = {1, 4, 9, 16, 25, 36, 49, 64};  // Squares
     std::span<const int> arr(data);
 
     SECTION("find first value > 20") {
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 4) {
+        auto it = ilp::find_range<4>(arr, [](auto&& val) {
             return val > 20;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 25);  // 25 is first > 20
     }
 
     SECTION("find first even value") {
-        auto it = ILP_FIND_RANGE(auto&& val, arr, 4) {
+        auto it = ilp::find_range<4>(arr, [](auto&& val) {
             return val % 2 == 0;
-        } ILP_END;
+        });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 4);  // 4 is first even
     }
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

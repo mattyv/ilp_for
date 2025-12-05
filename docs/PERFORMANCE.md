@@ -27,27 +27,28 @@ The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type.
 
 ### Bool Mode (Fastest)
 
-Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
+Return `bool` to get the iterator to the first match. This avoids `csel` (conditional select) dependencies:
 
 ```cpp
-// Matches std::find performance - use ILP_FIND_RANGE for find operations
-size_t idx = ILP_FIND_RANGE_AUTO(auto&& val, data) {
+// Matches std::find performance
+auto it = ilp::find_range_auto(data, [&](auto&& val) {
     return val == target;  // returns bool
-} ILP_END;
-// Returns: size_t - index if found, size() if not
+});
+// Returns: iterator - points to match, or end() if not found
 ```
 
 ### Optional Mode (General Purpose)
 
-Return early using `ILP_RETURN`:
+Return early using `ILP_RETURN` (returns from enclosing function):
 
 ```cpp
 std::optional<int> find_expensive() {
-    return ILP_FOR(int, auto i, 0uz, data.size(), 4) {
+    ILP_FOR(int, auto i, 0uz, data.size(), 4) {
         if (expensive_check(data[i])) {
-            ILP_RETURN(compute(data[i]));
+            ILP_RETURN(compute(data[i]));  // Returns from find_expensive()
         }
     } ILP_END;
+    return std::nullopt;  // Not found
 }
 ```
 
@@ -57,20 +58,20 @@ When using `ILP_FOR` with return type, the compiler generates `csel` instruction
 
 ```cpp
 // Slower - generates csel dependency chain
-auto result = ILP_FOR(size_t, auto i, 0uz, n, 4) {
+ILP_FOR(size_t, auto i, 0uz, n, 4) {
     if (data[i] == target) ILP_RETURN(i);
 } ILP_END;
 ```
 
 Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
 
-With `ILP_FIND`, comparisons run in parallel without dependencies:
+With `ilp::find`, comparisons run in parallel without dependencies:
 
 ```cpp
 // Fast - parallel comparisons, no csel
-size_t idx = ILP_FIND(auto i, 0uz, n, 4) {
+size_t idx = ilp::find<4>(0uz, n, [&](auto i, auto) {
     return data[i] == target;
-} ILP_END;
+});
 ```
 
 ## Why Not Just Use `#pragma unroll`?

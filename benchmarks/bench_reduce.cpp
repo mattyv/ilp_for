@@ -58,24 +58,12 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * data.size());
 }
 
-// ILP library (macro - always uses ctrl path)
+// ILP library (function API)
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint64_t sum = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0ull, auto&& val, arr) {
-            ILP_REDUCE_RETURN(static_cast<uint64_t>(val));
-        } ILP_END_REDUCE;
-        benchmark::DoNotOptimize(sum);
-    }
-    state.SetItemsProcessed(state.iterations() * data.size());
-}
-
-// ILP library (function API - no ctrl, uses transform_reduce for SIMD)
-BENCHMARK_DEFINE_F(SumFixture, ILP_NoCtrl)(benchmark::State& state) {
-    for (auto _ : state) {
-        std::span<const uint32_t> arr(data);
         uint64_t sum = ilp::reduce_range_auto(arr, 0ull, std::plus<>{},
-            [](uint32_t val) { return static_cast<uint64_t>(val); });
+            [](auto&& val) { return static_cast<uint64_t>(val); });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -93,14 +81,6 @@ BENCHMARK_REGISTER_F(SumFixture, Handrolled)
 #endif
 
 BENCHMARK_REGISTER_F(SumFixture, ILP)
-    ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000)
-    ->Arg(1000000)
-    ->Arg(10000000)
-    ->Unit(benchmark::kNanosecond);
-
-BENCHMARK_REGISTER_F(SumFixture, ILP_NoCtrl)
     ->Arg(1000)
     ->Arg(10000)
     ->Arg(100000)
@@ -143,12 +123,10 @@ BENCHMARK_DEFINE_F(SumBreakFixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        uint64_t sum = ILP_REDUCE(std::plus<>{}, 0ull, auto i, 0u, (unsigned)data.size(), 4) {
-            if (i >= stop_at) {
-                ILP_REDUCE_BREAK;
-            }
-            ILP_REDUCE_BREAK_VALUE(static_cast<uint64_t>(data[i]));
-        } ILP_END_REDUCE;
+        uint64_t sum = ilp::reduce<4>(0u, (unsigned)data.size(), 0ull, std::plus<>{}, [&](auto i) {
+            if (i >= stop_at) return ilp::reduce_break<uint64_t>();
+            return ilp::reduce_value(static_cast<uint64_t>(data[i]));
+        });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * stop_at);
@@ -201,9 +179,9 @@ BENCHMARK_DEFINE_F(FindFixture, StdFind)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(FindFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE_AUTO(auto&& val, arr) {
+        auto it = ilp::find_range_auto(arr, [&](auto&& val) {
             return val == target;
-        } ILP_END;
+        });
         benchmark::DoNotOptimize(it);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -269,10 +247,10 @@ BENCHMARK_DEFINE_F(MinFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto min_val = ILP_REDUCE_RANGE_AUTO([](auto a, auto b){ return a < b ? a : b; },
-            std::numeric_limits<uint32_t>::max(), auto&& val, arr) {
-            ILP_REDUCE_RETURN(val);
-        } ILP_END_REDUCE;
+        auto min_val = ilp::reduce_range_auto(arr,
+            std::numeric_limits<uint32_t>::max(),
+            [](auto a, auto b){ return a < b ? a : b; },
+            [](auto&& val) { return val; });
         benchmark::DoNotOptimize(min_val);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -329,9 +307,9 @@ BENCHMARK_DEFINE_F(AnyFixture, StdAnyOf)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(AnyFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE_AUTO(auto&& val, arr) {
+        auto it = ilp::find_range_auto(arr, [&](auto&& val) {
             return val == target;
-        } ILP_END;
+        });
         bool found = (it != arr.end());
         benchmark::DoNotOptimize(found);
     }
@@ -388,7 +366,7 @@ BENCHMARK_DEFINE_F(ForBreakFixture, Simple)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(ForBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         size_t count = 0;
-        ILP_FOR(void, auto i, 0uz, data.size(), 4) {
+        ILP_FOR(auto i, 0uz, data.size(), 4) {
             if (data[i] > threshold) ILP_BREAK;
             ++count;
         } ILP_END;
@@ -444,11 +422,12 @@ static std::optional<uint64_t> find_and_compute_simple(
 
 static std::optional<uint64_t> find_and_compute_ilp(
     const std::vector<uint32_t>& data, uint32_t target) {
-    return ILP_FOR(uint64_t, auto i, 0uz, data.size(), 4) {
+    ILP_FOR(auto i, 0uz, data.size(), 4) {
         if (data[i] == target) {
             ILP_RETURN(static_cast<uint64_t>(i) * data[i]);
         }
-    } ILP_END;
+    } ILP_END_RETURN;
+    return std::nullopt;
 }
 
 BENCHMARK_DEFINE_F(ForRetFixture, Simple)(benchmark::State& state) {
@@ -475,7 +454,7 @@ BENCHMARK_REGISTER_F(ForRetFixture, ILP)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
-// ==================== ILP_FIND_RANGE_IDX BENCHMARKS ====================
+// ==================== FIND WITH INDEX BENCHMARKS ====================
 // Tests finding with both value and index access
 class FindIdxFixture : public benchmark::Fixture {
 public:
@@ -518,10 +497,9 @@ BENCHMARK_DEFINE_F(FindIdxFixture, Simple)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(FindIdxFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto it = ILP_FIND_RANGE_IDX_AUTO(auto&& val, auto idx, arr) {
-            (void)idx;  // Index available if needed
+        auto it = ilp::find_range_idx_auto(arr, [&](auto&& val, auto, auto) {
             return val == target;
-        } ILP_END;
+        });
         benchmark::DoNotOptimize(it);
     }
     state.SetItemsProcessed(state.iterations() * target_pos);

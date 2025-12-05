@@ -1,10 +1,13 @@
+#if !defined(ILP_MODE_SUPER_SIMPLE)
 #include <cstddef>
 #include <functional>
 #include "ilp_for.hpp"
 
 __attribute__((noinline))
 unsigned sum_odd_ilp(unsigned n) {
-    return ILP_REDUCE(std::plus<>{}, 0u, auto i, 0u, n, 4) {
-        ILP_REDUCE_RETURN((i % 2 != 0) ? i : 0u);
-    } ILP_END_REDUCE;
+    return ilp::reduce<4>(0u, n, 0u, std::plus<>{}, [](auto i) {
+        return (i % 2 != 0) ? i : 0u;
+    });
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE

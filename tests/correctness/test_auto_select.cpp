@@ -6,6 +6,8 @@
 #include <climits>
 #include <span>
 
+#if !defined(ILP_MODE_SUPER_SIMPLE)
+
 TEST_CASE("Auto-selecting reduce sum", "[auto][reduce]") {
     std::vector<int> data(1000);
     std::iota(data.begin(), data.end(), 1);
@@ -15,13 +17,6 @@ TEST_CASE("Auto-selecting reduce sum", "[auto][reduce]") {
         int sum = ilp::reduce_auto(0, (int)data.size(), 0,
             std::plus<>{},
             [&](int i) { return data[i]; });
-        REQUIRE(sum == expected);
-    }
-
-    SECTION("Macro version") {
-        int sum = ILP_REDUCE_AUTO(std::plus<>{}, 0, auto i, 0, (int)data.size()) {
-            return data[i];
-        } ILP_END_REDUCE;
         REQUIRE(sum == expected);
     }
 }
@@ -36,13 +31,6 @@ TEST_CASE("Auto-selecting reduce range sum", "[auto][reduce][range]") {
             [](int val) { return val; });
         REQUIRE(sum == expected);
     }
-
-    SECTION("Macro version") {
-        int sum = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0, auto&& val, data) {
-            return val;
-        } ILP_END_REDUCE;
-        REQUIRE(sum == expected);
-    }
 }
 
 TEST_CASE("Auto-selecting reduce for min", "[auto][reduce][min]") {
@@ -55,16 +43,6 @@ TEST_CASE("Auto-selecting reduce for min", "[auto][reduce][min]") {
             [&](int i) { return data[i]; });
         REQUIRE(min_val == expected);
     }
-
-    SECTION("Macro version") {
-        int min_val = ILP_REDUCE_AUTO(
-            [](int a, int b) { return std::min(a, b); },
-            INT_MAX, auto i, 0, (int)data.size()
-        ) {
-            return data[i];
-        } ILP_END_REDUCE;
-        REQUIRE(min_val == expected);
-    }
 }
 
 TEST_CASE("Auto-selecting reduce range", "[auto][reduce][range]") {
@@ -72,31 +50,24 @@ TEST_CASE("Auto-selecting reduce range", "[auto][reduce][range]") {
 
     SECTION("Min") {
         int expected = *std::min_element(data.begin(), data.end());
-        int min_val = ILP_REDUCE_RANGE_AUTO(
+        int min_val = ilp::reduce_range_auto(data, INT_MAX,
             [](int a, int b) { return std::min(a, b); },
-            INT_MAX, auto&& val, data
-        ) {
-            return val;
-        } ILP_END_REDUCE;
+            [](auto&& val) { return val; });
         REQUIRE(min_val == expected);
     }
 
     SECTION("Max") {
         int expected = *std::max_element(data.begin(), data.end());
-        int max_val = ILP_REDUCE_RANGE_AUTO(
+        int max_val = ilp::reduce_range_auto(data, INT_MIN,
             [](int a, int b) { return std::max(a, b); },
-            INT_MIN, auto&& val, data
-        ) {
-            return val;
-        } ILP_END_REDUCE;
+            [](auto&& val) { return val; });
         REQUIRE(max_val == expected);
     }
 
     SECTION("Count") {
         int expected = std::count_if(data.begin(), data.end(), [](int x) { return x > 5; });
-        int count = ILP_REDUCE_RANGE_AUTO(std::plus<>{}, 0, auto&& val, data) {
-            return (val > 5) ? 1 : 0;
-        } ILP_END_REDUCE;
+        int count = ilp::reduce_range_auto(data, 0, std::plus<>{},
+            [](auto&& val) { return (val > 5) ? 1 : 0; });
         REQUIRE(count == expected);
     }
 }
@@ -204,3 +175,5 @@ TEST_CASE("Different element sizes use different N", "[auto][optimal_N]") {
         REQUIRE(sum == 100);
     }
 }
+
+#endif // !ILP_MODE_SUPER_SIMPLE
