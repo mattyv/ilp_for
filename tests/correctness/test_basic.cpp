@@ -1,5 +1,5 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
+#include "catch.hpp"
 
 // ============== ASM Compare Tests (Unix only - requires asm_compare libs) ==============
 #if !defined(_MSC_VER) && !defined(ILP_MODE_SIMPLE)
@@ -27,9 +27,9 @@ TEST_CASE("Plain accumulation", "[basic]") {
     SECTION("edge cases") {
         REQUIRE(sum_plain_ilp(0) == sum_plain_handrolled(0));
         REQUIRE(sum_plain_ilp(1) == sum_plain_handrolled(1));
-        REQUIRE(sum_plain_ilp(3) == sum_plain_handrolled(3));  // n < N
-        REQUIRE(sum_plain_ilp(4) == sum_plain_handrolled(4));  // n == N
-        REQUIRE(sum_plain_ilp(5) == sum_plain_handrolled(5));  // n == N+1
+        REQUIRE(sum_plain_ilp(3) == sum_plain_handrolled(3)); // n < N
+        REQUIRE(sum_plain_ilp(4) == sum_plain_handrolled(4)); // n == N
+        REQUIRE(sum_plain_ilp(5) == sum_plain_handrolled(5)); // n == N+1
     }
 }
 
@@ -87,7 +87,8 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("find with optional and remainder") {
         // 7 elements with unroll 4: hits cleanup for last 3 elements
         auto result = ilp::find<4>(0, 7, [](auto i, auto) -> std::optional<int> {
-            if (i == 6) return std::optional<int>(i);  // Last element in cleanup
+            if (i == 6)
+                return std::optional<int>(i); // Last element in cleanup
             return std::nullopt;
         });
 
@@ -96,10 +97,10 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     }
 
     SECTION("find_range_idx with bool and remainder - found") {
-        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};  // 9 elements
+        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9}; // 9 elements
 
         auto it = ilp::find_range_idx<4>(data, [](auto&&, auto idx, auto) {
-            return idx == 8;  // Last index in cleanup
+            return idx == 8; // Last index in cleanup
         });
 
         REQUIRE(it != std::ranges::end(data));
@@ -110,12 +111,10 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
         auto it = ilp::find_range_idx<4>(data, [](auto&&, auto idx, auto) {
-            return idx == 999;  // Never found
+            return idx == 999; // Never found
         });
 
         REQUIRE(it == std::ranges::end(data));
     }
-
 }
 #endif // !ILP_MODE_SIMPLE
-

@@ -4,9 +4,9 @@
 // This is a self-contained example for Godbolt Compiler Explorer.
 // The implementation below is extracted LINE-FOR-LINE from the ilp_for library.
 
-#include <vector>
-#include <cstddef>
 #include <concepts>
+#include <cstddef>
+#include <vector>
 
 // =============================================================================
 // Extracted from ilp_for library (LINE-FOR-LINE EXACT COPY)
@@ -14,30 +14,34 @@
 
 namespace ilp {
 
-// From detail/iota.hpp lines 7-25:
-template<std::integral T>
-struct iota_view {
-    T first, last;
+    // From detail/iota.hpp lines 7-25:
+    template<std::integral T>
+    struct iota_view {
+        T first, last;
 
-    struct iterator {
-        T value;
-        constexpr T operator*() const { return value; }
-        constexpr iterator& operator++() { ++value; return *this; }
-        constexpr bool operator!=(iterator o) const { return value != o.value; }
+        struct iterator {
+            T value;
+            constexpr T operator*() const { return value; }
+            constexpr iterator& operator++() {
+                ++value;
+                return *this;
+            }
+            constexpr bool operator!=(iterator o) const { return value != o.value; }
+        };
+
+        constexpr iterator begin() const { return {first}; }
+        constexpr iterator end() const { return {last}; }
     };
 
-    constexpr iterator begin() const { return {first}; }
-    constexpr iterator end() const { return {last}; }
-};
-
-template<std::integral T>
-constexpr iota_view<T> iota(T start, T end) { return {start, end}; }
+    template<std::integral T>
+    constexpr iota_view<T> iota(T start, T end) {
+        return {start, end};
+    }
 
 } // namespace ilp
 
 // From detail/macros_simple.hpp lines 8-20:
-#define ILP_FOR(loop_var_decl, start, end, N) \
-    for (loop_var_decl : ::ilp::iota((start), (end)))
+#define ILP_FOR(loop_var_decl, start, end, N) for (loop_var_decl : ::ilp::iota((start), (end)))
 
 #define ILP_END
 
@@ -48,7 +52,8 @@ constexpr iota_view<T> iota(T start, T end) { return {start, end}; }
 void transform_ilp(std::vector<int>& data) {
     ILP_FOR(auto i, 0uz, data.size(), 4) {
         data[i] = data[i] * 2 + 1;
-    } ILP_END;
+    }
+    ILP_END;
 }
 
 // =============================================================================
@@ -59,9 +64,9 @@ void transform_handrolled(std::vector<int>& data) {
     size_t i = 0;
     for (; i + 4 <= data.size(); i += 4) {
         data[i] = data[i] * 2 + 1;
-        data[i+1] = data[i+1] * 2 + 1;
-        data[i+2] = data[i+2] * 2 + 1;
-        data[i+3] = data[i+3] * 2 + 1;
+        data[i + 1] = data[i + 1] * 2 + 1;
+        data[i + 2] = data[i + 2] * 2 + 1;
+        data[i + 3] = data[i + 3] * 2 + 1;
     }
 
     // Cleanup

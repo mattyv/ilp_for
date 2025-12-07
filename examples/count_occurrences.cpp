@@ -2,13 +2,11 @@
 // Demonstrates simple reduction without early exit
 
 #include "../ilp_for.hpp"
-#include <vector>
 #include <iostream>
+#include <vector>
 
 size_t count_value(const std::vector<int>& data, int target) {
-    return ilp::reduce_range_auto(data, 0uz, std::plus<>{}, [&](auto&& val) {
-        return val == target ? 1uz : 0uz;
-    });
+    return ilp::reduce_range_auto(data, 0uz, std::plus<>{}, [&](auto&& val) { return val == target ? 1uz : 0uz; });
 }
 
 int main() {

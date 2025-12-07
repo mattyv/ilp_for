@@ -1,10 +1,10 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
-#include <vector>
-#include <limits>
-#include <cstdint>
+#include "catch.hpp"
 #include <array>
+#include <cstdint>
+#include <limits>
 #include <random>
+#include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
 
@@ -21,17 +21,13 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
     // The init value should NOT be 4x when reduction completes
 
     SECTION("Empty range - should return init unchanged") {
-        auto result = ilp::reduce<4>(0, 0, 100, std::plus<>(), [&](auto i) {
-            return i;
-        });
+        auto result = ilp::reduce<4>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
         // Critical: Should be 100, not 400!
         REQUIRE(result == 100);
     }
 
     SECTION("Single element with init") {
-        auto result = ilp::reduce<4>(0, 1, 100, std::plus<>(), [&](auto i) {
-            return i;
-        });
+        auto result = ilp::reduce<4>(0, 1, 100, std::plus<>(), [&](auto i) { return i; });
         // 100 + 0 = 100 (not 400 + 0)
         REQUIRE(result == 100);
     }
@@ -40,10 +36,9 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 #if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
-        [&](auto) -> std::optional<int> {
-            return std::nullopt;  // Immediately break
-        });
+    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> {
+        return std::nullopt; // Immediately break
+    });
     // Should be 100, NOT 400
     INFO("Result should be init value (100), not N*init (400)");
     REQUIRE(result == 100);
@@ -57,12 +52,28 @@ TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulato
 
 TEST_CASE("Zero elements with various N values", "[extreme][zero]") {
     // N must be compile-time constant, so we test specific values below
-    (void)std::initializer_list<int>{1, 2, 3, 4, 5, 6, 7, 8};  // Document intent
+    (void)std::initializer_list<int>{1, 2, 3, 4, 5, 6, 7, 8}; // Document intent
 
-    int count1 = 0; ILP_FOR(auto i, 0, 0, 1) { count1++; } ILP_END;
-    int count2 = 0; ILP_FOR(auto i, 0, 0, 2) { count2++; } ILP_END;
-    int count4 = 0; ILP_FOR(auto i, 0, 0, 4) { count4++; } ILP_END;
-    int count8 = 0; ILP_FOR(auto i, 0, 0, 8) { count8++; } ILP_END;
+    int count1 = 0;
+    ILP_FOR(auto i, 0, 0, 1) {
+        count1++;
+    }
+    ILP_END;
+    int count2 = 0;
+    ILP_FOR(auto i, 0, 0, 2) {
+        count2++;
+    }
+    ILP_END;
+    int count4 = 0;
+    ILP_FOR(auto i, 0, 0, 4) {
+        count4++;
+    }
+    ILP_END;
+    int count8 = 0;
+    ILP_FOR(auto i, 0, 0, 8) {
+        count8++;
+    }
+    ILP_END;
 
     REQUIRE(count1 == 0);
     REQUIRE(count2 == 0);
@@ -79,14 +90,12 @@ TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativit
     // Sequential: ((((100 - 1) - 2) - 3) - 4) - 5) = 85
     // But parallel accumulators might give different result
 
-    auto result = ilp::reduce<4>(1, 6, 100, std::minus<>(), [&](auto i) {
-        return i;
-    });
+    auto result = ilp::reduce<4>(1, 6, 100, std::minus<>(), [&](auto i) { return i; });
 
     // Note: This is implementation-defined behavior with multi-accumulator
     // Just verify it doesn't crash and returns something
     INFO("Non-associative ops have implementation-defined results");
-    (void)result;  // Don't assert specific value
+    (void)result; // Don't assert specific value
 }
 
 // -----------------------------------------------------------------------------
@@ -96,9 +105,7 @@ TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativit
 TEST_CASE("Float reduce accumulation", "[extreme][float]") {
     std::vector<float> data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f};
 
-    auto result = ilp::reduce_range<4>(data, 0.0f, std::plus<>(), [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0.0f, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(result == Approx(1.5f).epsilon(0.001f));
 }
@@ -106,9 +113,7 @@ TEST_CASE("Float reduce accumulation", "[extreme][float]") {
 TEST_CASE("Double precision edge case", "[extreme][float]") {
     std::vector<double> data(100, 0.1);
 
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(result == Approx(10.0).epsilon(0.001));
 }
@@ -119,17 +124,19 @@ TEST_CASE("Double precision edge case", "[extreme][float]") {
 
 TEST_CASE("N=16 with small range", "[extreme][unroll]") {
     int sum = 0;
-    ILP_FOR(auto i, 0, 3, 16) {  // Range 3 < N=16
+    ILP_FOR(auto i, 0, 3, 16) { // Range 3 < N=16
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 3);  // 0+1+2
+    }
+    ILP_END;
+    REQUIRE(sum == 3); // 0+1+2
 }
 
 TEST_CASE("N=32 with medium range", "[extreme][unroll]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 50, 16) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 1225);
 }
 
@@ -149,7 +156,8 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
         int sum = 0;
         ILP_FOR(auto i, 0, 10, 4) {
             sum += arr[i];
-        } ILP_END;
+        }
+        ILP_END;
         REQUIRE(sum == 45);
     }
 }
@@ -161,9 +169,7 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 TEST_CASE("std::array iteration", "[extreme][container]") {
     std::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
 
-    auto result = ilp::reduce_range<4>(arr, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(arr, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 28);
 }
@@ -179,11 +185,14 @@ TEST_CASE("Triple nested loops", "[extreme][nested]") {
         ILP_FOR(auto j, 0, 5, 4) {
             ILP_FOR(auto k, 0, 5, 4) {
                 total++;
-            } ILP_END;
-        } ILP_END;
-    } ILP_END;
+            }
+            ILP_END;
+        }
+        ILP_END;
+    }
+    ILP_END;
 
-    REQUIRE(total == 125);  // 5*5*5
+    REQUIRE(total == 125); // 5*5*5
 }
 
 TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
@@ -192,8 +201,10 @@ TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
     ILP_FOR(auto i, 0, 5, 4) {
         ILP_FOR(auto j, 0, 5, 4) {
             total += i * j;
-        } ILP_END;
-    } ILP_END;
+        }
+        ILP_END;
+    }
+    ILP_END;
 
     // Sum of i*j for i,j in [0,5)
     int expected = 0;
@@ -210,11 +221,9 @@ TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
 
 TEST_CASE("Find at positions 0 through 15", "[extreme][find]") {
     for (int target = 0; target <= 15; ++target) {
-        auto result = ilp::find<4>(0, 100, [&](auto i, auto) {
-            return i == target;
-        });
+        auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == target; });
 
-        REQUIRE(result != 100);  // Found
+        REQUIRE(result != 100); // Found
         REQUIRE(result == target);
     }
 }
@@ -224,31 +233,26 @@ TEST_CASE("Find at positions 0 through 15", "[extreme][find]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("XOR reduction", "[extreme][reduce]") {
-    auto result = ilp::reduce<4>(0, 16, 0, [](int a, int b) { return a ^ b; }, [&](auto i) {
-        return i;
-    });
+    auto result = ilp::reduce<4>(0, 16, 0, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
 
     int expected = 0;
-    for (int i = 0; i < 16; ++i) expected ^= i;
+    for (int i = 0; i < 16; ++i)
+        expected ^= i;
     REQUIRE(result == expected);
 }
 
 TEST_CASE("AND reduction", "[extreme][reduce]") {
     std::vector<int> data = {0xFF, 0xF0, 0x0F, 0xFF};
 
-    auto result = ilp::reduce_range<4>(data, 0xFF, [](int a, int b) { return a & b; }, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0xFF, [](int a, int b) { return a & b; }, [&](auto&& val) { return val; });
 
-    REQUIRE(result == 0x00);  // 0xFF & 0xF0 & 0x0F & 0xFF = 0
+    REQUIRE(result == 0x00); // 0xFF & 0xF0 & 0x0F & 0xFF = 0
 }
 
 TEST_CASE("OR reduction", "[extreme][reduce]") {
     std::vector<int> data = {0x01, 0x02, 0x04, 0x08};
 
-    auto result = ilp::reduce_range<4>(data, 0, [](int a, int b) { return a | b; }, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0, [](int a, int b) { return a | b; }, [&](auto&& val) { return val; });
 
     REQUIRE(result == 0x0F);
 }
@@ -259,7 +263,8 @@ TEST_CASE("OR reduction", "[extreme][reduce]") {
 
 TEST_CASE("Find first negative", "[extreme][find]") {
     auto result = ilp::find<4>(-10, 10, [&](auto i, auto end) {
-        if (i >= 0) return i;
+        if (i >= 0)
+            return i;
         return end;
     });
 
@@ -272,23 +277,17 @@ TEST_CASE("Find first negative", "[extreme][find]") {
 
 TEST_CASE("Auto-select with various sizes", "[extreme][auto]") {
     SECTION("Small range") {
-        auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) {
-            return i;
-        });
+        auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 10);
     }
 
     SECTION("Medium range") {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
-            return i;
-        });
+        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 4950);
     }
 
     SECTION("Large range") {
-        auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) {
-            return i;
-        });
+        auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 49995000);
     }
 }
@@ -328,8 +327,9 @@ TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
     int sum = 0;
     ILP_FOR(auto i, -5, 5, 4) {
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == -5);  // -5 + -4 + -3 + -2 + -1 + 0 + 1 + 2 + 3 + 4 = -5
+    }
+    ILP_END;
+    REQUIRE(sum == -5); // -5 + -4 + -3 + -2 + -1 + 0 + 1 + 2 + 3 + 4 = -5
 }
 
 // -----------------------------------------------------------------------------
@@ -338,21 +338,23 @@ TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
 
 TEST_CASE("Complex math in reduce", "[extreme][math]") {
     auto result = ilp::reduce<4>(1, 11, 0, std::plus<>{}, [&](auto i) {
-        return i * i;  // Sum of squares
+        return i * i; // Sum of squares
     });
 
-    REQUIRE(result == 385);  // 1+4+9+16+25+36+49+64+81+100
+    REQUIRE(result == 385); // 1+4+9+16+25+36+49+64+81+100
 }
 
 TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
     auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
-        if (i % 5 == 0) return i;
+        if (i % 5 == 0)
+            return i;
         return 0;
     });
 
     // Sum of multiples of 5 from 0-99
     int expected = 0;
-    for (int i = 0; i < 100; i += 5) expected += i;
+    for (int i = 0; i < 100; i += 5)
+        expected += i;
     REQUIRE(result == expected);
 }
 
@@ -364,7 +366,8 @@ TEST_CASE("Volatile accumulator", "[extreme][volatile]") {
     volatile int sum = 0;
     ILP_FOR(auto i, 0, 10, 4) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -376,14 +379,18 @@ TEST_CASE("Multiple captures modified", "[extreme][capture]") {
     int a = 0, b = 0, c = 0;
 
     ILP_FOR(auto i, 0, 12, 4) {
-        if (i % 3 == 0) a += i;
-        else if (i % 3 == 1) b += i;
-        else c += i;
-    } ILP_END;
+        if (i % 3 == 0)
+            a += i;
+        else if (i % 3 == 1)
+            b += i;
+        else
+            c += i;
+    }
+    ILP_END;
 
-    REQUIRE(a == 18);  // 0+3+6+9
-    REQUIRE(b == 22);  // 1+4+7+10
-    REQUIRE(c == 26);  // 2+5+8+11
+    REQUIRE(a == 18); // 0+3+6+9
+    REQUIRE(b == 22); // 1+4+7+10
+    REQUIRE(c == 26); // 2+5+8+11
 }
 
 // -----------------------------------------------------------------------------
@@ -394,7 +401,8 @@ TEST_CASE("Range of 2 with N=8", "[extreme][short]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 2, 8) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 1);
 }
 
@@ -402,7 +410,8 @@ TEST_CASE("Range of 1 with N=16", "[extreme][short]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 1, 16) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 0);
 }
 
@@ -413,15 +422,36 @@ TEST_CASE("Range of 1 with N=16", "[extreme][short]") {
 TEST_CASE("Range = 2^n for various n", "[extreme][pow2]") {
     auto sum = [](int n) {
         int s = 0;
-        for (int i = 0; i < n; ++i) s += i;
+        for (int i = 0; i < n; ++i)
+            s += i;
         return s;
     };
 
-    int s1 = 0; ILP_FOR(auto i, 0, 2, 4) { s1 += i; } ILP_END;
-    int s2 = 0; ILP_FOR(auto i, 0, 4, 4) { s2 += i; } ILP_END;
-    int s3 = 0; ILP_FOR(auto i, 0, 8, 4) { s3 += i; } ILP_END;
-    int s4 = 0; ILP_FOR(auto i, 0, 16, 4) { s4 += i; } ILP_END;
-    int s5 = 0; ILP_FOR(auto i, 0, 32, 4) { s5 += i; } ILP_END;
+    int s1 = 0;
+    ILP_FOR(auto i, 0, 2, 4) {
+        s1 += i;
+    }
+    ILP_END;
+    int s2 = 0;
+    ILP_FOR(auto i, 0, 4, 4) {
+        s2 += i;
+    }
+    ILP_END;
+    int s3 = 0;
+    ILP_FOR(auto i, 0, 8, 4) {
+        s3 += i;
+    }
+    ILP_END;
+    int s4 = 0;
+    ILP_FOR(auto i, 0, 16, 4) {
+        s4 += i;
+    }
+    ILP_END;
+    int s5 = 0;
+    ILP_FOR(auto i, 0, 32, 4) {
+        s5 += i;
+    }
+    ILP_END;
 
     REQUIRE(s1 == sum(2));
     REQUIRE(s2 == sum(4));

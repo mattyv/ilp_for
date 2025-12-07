@@ -1,9 +1,9 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
-#include <vector>
-#include <limits>
+#include "catch.hpp"
 #include <cstdint>
+#include <limits>
 #include <span>
+#include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
 
@@ -24,7 +24,8 @@ TEST_CASE("Range size calculation overflow", "[edge][overflow]") {
         int64_t sum = 0;
         ILP_FOR(auto i, (int64_t)0, (int64_t)1000000, 4) {
             sum += 1;
-        } ILP_END;
+        }
+        ILP_END;
         REQUIRE(sum == 1000000);
     }
 }
@@ -37,10 +38,12 @@ TEST_CASE("Large negative ranges", "[edge][negative]") {
     int64_t sum = 0;
     ILP_FOR(auto i, -1000, -900, 4) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
     int64_t expected = 0;
-    for (int i = -1000; i < -900; ++i) expected += i;
+    for (int i = -1000; i < -900; ++i)
+        expected += i;
     REQUIRE(sum == expected);
 }
 
@@ -51,18 +54,36 @@ TEST_CASE("Large negative ranges", "[edge][negative]") {
 TEST_CASE("Range exactly = N*k + r for various r", "[edge][remainder]") {
     auto sum = [](int n) {
         int s = 0;
-        for (int i = 0; i < n; ++i) s += i;
+        for (int i = 0; i < n; ++i)
+            s += i;
         return s;
     };
 
     // N=4, test r=0,1,2,3
     for (int r = 0; r < 4; ++r) {
-        int range_size = 16 + r;  // 4*4 + r
+        int range_size = 16 + r; // 4*4 + r
         int s = 0;
-        if (r == 0) { ILP_FOR(auto i, 0, 16, 4) { s += i; } ILP_END; }
-        else if (r == 1) { ILP_FOR(auto i, 0, 17, 4) { s += i; } ILP_END; }
-        else if (r == 2) { ILP_FOR(auto i, 0, 18, 4) { s += i; } ILP_END; }
-        else { ILP_FOR(auto i, 0, 19, 4) { s += i; } ILP_END; }
+        if (r == 0) {
+            ILP_FOR(auto i, 0, 16, 4) {
+                s += i;
+            }
+            ILP_END;
+        } else if (r == 1) {
+            ILP_FOR(auto i, 0, 17, 4) {
+                s += i;
+            }
+            ILP_END;
+        } else if (r == 2) {
+            ILP_FOR(auto i, 0, 18, 4) {
+                s += i;
+            }
+            ILP_END;
+        } else {
+            ILP_FOR(auto i, 0, 19, 4) {
+                s += i;
+            }
+            ILP_END;
+        }
 
         REQUIRE(s == sum(range_size));
     }
@@ -76,11 +97,12 @@ TEST_CASE("For-until with stateful predicate", "[edge][until]") {
     int call_count = 0;
     auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
         call_count++;
-        if (i == 50) return i;
+        if (i == 50)
+            return i;
         return _ilp_end_;
     });
 
-    REQUIRE(result != 100);  // Found (not sentinel)
+    REQUIRE(result != 100); // Found (not sentinel)
     REQUIRE(result == 50);
     // call_count should be at least 51
     REQUIRE(call_count >= 51);
@@ -99,7 +121,7 @@ TEST_CASE("Reduce body with side effects", "[edge][reduce]") {
     });
 
     REQUIRE(result == 45);
-    REQUIRE(side_effect == 45);  // Each i accessed once
+    REQUIRE(side_effect == 45); // Each i accessed once
 }
 
 // -----------------------------------------------------------------------------
@@ -108,14 +130,15 @@ TEST_CASE("Reduce body with side effects", "[edge][reduce]") {
 
 TEST_CASE("std::span iteration", "[edge][span]") {
     std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    std::span<int> sp(data.data() + 2, 5);  // {3,4,5,6,7}
+    std::span<int> sp(data.data() + 2, 5); // {3,4,5,6,7}
 
     int sum = 0;
     ILP_FOR_RANGE(auto&& val, sp, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
 
-    REQUIRE(sum == 25);  // 3+4+5+6+7
+    REQUIRE(sum == 25); // 3+4+5+6+7
 }
 
 // -----------------------------------------------------------------------------
@@ -127,7 +150,8 @@ TEST_CASE("Const element type", "[edge][const]") {
     int sum = 0;
     ILP_FOR_RANGE(auto&& val, data, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 15);
 }
 
@@ -138,7 +162,8 @@ TEST_CASE("Const element type", "[edge][const]") {
 TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
     SECTION("Find at 0 with N elements") {
         auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 0) return i;
+            if (i == 0)
+                return i;
             return _ilp_end_;
         });
         REQUIRE(result == 0);
@@ -146,7 +171,8 @@ TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
 
     SECTION("Find at N-1 with N elements") {
         auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 3) return i;
+            if (i == 3)
+                return i;
             return _ilp_end_;
         });
         REQUIRE(result == 3);
@@ -154,13 +180,13 @@ TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
 
     SECTION("Find nothing with N elements") {
         auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 99) return i;
+            if (i == 99)
+                return i;
             return _ilp_end_;
         });
-        REQUIRE(result == 4);  // Sentinel
+        REQUIRE(result == 4); // Sentinel
     }
 }
-
 
 // -----------------------------------------------------------------------------
 // Auto-Select with Different Element Sizes
@@ -169,9 +195,7 @@ TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
 TEST_CASE("Auto-select with int8_t", "[edge][auto]") {
     std::vector<int8_t> data = {1, 2, 3, 4, 5};
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -179,9 +203,7 @@ TEST_CASE("Auto-select with int8_t", "[edge][auto]") {
 TEST_CASE("Auto-select with int64_t", "[edge][auto]") {
     std::vector<int64_t> data = {1, 2, 3, 4, 5};
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -198,7 +220,8 @@ TEST_CASE("Empty struct in vector", "[edge][empty]") {
     ILP_FOR_RANGE(auto&& val, data, 4) {
         count++;
         (void)val;
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(count == 10);
 }
@@ -210,9 +233,7 @@ TEST_CASE("Empty struct in vector", "[edge][empty]") {
 TEST_CASE("Reduce captures work correctly", "[edge][capture]") {
     int multiplier = 2;
 
-    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) {
-        return i * multiplier;
-    });
+    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) { return i * multiplier; });
 
     // 0*2 + 1*2 + ... + 9*2 = 90
     REQUIRE(result == 90);
@@ -231,7 +252,8 @@ TEST_CASE("Range-idx nested operations", "[edge][rangeidx]") {
     auto it = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto _ilp_end_) {
         sum += val;
         idx_sum += idx;
-        if (val == 30) return std::ranges::begin(data) + idx;
+        if (val == 30)
+            return std::ranges::begin(data) + idx;
         return _ilp_end_;
     });
 
@@ -255,9 +277,7 @@ TEST_CASE("Very long vector iteration - overflow bug", "[bug][overflow]") {
         data[i] = static_cast<int>(i);
     }
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     // Sum of 0..99999 = 4,999,950,000 (overflows int32 max 2,147,483,647)
     // Result type is int (from vector element), so this overflows!
@@ -282,20 +302,24 @@ TEST_CASE("Break on exactly last element", "[edge][control]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 4) {
         sum += i;
-        if (i == 9) ILP_BREAK;
-    } ILP_END;
+        if (i == 9)
+            ILP_BREAK;
+    }
+    ILP_END;
 
-    REQUIRE(sum == 45);  // All elements processed
+    REQUIRE(sum == 45); // All elements processed
 }
 
 TEST_CASE("Continue on last element", "[edge][control]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 4) {
-        if (i == 9) ILP_CONTINUE;
+        if (i == 9)
+            ILP_CONTINUE;
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
-    REQUIRE(sum == 36);  // 45 - 9
+    REQUIRE(sum == 36); // 45 - 9
 }
 
 #endif
@@ -308,7 +332,8 @@ TEST_CASE("Find range with index", "[edge][find]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
 
     auto result = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto _ilp_end_) {
-        if (val == 3) return std::ranges::begin(data) + idx;
+        if (val == 3)
+            return std::ranges::begin(data) + idx;
         return _ilp_end_;
     });
 
@@ -322,9 +347,7 @@ TEST_CASE("Find range with index", "[edge][find]") {
 
 TEST_CASE("Double-nested reduce", "[edge][nested][reduce]") {
     auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) {
-        auto inner = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto j) {
-            return i + j;
-        });
+        auto inner = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto j) { return i + j; });
         return inner;
     });
 
@@ -341,7 +364,8 @@ TEST_CASE("Odd N values - N=3", "[edge][oddN]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 3) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -349,7 +373,8 @@ TEST_CASE("Odd N values - N=5", "[edge][oddN]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 5) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -357,7 +382,8 @@ TEST_CASE("Odd N values - N=7", "[edge][oddN]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 7) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -367,16 +393,13 @@ TEST_CASE("Odd N values - N=7", "[edge][oddN]") {
 
 TEST_CASE("Return type preservation", "[edge][types]") {
     SECTION("Double return") {
-        auto result = ilp::reduce<4>(0, 10, 0.0, std::plus<>(), [&](auto i) {
-            return static_cast<double>(i);
-        });
+        auto result = ilp::reduce<4>(0, 10, 0.0, std::plus<>(), [&](auto i) { return static_cast<double>(i); });
         REQUIRE(result == 45.0);
     }
 
     SECTION("Long long return") {
-        auto result = ilp::reduce<4>(0, 10, (long long)0, std::plus<>(), [&](auto i) {
-            return static_cast<long long>(i);
-        });
+        auto result =
+            ilp::reduce<4>(0, 10, (long long)0, std::plus<>(), [&](auto i) { return static_cast<long long>(i); });
         REQUIRE(result == 45LL);
     }
 }

@@ -2,9 +2,9 @@
 // Demonstrates parallel reduction with multiple accumulators
 
 #include "../ilp_for.hpp"
-#include <vector>
-#include <limits>
 #include <iostream>
+#include <limits>
+#include <vector>
 
 struct MinMax {
     int min = std::numeric_limits<int>::max();
@@ -16,9 +16,7 @@ MinMax find_min_max(const std::vector<int>& data) {
 
     auto op = [](MinMax a, MinMax b) { return MinMax{std::min(a.min, b.min), std::max(a.max, b.max)}; };
 
-    return ilp::reduce_range_auto(data, init, op, [&](auto&& val) {
-        return MinMax{val, val};
-    });
+    return ilp::reduce_range_auto(data, init, op, [&](auto&& val) { return MinMax{val, val}; });
 }
 
 int main() {

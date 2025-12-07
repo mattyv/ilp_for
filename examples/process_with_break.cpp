@@ -2,8 +2,8 @@
 // Demonstrates early exit and skipping elements
 
 #include "../ilp_for.hpp"
-#include <vector>
 #include <iostream>
+#include <vector>
 
 // Process items until encountering negative (error) value
 // Skip zeros (placeholder entries)
@@ -17,11 +17,12 @@ void process_until_error(const std::vector<int>& data) {
             ILP_BREAK;
         }
         if (data[i] == 0) {
-            ILP_CONTINUE;  // Skip placeholder entries
+            ILP_CONTINUE; // Skip placeholder entries
         }
         sum += data[i];
         ++count;
-    } ILP_END;
+    }
+    ILP_END;
 
     std::cout << "Processed " << count << " items, sum = " << sum << "\n";
 }
@@ -36,7 +37,8 @@ bool validate_entries(const std::vector<int>& data, int min_val, int max_val) {
             valid = false;
             ILP_BREAK;
         }
-    } ILP_END;
+    }
+    ILP_END;
 
     return valid;
 }

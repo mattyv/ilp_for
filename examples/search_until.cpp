@@ -2,9 +2,9 @@
 // Demonstrates the recommended pattern for early-exit search
 
 #include "../ilp_for.hpp"
-#include <vector>
-#include <string>
 #include <iostream>
+#include <string>
+#include <vector>
 
 struct Record {
     int id;
@@ -14,33 +14,22 @@ struct Record {
 
 // Find first active record
 std::optional<size_t> find_first_active(const std::vector<Record>& records) {
-    auto it = ilp::find_range_auto(records, [&](auto&& rec) {
-        return rec.active;
-    });
+    auto it = ilp::find_range_auto(records, [&](auto&& rec) { return rec.active; });
     return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 // Find record by name
-std::optional<size_t> find_by_name(const std::vector<Record>& records,
-                                    const std::string& target) {
-    auto it = ilp::find_range_auto(records, [&](auto&& rec) {
-        return rec.name == target;
-    });
+std::optional<size_t> find_by_name(const std::vector<Record>& records, const std::string& target) {
+    auto it = ilp::find_range_auto(records, [&](auto&& rec) { return rec.name == target; });
     return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 int main() {
     std::vector<Record> records = {
-        {1, "Alice", false},
-        {2, "Bob", false},
-        {3, "Charlie", true},
-        {4, "Diana", false},
-        {5, "Eve", true}
-    };
+        {1, "Alice", false}, {2, "Bob", false}, {3, "Charlie", true}, {4, "Diana", false}, {5, "Eve", true}};
 
     if (auto idx = find_first_active(records)) {
-        std::cout << "First active: " << records[*idx].name
-                  << " at index " << *idx << "\n";
+        std::cout << "First active: " << records[*idx].name << " at index " << *idx << "\n";
     }
 
     if (auto idx = find_by_name(records, "Diana")) {

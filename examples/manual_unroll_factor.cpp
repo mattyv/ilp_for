@@ -2,9 +2,9 @@
 // Demonstrates when and why to use explicit N instead of AUTO
 
 #include "../ilp_for.hpp"
-#include <vector>
 #include <array>
 #include <iostream>
+#include <vector>
 
 // Use optimal_N to query the recommended value for your use case
 constexpr auto N_SUM_DOUBLE = ilp::optimal_N<ilp::LoopType::Sum, double>;
@@ -17,34 +17,27 @@ int sum_small_array(const std::array<int, Size>& arr) {
     int sum = 0;
     ILP_FOR(auto i, 0uz, Size, 2) {
         sum += arr[i];
-    } ILP_END;
+    }
+    ILP_END;
     return sum;
 }
 
 // Known hot path with profiled optimal N
 // After benchmarking, N=8 was determined optimal for this specific workload
 double dot_product_tuned(const double* a, const double* b, size_t n) {
-    return ilp::reduce<8>(0uz, n, 0.0, std::plus<>{}, [&](auto i) {
-        return a[i] * b[i];
-    });
+    return ilp::reduce<8>(0uz, n, 0.0, std::plus<>{}, [&](auto i) { return a[i] * b[i]; });
 }
 
 // Compare AUTO vs manual for demonstration
 void compare_approaches(const std::vector<int>& data) {
     // AUTO: lets the library choose based on CPU profile and element size
-    auto sum_auto = ilp::reduce_range_auto(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto sum_auto = ilp::reduce_range_auto(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     // Manual N=4: explicit control
-    auto sum_manual = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto sum_manual = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     // Manual N=16: aggressive unrolling for large data
-    auto sum_aggressive = ilp::reduce_range<16>(data, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto sum_aggressive = ilp::reduce_range<16>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     std::cout << "AUTO (N=" << N_SUM_DOUBLE << " for double): " << sum_auto << "\n";
     std::cout << "Manual N=4: " << sum_manual << "\n";
@@ -58,7 +51,8 @@ void process_large_structs(std::vector<std::array<double, 8>>& data) {
         for (auto& v : data[i]) {
             v *= 2.0;
         }
-    } ILP_END;
+    }
+    ILP_END;
 }
 
 int main() {
@@ -73,7 +67,8 @@ int main() {
 
     // Compare approaches
     std::vector<int> data(100);
-    for (size_t i = 0; i < data.size(); ++i) data[i] = static_cast<int>(i + 1);
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] = static_cast<int>(i + 1);
     compare_approaches(data);
 
     std::cout << "\nRecommended N values from optimal_N:\n";

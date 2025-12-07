@@ -1,9 +1,9 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
-#include <vector>
-#include <limits>
+#include "catch.hpp"
 #include <cstdint>
+#include <limits>
 #include <string>
+#include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
 
@@ -17,11 +17,12 @@
 
 TEST_CASE("Inverted range (start > end)", "[mistake][range]") {
     int count = 0;
-    ILP_FOR(auto i, 10, 0, 4) {  // Start > End!
+    ILP_FOR(auto i, 10, 0, 4) { // Start > End!
         count++;
-    } ILP_END;
+    }
+    ILP_END;
     // Should this be 0 iterations or undefined behavior?
-    REQUIRE(count == 0);  // Expecting safe behavior
+    REQUIRE(count == 0); // Expecting safe behavior
 }
 
 // -----------------------------------------------------------------------------
@@ -31,8 +32,9 @@ TEST_CASE("Inverted range (start > end)", "[mistake][range]") {
 TEST_CASE("Return sentinel correctly", "[mistake][sentinel]") {
     // User might not understand end parameter usage
     auto result = ilp::find<4>(0, 100, [&](auto i, auto end) {
-        if (i == 50) return i;
-        return end;  // Correct usage
+        if (i == 50)
+            return i;
+        return end; // Correct usage
     });
     REQUIRE(result == 50);
 }
@@ -52,8 +54,9 @@ TEST_CASE("Using SIMPLE when need control flow", "[mistake][type]") {
             // Can't break here! But loop continues
         }
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 4950);  // All iterations run
+    }
+    ILP_END;
+    REQUIRE(sum == 4950); // All iterations run
 }
 
 #endif
@@ -72,14 +75,15 @@ TEST_CASE("Empty loop body", "[mistake][empty]") {
     ILP_FOR(auto i, 0, 100, 4) {
         // User forgot to do anything
         (void)i;
-    } ILP_END;
+    }
+    ILP_END;
     // At least it shouldn't crash
 }
 
 TEST_CASE("Empty reduce body", "[mistake][empty]") {
     auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
         (void)i;
-        return 0;  // Always returns 0
+        return 0; // Always returns 0
     });
     REQUIRE(result == 0);
 }
@@ -91,11 +95,12 @@ TEST_CASE("Empty reduce body", "[mistake][empty]") {
 TEST_CASE("User tries to modify loop variable", "[mistake][modify]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 4) {
-        auto local_i = i;  // They can't actually modify i
-        local_i *= 2;  // This doesn't affect iteration
+        auto local_i = i; // They can't actually modify i
+        local_i *= 2;     // This doesn't affect iteration
         sum += local_i;
-    } ILP_END;
-    REQUIRE(sum == 90);  // 0+2+4+6+8+10+12+14+16+18
+    }
+    ILP_END;
+    REQUIRE(sum == 90); // 0+2+4+6+8+10+12+14+16+18
 }
 
 // -----------------------------------------------------------------------------
@@ -108,8 +113,9 @@ TEST_CASE("Capturing by value vs reference", "[mistake][capture]") {
 
     // The macro captures by [&], so this works
     ILP_FOR(auto i, 0, 5, 4) {
-        result += value;  // Uses reference
-    } ILP_END;
+        result += value; // Uses reference
+    }
+    ILP_END;
 
     REQUIRE(result == 50);
 }
@@ -122,7 +128,8 @@ TEST_CASE("Absurdly large N=128", "[mistake][huge]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 128) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -136,7 +143,8 @@ TEST_CASE("int8_t iteration", "[mistake][overflow]") {
     ILP_FOR(auto i, (int8_t)0, (int8_t)100, 4) {
         count++;
         (void)i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(count == 100);
 }
 
@@ -145,7 +153,8 @@ TEST_CASE("Unsigned underflow danger", "[mistake][underflow]") {
     unsigned sum = 0;
     ILP_FOR(auto i, 0u, 10u, 4) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -159,7 +168,8 @@ TEST_CASE("User confused about remainder", "[mistake][remainder]") {
     values.reserve(9);
     ILP_FOR(auto i, 0, 9, 4) {
         values.push_back(i);
-    } ILP_END;
+    }
+    ILP_END;
 
     // User might expect different behavior
     REQUIRE(values.size() == 9);
@@ -174,10 +184,10 @@ TEST_CASE("Using return false for continue in find", "[mistake][find]") {
     int count = 0;
     auto result = ilp::find<4>(0, 10, [&](auto i, auto) {
         count++;
-        return i == 5;  // Find 5
+        return i == 5; // Find 5
     });
 
-    REQUIRE(result != 10);  // Found
+    REQUIRE(result != 10); // Found
     REQUIRE(result == 5);
     // Note: count may be > 6 due to unrolling semantics
 }
@@ -191,13 +201,11 @@ TEST_CASE("Non-commutative reduction (subtraction)", "[mistake][associativity]")
     // ((((0 - 1) - 2) - 3) - 4) = -10
     // But with multiple accumulators, order changes
 
-    auto result = ilp::reduce<4>(1, 5, 0, std::minus<>(), [&](auto i) {
-        return i;
-    });
+    auto result = ilp::reduce<4>(1, 5, 0, std::minus<>(), [&](auto i) { return i; });
 
     // Note: This might give different results due to parallel accumulation!
     // Expected with sequential: 0-1-2-3-4 = -10
-    (void)result;  // Just checking it doesn't crash
+    (void)result; // Just checking it doesn't crash
 }
 
 // -----------------------------------------------------------------------------
@@ -208,19 +216,15 @@ TEST_CASE("Operations on empty vector", "[mistake][empty]") {
     std::vector<int> empty;
 
     // Min of empty set
-    auto min_result = ilp::reduce_range<4>(empty, std::numeric_limits<int>::max(),
-        [](int a, int b) { return std::min(a, b); },
-        [&](auto&& val) {
-            return val;
-        });
+    auto min_result = ilp::reduce_range<4>(
+        empty, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
+        [&](auto&& val) { return val; });
     REQUIRE(min_result == std::numeric_limits<int>::max());
 
     // Max of empty set
-    auto max_result = ilp::reduce_range<4>(empty, std::numeric_limits<int>::min(),
-        [](int a, int b) { return std::max(a, b); },
-        [&](auto&& val) {
-            return val;
-        });
+    auto max_result = ilp::reduce_range<4>(
+        empty, std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
+        [&](auto&& val) { return val; });
     REQUIRE(max_result == std::numeric_limits<int>::min());
 }
 
@@ -232,12 +236,13 @@ TEST_CASE("Shadow outer variable with loop var", "[mistake][shadow]") {
     int i = 999;
     int sum = 0;
 
-    ILP_FOR(auto i, 0, 10, 4) {  // Shadows outer i
+    ILP_FOR(auto i, 0, 10, 4) { // Shadows outer i
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(sum == 45);
-    REQUIRE(i == 999);  // Outer i unchanged
+    REQUIRE(i == 999); // Outer i unchanged
 }
 
 // -----------------------------------------------------------------------------
@@ -248,10 +253,12 @@ TEST_CASE("Nested loops with same variable name", "[mistake][nested]") {
     int count = 0;
 
     ILP_FOR(auto i, 0, 3, 4) {
-        ILP_FOR(auto i, 0, 3, 4) {  // Same name shadows outer
+        ILP_FOR(auto i, 0, 3, 4) { // Same name shadows outer
             count++;
-        } ILP_END;
-    } ILP_END;
+        }
+        ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(count == 9);
 }
@@ -278,9 +285,7 @@ TEST_CASE("Nested loops with same variable name", "[mistake][nested]") {
 
 TEST_CASE("Sum of large range", "[mistake][overflow]") {
     // Sum of 0..999999 = 499999500000 (needs 64-bit)
-    uint64_t result = ilp::reduce<4>((uint64_t)0, (uint64_t)1000000, 0, std::plus<>{}, [&](auto i) {
-        return i;
-    });
+    uint64_t result = ilp::reduce<4>((uint64_t)0, (uint64_t)1000000, 0, std::plus<>{}, [&](auto i) { return i; });
     REQUIRE(result == 499999500000ULL);
 }
 
@@ -293,7 +298,8 @@ TEST_CASE("Mixed signed types", "[mistake][signed]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 10, 4) {
         sum += static_cast<int>(i);
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
@@ -305,7 +311,8 @@ TEST_CASE("String concatenation in loop", "[mistake][performance]") {
     std::string result;
     ILP_FOR(auto i, 0, 5, 4) {
         result += std::to_string(i);
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(result == "01234");
 }
 
@@ -318,7 +325,8 @@ TEST_CASE("Allocating vectors in loop", "[mistake][performance]") {
     all.reserve(5);
     ILP_FOR(auto i, 0, 5, 4) {
         all.push_back(std::vector<int>{i});
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(all.size() == 5);
 }
 
@@ -331,7 +339,8 @@ TEST_CASE("Initializer list as range", "[mistake][init]") {
     std::vector<int> temp = {1, 2, 3, 4, 5};
     ILP_FOR_RANGE(auto&& val, temp, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 15);
 }
 
@@ -344,10 +353,10 @@ TEST_CASE("Inverted boolean logic in find", "[mistake][logic]") {
     int last = -1;
     auto result = ilp::find<4>(0, 10, [&](auto i, auto) {
         last = i;
-        return i >= 5;  // Stop when >= 5
+        return i >= 5; // Stop when >= 5
     });
 
-    REQUIRE(result != 10);  // Found
+    REQUIRE(result != 10); // Found
     REQUIRE(result >= 5);
     // last should be 5 or higher (unrolling may affect exact value)
 }
@@ -363,8 +372,9 @@ TEST_CASE("Off-by-one expectations", "[mistake][semantics]") {
     int count = 0;
     ILP_FOR(auto i, 0, 10, 4) {
         count++;
-    } ILP_END;
-    REQUIRE(count == 10);  // NOT 11
+    }
+    ILP_END;
+    REQUIRE(count == 10); // NOT 11
 }
 
 // -----------------------------------------------------------------------------
@@ -378,7 +388,8 @@ TEST_CASE("Reading during iteration (safe)", "[mistake][modify]") {
     ILP_FOR_RANGE(auto&& val, data, 4) {
         sum += val;
         // User might want to modify data here - unsafe!
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(sum == 15);
 }
@@ -394,7 +405,8 @@ TEST_CASE("Array pointer iteration", "[mistake][pointer]") {
     // User needs to use index-based loop for raw arrays
     ILP_FOR(auto i, 0, 5, 4) {
         sum += arr[i];
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(sum == 15);
 }
@@ -414,7 +426,8 @@ TEST_CASE("Iterator comparison in find_range_idx", "[mistake][iterator]") {
     std::vector<int> data = {1, 2, 3, 42, 5};
 
     auto it = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
-        if (val == 42) return std::ranges::begin(data) + idx;
+        if (val == 42)
+            return std::ranges::begin(data) + idx;
         return end;
     });
 
@@ -429,10 +442,10 @@ TEST_CASE("Iterator comparison in find_range_idx", "[mistake][iterator]") {
 
 TEST_CASE("Using plus for product (wrong op)", "[mistake][operator]") {
     // User means to multiply but uses plus
-    auto result = ilp::reduce<4>(1, 5, 0, std::plus<>{}, [&](auto i) {  // Should be multiplies with init 1
+    auto result = ilp::reduce<4>(1, 5, 0, std::plus<>{}, [&](auto i) { // Should be multiplies with init 1
         return i;
     });
-    REQUIRE(result == 10);  // Got sum instead of product
+    REQUIRE(result == 10); // Got sum instead of product
 }
 
 // -----------------------------------------------------------------------------
@@ -441,12 +454,10 @@ TEST_CASE("Using plus for product (wrong op)", "[mistake][operator]") {
 
 TEST_CASE("Division reduce (problematic)", "[mistake][associativity]") {
     // Division is not associative!
-    auto result = ilp::reduce<4>(1, 4, 1000, std::divides<>{}, [&](auto i) {
-        return i;
-    });
+    auto result = ilp::reduce<4>(1, 4, 1000, std::divides<>{}, [&](auto i) { return i; });
     // 1000 / 1 / 2 / 3 = 166 (integer division)
     // But parallel accumulators might give different result
-    (void)result;  // Just check it runs
+    (void)result; // Just check it runs
 }
 
 // -----------------------------------------------------------------------------
@@ -462,7 +473,7 @@ TEST_CASE("All iterations evaluate even if not needed", "[mistake][lazy]") {
     });
 
     REQUIRE(result == 4950);
-    REQUIRE(eval_count == 100);  // All evaluated
+    REQUIRE(eval_count == 100); // All evaluated
 }
 
 // -----------------------------------------------------------------------------
@@ -475,7 +486,8 @@ TEST_CASE("Temporary vector in range", "[mistake][temporary]") {
     std::vector<int> v = {1, 2, 3, 4, 5};
     ILP_FOR_RANGE(auto&& val, v, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 15);
 }
 
@@ -485,11 +497,10 @@ TEST_CASE("Temporary vector in range", "[mistake][temporary]") {
 
 TEST_CASE("Large vector performance", "[mistake][performance]") {
     std::vector<int> large(10000);
-    for (int i = 0; i < 10000; ++i) large[i] = i;
+    for (int i = 0; i < 10000; ++i)
+        large[i] = i;
 
-    auto result = ilp::reduce_range<4>(large, 0, std::plus<>{}, [&](auto&& val) {
-        return val;
-    });
+    auto result = ilp::reduce_range<4>(large, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 49995000);
 }
@@ -505,7 +516,8 @@ TEST_CASE("Const data iteration", "[mistake][const]") {
     ILP_FOR_RANGE(auto&& val, data, 4) {
         sum += val;
         // val is const& here
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(sum == 15);
 }
@@ -524,9 +536,10 @@ TEST_CASE("Need index but using range loop", "[mistake][index]") {
     ILP_FOR_RANGE(auto&& val, data, 4) {
         sum_with_index += val * idx;
         idx++;
-    } ILP_END;
+    }
+    ILP_END;
 
-    REQUIRE(sum_with_index == 400);  // 0*10 + 1*20 + 2*30 + 3*40 + 4*50
+    REQUIRE(sum_with_index == 400); // 0*10 + 1*20 + 2*30 + 3*40 + 4*50
 }
 
 // -----------------------------------------------------------------------------
@@ -540,9 +553,11 @@ TEST_CASE("Return vs break confusion", "[mistake][control]") {
     int sum = 0;
 
     ILP_FOR(auto i, 0, 100, 4) {
-        if (i >= 10) ILP_BREAK;  // Exit loop only
+        if (i >= 10)
+            ILP_BREAK; // Exit loop only
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(sum == 45);
 }
@@ -555,13 +570,9 @@ TEST_CASE("Return vs break confusion", "[mistake][control]") {
 
 TEST_CASE("Auto-select vs manual N", "[mistake][auto]") {
     // Sometimes manual N is better for specific use case
-    auto auto_result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
-        return i;
-    });
+    auto auto_result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
 
-    auto manual_result = ilp::reduce<8>(0, 100, 0, std::plus<>{}, [&](auto i) {
-        return i;
-    });
+    auto manual_result = ilp::reduce<8>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
 
     REQUIRE(auto_result == manual_result);
 }
@@ -573,15 +584,15 @@ TEST_CASE("Auto-select vs manual N", "[mistake][auto]") {
 TEST_CASE("No short-circuit in reduce", "[mistake][shortcircuit]") {
     int count = 0;
 
-    auto result = ilp::reduce<4>(0, 100, 0,
-        [](int a, int b) { return a + b; },
+    auto result = ilp::reduce<4>(
+        0, 100, 0, [](int a, int b) { return a + b; },
         [&](auto i) {
             count++;
             return i;
         });
 
     REQUIRE(result == 4950);
-    REQUIRE(count == 100);  // All evaluated
+    REQUIRE(count == 100); // All evaluated
 }
 
 // -----------------------------------------------------------------------------
@@ -592,11 +603,9 @@ TEST_CASE("Accumulator combination order", "[mistake][order]") {
     // Multiple accumulators combine in unspecified order
     // For associative+commutative ops, this is fine
 
-    auto result = ilp::reduce<4>(0, 20, 0, std::plus<>{}, [&](auto i) {
-        return i;
-    });
+    auto result = ilp::reduce<4>(0, 20, 0, std::plus<>{}, [&](auto i) { return i; });
 
-    REQUIRE(result == 190);  // Sum is always correct
+    REQUIRE(result == 190); // Sum is always correct
 }
 
 #endif // !ILP_MODE_SIMPLE

@@ -1,23 +1,19 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
-#include <vector>
-#include <span>
+#include "catch.hpp"
 #include <array>
+#include <span>
+#include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
 
 // Helper function using ilp::find_range - returns iterator
 auto ilp_find_range_test(std::span<const int> arr, int target) {
-    return ilp::find_range<4>(arr, [&](auto&& val) {
-        return val == target;
-    });
+    return ilp::find_range<4>(arr, [&](auto&& val) { return val == target; });
 }
 
 // Helper function using ilp::find_range_auto - returns iterator
 auto ilp_find_range_auto_test(std::span<const int> arr, int target) {
-    return ilp::find_range_auto(arr, [&](auto&& val) {
-        return val == target;
-    });
+    return ilp::find_range_auto(arr, [&](auto&& val) { return val == target; });
 }
 
 // Helper to convert iterator result to index for testing
@@ -109,7 +105,7 @@ TEST_CASE("ilp::find_range cleanup loop (size not divisible by N)", "[find_range
         auto it = ilp_find_range_test(arr, 5);
         REQUIRE(it != arr.end());
         REQUIRE(*it == 5);
-        REQUIRE(to_index(arr, it) == 4);  // Found in cleanup loop
+        REQUIRE(to_index(arr, it) == 4); // Found in cleanup loop
     }
 
     SECTION("size = 6 (6 mod 4 = 2) - find in cleanup") {
@@ -119,7 +115,7 @@ TEST_CASE("ilp::find_range cleanup loop (size not divisible by N)", "[find_range
         auto it = ilp_find_range_test(arr, 6);
         REQUIRE(it != arr.end());
         REQUIRE(*it == 6);
-        REQUIRE(to_index(arr, it) == 5);  // Found in cleanup loop
+        REQUIRE(to_index(arr, it) == 5); // Found in cleanup loop
     }
 
     SECTION("size = 7 (7 mod 4 = 3) - find in cleanup") {
@@ -129,7 +125,7 @@ TEST_CASE("ilp::find_range cleanup loop (size not divisible by N)", "[find_range
         auto it = ilp_find_range_test(arr, 7);
         REQUIRE(it != arr.end());
         REQUIRE(*it == 7);
-        REQUIRE(to_index(arr, it) == 6);  // Found in cleanup loop
+        REQUIRE(to_index(arr, it) == 6); // Found in cleanup loop
     }
 
     SECTION("size = 3 (all in cleanup, N=4)") {
@@ -139,7 +135,7 @@ TEST_CASE("ilp::find_range cleanup loop (size not divisible by N)", "[find_range
         REQUIRE(*ilp_find_range_test(arr, 10) == 10);
         REQUIRE(*ilp_find_range_test(arr, 20) == 20);
         REQUIRE(*ilp_find_range_test(arr, 30) == 30);
-        REQUIRE(ilp_find_range_test(arr, 99) == arr.end());  // Not found
+        REQUIRE(ilp_find_range_test(arr, 99) == arr.end()); // Not found
     }
 }
 
@@ -148,25 +144,19 @@ TEST_CASE("ilp::find_range with different N values", "[find_range][unroll]") {
     std::span<const int> arr(data);
 
     SECTION("N = 2") {
-        auto it = ilp::find_range<2>(arr, [](auto&& val) {
-            return val == 17;
-        });
+        auto it = ilp::find_range<2>(arr, [](auto&& val) { return val == 17; });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
 
     SECTION("N = 4") {
-        auto it = ilp::find_range<4>(arr, [](auto&& val) {
-            return val == 17;
-        });
+        auto it = ilp::find_range<4>(arr, [](auto&& val) { return val == 17; });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
 
     SECTION("N = 8") {
-        auto it = ilp::find_range<8>(arr, [](auto&& val) {
-            return val == 17;
-        });
+        auto it = ilp::find_range<8>(arr, [](auto&& val) { return val == 17; });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 17);
     }
@@ -203,9 +193,7 @@ TEST_CASE("ilp::find_range_auto selects reasonable N", "[find_range][auto]") {
 TEST_CASE("ilp::find_range with different container types", "[find_range][containers]") {
     SECTION("std::vector") {
         std::vector<int> vec = {1, 2, 3, 4, 5};
-        auto it = ilp::find_range<4>(vec, [](auto&& val) {
-            return val == 3;
-        });
+        auto it = ilp::find_range<4>(vec, [](auto&& val) { return val == 3; });
         REQUIRE(it != vec.end());
         REQUIRE(*it == 3);
     }
@@ -213,18 +201,14 @@ TEST_CASE("ilp::find_range with different container types", "[find_range][contai
     SECTION("std::span") {
         std::vector<int> vec = {1, 2, 3, 4, 5};
         std::span<const int> sp(vec);
-        auto it = ilp::find_range<4>(sp, [](auto&& val) {
-            return val == 3;
-        });
+        auto it = ilp::find_range<4>(sp, [](auto&& val) { return val == 3; });
         REQUIRE(it != sp.end());
         REQUIRE(*it == 3);
     }
 
     SECTION("std::array") {
         std::array<int, 5> arr = {1, 2, 3, 4, 5};
-        auto it = ilp::find_range<4>(arr, [](auto&& val) {
-            return val == 3;
-        });
+        auto it = ilp::find_range<4>(arr, [](auto&& val) { return val == 3; });
         REQUIRE(it != arr.end());
         REQUIRE(*it == 3);
     }
@@ -237,27 +221,23 @@ TEST_CASE("ilp::find_range finds first match when duplicates exist", "[find_rang
     auto it = ilp_find_range_test(arr, 5);
     REQUIRE(it != arr.end());
     REQUIRE(*it == 5);
-    REQUIRE(to_index(arr, it) == 1);  // First occurrence
+    REQUIRE(to_index(arr, it) == 1); // First occurrence
 }
 
 TEST_CASE("ilp::find_range with complex predicate", "[find_range][predicate]") {
-    std::vector<int> data = {1, 4, 9, 16, 25, 36, 49, 64};  // Squares
+    std::vector<int> data = {1, 4, 9, 16, 25, 36, 49, 64}; // Squares
     std::span<const int> arr(data);
 
     SECTION("find first value > 20") {
-        auto it = ilp::find_range<4>(arr, [](auto&& val) {
-            return val > 20;
-        });
+        auto it = ilp::find_range<4>(arr, [](auto&& val) { return val > 20; });
         REQUIRE(it != arr.end());
-        REQUIRE(*it == 25);  // 25 is first > 20
+        REQUIRE(*it == 25); // 25 is first > 20
     }
 
     SECTION("find first even value") {
-        auto it = ilp::find_range<4>(arr, [](auto&& val) {
-            return val % 2 == 0;
-        });
+        auto it = ilp::find_range<4>(arr, [](auto&& val) { return val % 2 == 0; });
         REQUIRE(it != arr.end());
-        REQUIRE(*it == 4);  // 4 is first even
+        REQUIRE(*it == 4); // 4 is first even
     }
 }
 

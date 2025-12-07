@@ -1,7 +1,6 @@
 #include <cstddef>
 
-__attribute__((noinline))
-int sum_negative_handrolled(int start, int end) {
+__attribute__((noinline)) int sum_negative_handrolled(int start, int end) {
     int sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
     int i = start;
     for (; i + 4 <= end; i += 4) {
