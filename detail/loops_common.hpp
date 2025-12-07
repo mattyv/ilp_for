@@ -28,48 +28,20 @@ namespace detail {
 // operator* returns void so "return *_ilp_ret_" is valid in void functions
 struct no_return_t {
     constexpr explicit operator bool() const noexcept { return false; }
-    [[noreturn]] void operator*() const noexcept { std::unreachable(); }
+    [[noreturn]] void operator*() const noexcept {
+#if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
+        std::unreachable();
+#elif defined(__GNUC__) || defined(__clang__)
+        __builtin_unreachable();
+#elif defined(_MSC_VER)
+        __assume(false);
+#endif
+    }
 };
 
 // Result type for unified for_loop: void -> no_return_t, T -> std::optional<T>
 template<typename R>
 using for_result_t = std::conditional_t<std::is_void_v<R>, no_return_t, std::optional<R>>;
-
-// =============================================================================
-// Reduce result type
-// =============================================================================
-
-// Result from reduce body: value to accumulate, and whether to break early
-template<typename T>
-struct ReduceResult {
-    T value;
-    bool _break;
-
-    constexpr ReduceResult(T v, bool b) : value(std::move(v)), _break(b) {}
-    constexpr bool did_break() const { return _break; }
-};
-
-} // namespace detail
-
-// Helper to signal early break from reduce (returns empty value with break flag)
-template<typename T>
-constexpr auto reduce_break() {
-    return detail::ReduceResult<T>{T{}, true};
-}
-
-// Helper to return a value from reduce body (with no break)
-template<typename T>
-constexpr auto reduce_value(T&& val) {
-    return detail::ReduceResult<std::decay_t<T>>{std::forward<T>(val), false};
-}
-
-namespace detail {
-
-// Type trait to detect ReduceResult
-template<typename T> struct is_reduce_result : std::false_type {};
-template<typename T>
-struct is_reduce_result<ReduceResult<T>> : std::true_type {};
-template<typename T> inline constexpr bool is_reduce_result_v = is_reduce_result<T>::value;
 
 // =============================================================================
 // Compile-time validation

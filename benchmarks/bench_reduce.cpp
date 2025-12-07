@@ -123,10 +123,11 @@ BENCHMARK_DEFINE_F(SumBreakFixture, Simple)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(SumBreakFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
-        uint64_t sum = ilp::reduce<4>(0u, (unsigned)data.size(), 0ull, std::plus<>{}, [&](auto i) {
-            if (i >= stop_at) return ilp::reduce_break<uint64_t>();
-            return ilp::reduce_value(static_cast<uint64_t>(data[i]));
-        });
+        uint64_t sum = ilp::reduce<4>(0u, (unsigned)data.size(), 0ull, std::plus<>{},
+            [&](auto i) -> std::optional<uint64_t> {
+                if (i >= stop_at) return std::nullopt;
+                return static_cast<uint64_t>(data[i]);
+            });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * stop_at);

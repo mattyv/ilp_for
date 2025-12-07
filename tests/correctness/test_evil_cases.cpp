@@ -212,11 +212,12 @@ TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 
 TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
-    // Breaking returns 0 from body, but what about accumulated values?
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) {
-        if (i == 10) return ilp::reduce_break<int>();
-        return ilp::reduce_value(i);
-    });
+    // Breaking returns nullopt from body, but what about accumulated values?
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(),
+        [&](auto i) -> std::optional<int> {
+            if (i == 10) return std::nullopt;
+            return i;
+        });
 
     // Expected: 0+1+2+3+4+5+6+7+8+9 = 45
     REQUIRE(result == 45);
@@ -224,10 +225,11 @@ TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
 
 TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
     // Break at position 0, 4, 8 (first of each unroll block)
-    auto result = ilp::reduce<4>(0, 12, 0, std::plus<>(), [&](auto i) {
-        if (i % 4 == 0) return ilp::reduce_break<int>();
-        return ilp::reduce_value(i);
-    });
+    auto result = ilp::reduce<4>(0, 12, 0, std::plus<>(),
+        [&](auto i) -> std::optional<int> {
+            if (i % 4 == 0) return std::nullopt;
+            return i;
+        });
 
     // Breaks on first iteration
     REQUIRE(result == 0);
@@ -263,7 +265,7 @@ TEST_CASE("Vector exactly N elements", "[evil][vector]") {
 
 TEST_CASE("Find with multiple potential matches", "[evil][find]") {
     // All elements match - should return first
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) {
+    auto result = ilp::find<4>(0, 100, [&](auto, auto) {
         return true;  // All match
     });
 

@@ -169,29 +169,25 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 }
 
 // =============================================================================
-// Reduce implementations (unified - auto-detect ctrl from signature)
-// Path selection based on return type: ReduceResult → pragma-unrolled with break, plain value → pragma-unrolled
+// Reduce implementations - body returns std::optional<T> (nullopt = break)
 // =============================================================================
 
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires ReduceBody<F, T>
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
-    using ResultT = decltype(body(std::declval<T>()));
+    using ResultT = std::invoke_result_t<F, T>;
 
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → pragma-unrolled loop with break support
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        using R = typename ResultT::value_type;
         R acc = std::forward<Init>(init);
-
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
         for (T i = start; i < end; ++i) {
             auto result = body(i);
-            acc = op(std::move(acc), std::move(result.value));
-            if (result.did_break()) break;
+            if (!result) break;
+            acc = op(std::move(acc), std::move(*result));
         }
         return acc;
     } else {
-        // Plain value → pragma-unrolled loop
         using R = ResultT;
         R acc = std::forward<Init>(init);
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
@@ -202,35 +198,33 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     }
 }
 
-// Path selection based on return type: ReduceResult → pragma-unrolled loop, plain value → transform_reduce
+// Range-based reduce - body returns T or std::optional<T> (nullopt = break)
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
-    using ResultT = decltype(body(std::declval<Ref>()));
+    using ResultT = std::invoke_result_t<F, Ref>;
 
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → pragma-unrolled loop (break support needed)
-        auto it = std::ranges::begin(range);
-        auto size = std::ranges::size(range);
-        using R = decltype(std::declval<ResultT>().value);
+    auto it = std::ranges::begin(range);
+    auto size = std::ranges::size(range);
+
+    if constexpr (is_optional_v<ResultT>) {
+        using R = typename ResultT::value_type;
         R acc = std::forward<Init>(init);
-
         _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
         for (std::size_t i = 0; i < size; ++i) {
             auto result = body(it[i]);
-            acc = op(std::move(acc), std::move(result.value));
-            if (result.did_break()) break;
+            if (!result) break;
+            acc = op(std::move(acc), std::move(*result));
         }
         return acc;
     } else {
-        // Plain value → std::transform_reduce (SIMD vectorization!)
-        return std::transform_reduce(
-            std::ranges::begin(range),
-            std::ranges::end(range),
-            std::forward<Init>(init),
-            op,
-            std::forward<F>(body)
-        );
+        using R = ResultT;
+        R acc = std::forward<Init>(init);
+        _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SUM_4))
+        for (std::size_t i = 0; i < size; ++i) {
+            acc = op(std::move(acc), body(it[i]));
+        }
+        return acc;
     }
 }
 

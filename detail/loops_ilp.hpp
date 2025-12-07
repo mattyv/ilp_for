@@ -79,10 +79,12 @@ std::array<R, N> make_accumulators([[maybe_unused]] const BinaryOp& op, [[maybe_
             return std::array<R, N>{((void)Is, make_identity<BinaryOp, R>())...};
         }(std::make_index_sequence<N>{});
     } else {
-        // Unknown ops: copy identity to all elements (N copies)
+        // Unknown ops: move first, copy rest ((N-1) copies for rvalue init)
         std::array<R, N> accs;
-        R identity = operation_identity(op, static_cast<R>(std::forward<Init>(init)));
-        accs.fill(identity);
+        accs[0] = static_cast<R>(std::forward<Init>(init));
+        for (std::size_t i = 1; i < N; ++i) {
+            accs[i] = accs[0];
+        }
         return accs;
     }
 }
@@ -419,27 +421,17 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 // Reduce loops (multi-accumulator for true ILP)
 // =============================================================================
 
-// Reduce implementation - path selection based on return type:
-// ReduceResult → nested loops with break support, plain value → nested loops
-// GCC optimization: disable auto-vectorization which generates ~3.5x slower code for early-exit loops
-// (The vectorization overhead for break-checking outweighs any SIMD benefit)
-// Note: This also affects the plain value branch on GCC, but benchmarks use Clang which is unaffected.
+// Reduce implementation - body returns T or std::optional<T> (nullopt = break)
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires ReduceBody<F, T>
-#if defined(__GNUC__) && !defined(__clang__)
-__attribute__((optimize("-fno-tree-vectorize")))
-#endif
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
 
-    // Wrapper for consistent invocation across both branches
-    auto invoke_body = [&](auto idx) { return body(idx); };
-
     using ResultT = std::invoke_result_t<F, T>;
 
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → nested loops with break support
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        // Optional path - supports early break via nullopt
+        using R = typename ResultT::value_type;
         auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
         T i = start;
@@ -447,31 +439,31 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
 
         for (; i + static_cast<T>(N) <= end && !should_break; i += static_cast<T>(N)) {
             for (std::size_t j = 0; j < N && !should_break; ++j) {
-                auto result = invoke_body(i + static_cast<T>(j));
-                if (result.did_break()) {
+                auto result = body(i + static_cast<T>(j));
+                if (!result) {
                     should_break = true;
                 } else {
-                    accs[j] = op(accs[j], result.value);
+                    accs[j] = op(accs[j], *result);
                 }
             }
         }
 
         for (; i < end && !should_break; ++i) {
-            auto result = invoke_body(i);
-            if (result.did_break()) {
+            auto result = body(i);
+            if (!result) {
                 should_break = true;
             } else {
-                accs[0] = op(accs[0], result.value);
+                accs[0] = op(accs[0], *result);
             }
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = std::forward<Init>(init);
-            ((result = op(result, accs[Is])), ...);
-            return result;
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
         }(std::make_index_sequence<N>{});
     } else {
-        // Plain value → nested loops (ILP for pipelining)
+        // Plain value path - no early break, SIMD friendly
         using R = ResultT;
         auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -479,41 +471,35 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
 
         for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
             for (std::size_t j = 0; j < N; ++j) {
-                accs[j] = op(accs[j], invoke_body(i + static_cast<T>(j)));
+                accs[j] = op(accs[j], body(i + static_cast<T>(j)));
             }
         }
 
         for (; i < end; ++i) {
-            accs[0] = op(accs[0], invoke_body(i));
+            accs[0] = op(accs[0], body(i));
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = std::forward<Init>(init);
-            ((result = op(result, accs[Is])), ...);
-            return result;
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
         }(std::make_index_sequence<N>{});
     }
 }
 
-// Range-based reduce - optimized for contiguous ranges
-// Path selection based on return type: ReduceResult → nested loops, plain value → transform_reduce
-// Note: invoke_body wrapper is critical for optimization - do not remove!
+// Range-based reduce - body returns T or std::optional<T> (nullopt = break)
 template<std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
-    using Ref = std::ranges::range_reference_t<Range>;
 
     auto* ptr = std::ranges::data(range);
     auto size = std::ranges::size(range);
 
-    // Wrapper helps compiler inline the lambda - removing this causes ~66% regression
-    auto invoke_body = [&](auto&& elem) { return body(std::forward<decltype(elem)>(elem)); };
+    using ResultT = std::invoke_result_t<F, decltype(*ptr)>;
 
-    using ResultT = decltype(invoke_body(std::declval<Ref>()));
-
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → nested loops (break support needed)
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        // Optional path - supports early break via nullopt
+        using R = typename ResultT::value_type;
         auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
         std::size_t i = 0;
@@ -521,55 +507,68 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
 
         for (; i + N <= size && !should_break; i += N) {
             for (std::size_t j = 0; j < N && !should_break; ++j) {
-                auto result = invoke_body(ptr[i + j]);
-                if (result.did_break()) {
+                auto result = body(ptr[i + j]);
+                if (!result) {
                     should_break = true;
                 } else {
-                    accs[j] = op(accs[j], result.value);
+                    accs[j] = op(accs[j], *result);
                 }
             }
         }
 
         for (; i < size && !should_break; ++i) {
-            auto result = invoke_body(ptr[i]);
-            if (result.did_break()) {
+            auto result = body(ptr[i]);
+            if (!result) {
                 should_break = true;
             } else {
-                accs[0] = op(accs[0], result.value);
+                accs[0] = op(accs[0], *result);
             }
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = std::forward<Init>(init);
-            ((result = op(result, accs[Is])), ...);
-            return result;
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
         }(std::make_index_sequence<N>{});
     } else {
-        // Plain value → std::transform_reduce (SIMD vectorization!)
-        return std::transform_reduce(ptr, ptr + size, std::forward<Init>(init), op, body);
+        // Plain value path - no early break, SIMD friendly
+        using R = ResultT;
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+
+        std::size_t i = 0;
+
+        for (; i + N <= size; i += N) {
+            for (std::size_t j = 0; j < N; ++j) {
+                accs[j] = op(accs[j], body(ptr[i + j]));
+            }
+        }
+
+        for (; i < size; ++i) {
+            accs[0] = op(accs[0], body(ptr[i]));
+        }
+
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
+        }(std::make_index_sequence<N>{});
     }
 }
 
 // Range-based reduce - fallback for random access (non-contiguous) ranges
-// Path selection based on return type: ReduceResult → nested loops, plain value → transform_reduce
-// Note: invoke_body wrapper is critical for optimization - do not remove!
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
     requires (!std::ranges::contiguous_range<Range>)
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     validate_unroll_factor<N>();
-    using Ref = std::ranges::range_reference_t<Range>;
 
     auto it = std::ranges::begin(range);
     auto size = std::ranges::size(range);
 
-    // Wrapper helps compiler inline the lambda - removing this causes ~66% regression
-    auto invoke_body = [&](auto&& elem) { return body(std::forward<decltype(elem)>(elem)); };
+    using ResultT = std::invoke_result_t<F, decltype(*it)>;
 
-    using ResultT = decltype(invoke_body(std::declval<Ref>()));
-
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → nested loops (break support needed)
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        // Optional path - supports early break via nullopt
+        using R = typename ResultT::value_type;
         auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
         std::size_t i = 0;
@@ -577,38 +576,51 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
 
         for (; i + N <= size && !should_break; i += N) {
             for (std::size_t j = 0; j < N && !should_break; ++j) {
-                auto result = invoke_body(it[i + j]);
-                if (result.did_break()) {
+                auto result = body(it[i + j]);
+                if (!result) {
                     should_break = true;
                 } else {
-                    accs[j] = op(accs[j], result.value);
+                    accs[j] = op(accs[j], *result);
                 }
             }
         }
 
         for (; i < size && !should_break; ++i) {
-            auto result = invoke_body(it[i]);
-            if (result.did_break()) {
+            auto result = body(it[i]);
+            if (!result) {
                 should_break = true;
             } else {
-                accs[0] = op(accs[0], result.value);
+                accs[0] = op(accs[0], *result);
             }
         }
 
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R result = std::forward<Init>(init);
-            ((result = op(result, accs[Is])), ...);
-            return result;
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
         }(std::make_index_sequence<N>{});
     } else {
-        // Plain value → std::transform_reduce (SIMD vectorization!)
-        return std::transform_reduce(
-            std::ranges::begin(range),
-            std::ranges::end(range),
-            std::forward<Init>(init),
-            op,
-            body
-        );
+        // Plain value path - no early break, SIMD friendly
+        using R = ResultT;
+        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
+
+        std::size_t i = 0;
+
+        for (; i + N <= size; i += N) {
+            for (std::size_t j = 0; j < N; ++j) {
+                accs[j] = op(accs[j], body(it[i + j]));
+            }
+        }
+
+        for (; i < size; ++i) {
+            accs[0] = op(accs[0], body(it[i]));
+        }
+
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            R out = std::forward<Init>(init);
+            ((out = op(out, accs[Is])), ...);
+            return out;
+        }(std::make_index_sequence<N>{});
     }
 }
 

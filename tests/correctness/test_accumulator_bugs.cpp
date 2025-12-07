@@ -134,18 +134,20 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
 
 TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break on first iteration") {
-        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto i) {
-            return ilp::reduce_break<int>();  // 0 is identity for plus
-        });
+        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
+            [&](auto) -> std::optional<int> {
+                return std::nullopt;  // 0 is identity for plus
+            });
         INFO("Bug: Returns 400 instead of 100");
         REQUIRE(result == 100);  // Will FAIL with 400
     }
 
     SECTION("Break after first element") {
-        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto i) {
-            if (i == 1) return ilp::reduce_break<int>();
-            return ilp::reduce_value(i);
-        });
+        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
+            [&](auto i) -> std::optional<int> {
+                if (i == 1) return std::nullopt;
+                return i;
+            });
         // First iteration processes 0 in one accumulator
         // Then breaks
         INFO("Bug: Returns 400 instead of 100");
@@ -287,7 +289,7 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
 TEST_CASE("Bug severity demonstration", "[bug][severity]") {
     SECTION("Off-by-huge-amount for counting") {
         // Trying to count with init offset
-        auto result = ilp::reduce<4>(0, 5, 1000, std::plus<>(), [&](auto i) {
+        auto result = ilp::reduce<4>(0, 5, 1000, std::plus<>(), [&](auto) {
             return 1;  // Add 1 for each element
         });
         // EXPECTED: 1000 + 5 = 1005

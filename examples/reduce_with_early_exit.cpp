@@ -1,53 +1,59 @@
 // Example: Reduce with early exit
-// Demonstrates ilp::reduce with ilp::reduce_break
+// Demonstrates ilp::reduce with std::optional (nullopt = break)
 //
-// Note: reduce_break breaks based on index or external conditions,
+// Note: nullopt breaks based on index or external conditions,
 // not on the accumulated value (multiple parallel accumulators make
 // that impractical). For running-total checks, use a regular loop.
 
 #include "../ilp_for.hpp"
 #include <vector>
 #include <iostream>
+#include <optional>
 
 // Sum first N elements only
 int sum_first_n(const std::vector<int>& data, size_t n) {
-    return ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
-        if (i >= n) return ilp::reduce_break<int>();
-        return ilp::reduce_value(data[i]);
-    });
+    return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+        [&](auto i) -> std::optional<int> {
+            if (i >= n) return std::nullopt;
+            return data[i];
+        });
 }
 
 // Sum until sentinel value encountered
 int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
-    return ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
-        if (data[i] == sentinel) return ilp::reduce_break<int>();
-        return ilp::reduce_value(data[i]);
-    });
+    return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+        [&](auto i) -> std::optional<int> {
+            if (data[i] == sentinel) return std::nullopt;
+            return data[i];
+        });
 }
 
 // Count positive values, stop at first negative
 size_t count_positive_until_negative(const std::vector<int>& data) {
-    return ilp::reduce<4>(0uz, data.size(), 0uz, std::plus<>{}, [&](auto i) {
-        if (data[i] < 0) return ilp::reduce_break<size_t>();
-        return ilp::reduce_value(data[i] > 0 ? 1uz : 0uz);
-    });
+    return ilp::reduce<4>(size_t{0}, data.size(), size_t{0}, std::plus<>{},
+        [&](auto i) -> std::optional<size_t> {
+            if (data[i] < 0) return std::nullopt;
+            return data[i] > 0 ? size_t{1} : size_t{0};
+        });
 }
 
 // Sum with skip and early termination
 // Skip zeros, stop at negative
 int sum_nonzero_until_negative(const std::vector<int>& data) {
-    return ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
-        if (data[i] < 0) return ilp::reduce_break<int>();
-        return ilp::reduce_value(data[i]);  // Zeros contribute 0 (identity for +)
-    });
+    return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+        [&](auto i) -> std::optional<int> {
+            if (data[i] < 0) return std::nullopt;
+            return data[i];  // Zeros contribute 0 (identity for +)
+        });
 }
 
 // Product with early termination on zero
 int64_t product_until_zero(const std::vector<int>& data) {
-    return ilp::reduce<4>(0uz, data.size(), 1LL, std::multiplies<>{}, [&](auto i) {
-        if (data[i] == 0) return ilp::reduce_break<int64_t>();
-        return ilp::reduce_value(static_cast<int64_t>(data[i]));
-    });
+    return ilp::reduce<4>(size_t{0}, data.size(), 1LL, std::multiplies<>{},
+        [&](auto i) -> std::optional<int64_t> {
+            if (data[i] == 0) return std::nullopt;
+            return static_cast<int64_t>(data[i]);
+        });
 }
 
 int main() {

@@ -156,25 +156,22 @@ auto find_range_impl(Range&& range, Pred&& pred) {
 // Reduce implementations
 // =============================================================================
 
-// Unified reduce implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
-// Path selection based on return type: ReduceResult → loop with break, plain value → simple loop
+// Reduce implementation - body returns T or std::optional<T> (nullopt = break)
 template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
     requires ReduceBody<F, T>
 auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
-    using ResultT = decltype(body(std::declval<T>()));
+    using ResultT = std::invoke_result_t<F, T>;
 
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → loop with break support
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        using R = typename ResultT::value_type;
         R acc = std::forward<Init>(init);
         for (T i = start; i < end; ++i) {
             auto result = body(i);
-            if (result.did_break()) break;
-            acc = op(std::move(acc), std::move(result.value));
+            if (!result) break;
+            acc = op(std::move(acc), std::move(*result));
         }
         return acc;
     } else {
-        // Plain value → simple loop
         using R = ResultT;
         R acc = std::forward<Init>(init);
         for (T i = start; i < end; ++i) {
@@ -184,32 +181,28 @@ auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
     }
 }
 
-// Unified range-based reduce - handles simple (no ctrl) lambdas
-// Path selection based on return type: ReduceResult → simple loop, plain value → transform_reduce
+// Range-based reduce - body returns T or std::optional<T> (nullopt = break)
 template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
 auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
     using Ref = std::ranges::range_reference_t<Range>;
-    using ResultT = decltype(body(std::declval<Ref>()));
+    using ResultT = std::invoke_result_t<F, Ref>;
 
-    if constexpr (is_reduce_result_v<ResultT>) {
-        // ReduceResult → simple loop (break support needed)
-        using R = decltype(std::declval<ResultT>().value);
+    if constexpr (is_optional_v<ResultT>) {
+        using R = typename ResultT::value_type;
         R acc = std::forward<Init>(init);
         for (auto&& elem : range) {
             auto result = body(std::forward<decltype(elem)>(elem));
-            if (result.did_break()) break;
-            acc = op(std::move(acc), std::move(result.value));
+            if (!result) break;
+            acc = op(std::move(acc), std::move(*result));
         }
         return acc;
     } else {
-        // Plain value → std::transform_reduce (SIMD vectorization!)
-        return std::transform_reduce(
-            std::ranges::begin(range),
-            std::ranges::end(range),
-            std::forward<Init>(init),
-            op,
-            std::forward<F>(body)
-        );
+        using R = ResultT;
+        R acc = std::forward<Init>(init);
+        for (auto&& elem : range) {
+            acc = op(std::move(acc), body(std::forward<decltype(elem)>(elem)));
+        }
+        return acc;
     }
 }
 

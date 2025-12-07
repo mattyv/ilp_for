@@ -308,9 +308,9 @@ TEST_CASE("Different N at each nesting level", "[nesting][varied]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce at each nesting level", "[nesting][reduce]") {
-    auto level4 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto i) {
-        auto level3 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto j) {
-            auto level2 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto k) {
+    auto level4 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
+        auto level3 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
+            auto level2 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
                 auto level1 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto l) {
                     return l;
                 });

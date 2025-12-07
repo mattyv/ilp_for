@@ -100,11 +100,12 @@ int min_val = ilp::reduce_range<4>(
 ### Reduce with Early Exit
 
 ```cpp
-// Use reduce_break<T>() and reduce_value() for early termination
-int sum = ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
-    if (data[i] < 0) return ilp::reduce_break<int>();  // Stop reduction
-    return ilp::reduce_value(data[i]);
-});
+// Use std::optional with nullopt for early termination
+int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+    [&](auto i) -> std::optional<int> {
+        if (data[i] < 0) return std::nullopt;  // Stop reduction
+        return data[i];
+    });
 ```
 
 ### Loop with Break/Continue
@@ -173,8 +174,8 @@ All loop macros end with `ILP_END`.
 | `ILP_CONTINUE` | Any loop | Skip to next iteration |
 | `ILP_BREAK` | Loops | Exit loop |
 | `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
-| `ilp::reduce_break<T>()` | Reduce body | Exit early from reduction |
-| `ilp::reduce_value(val)` | Reduce body | Return value with break support |
+| `-> std::optional<T>` | Reduce body | Return type for early exit support |
+| `return std::nullopt` | Reduce body | Exit early from reduction |
 
 ---
 
@@ -232,13 +233,14 @@ if (it != data.end()) {
 
 ### Reduce with Early Exit
 
-Use `ilp::reduce_break<T>()` and `ilp::reduce_value()` to exit early from a reduction:
+Use `std::optional` return type with `std::nullopt` to exit early from a reduction:
 
 ```cpp
-int sum = ilp::reduce<4>(0uz, data.size(), 0, std::plus<>{}, [&](auto i) {
-    if (data[i] < 0) return ilp::reduce_break<int>();  // Stop reduction
-    return ilp::reduce_value(data[i]);
-});
+int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+    [&](auto i) -> std::optional<int> {
+        if (data[i] < 0) return std::nullopt;  // Stop reduction
+        return data[i];
+    });
 ```
 
 For simple reductions without early exit, just return the value directly:

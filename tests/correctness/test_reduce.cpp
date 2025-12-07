@@ -12,23 +12,21 @@ TEST_CASE("Reduce with Break", "[reduce][control]") {
                                  1, 1, 9, 1,   // Block 2 (break at 9)
                                  1, 1, 1, 1};  // Should not be processed
 
-        auto result = ilp::reduce_range<4>(data, 0, std::plus<int>(), [](auto&& val) {
-            if (val > 5) {
-                return ilp::reduce_break<int>();
-            }
-            return ilp::reduce_value(val);
-        });
+        auto result = ilp::reduce_range<4>(data, 0, std::plus<int>(),
+            [](auto&& val) -> std::optional<int> {
+                if (val > 5) return std::nullopt;
+                return val;
+            });
 
         REQUIRE(result == 6);
     }
 
     SECTION("Index-based reduce with break stops correctly") {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<int>(), [](auto i) {
-            if (i >= 10) {
-                return ilp::reduce_break<int>();
-            }
-            return ilp::reduce_value(static_cast<int>(i));
-        });
+        auto result = ilp::reduce<4>(0, 100, 0, std::plus<int>(),
+            [](auto i) -> std::optional<int> {
+                if (i >= 10) return std::nullopt;
+                return static_cast<int>(i);
+            });
 
         int expected_sum = 0;
         for(int i = 0; i < 10; ++i) {
@@ -199,12 +197,11 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     SECTION("Reduce with break in cleanup loop") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        auto result = ilp::reduce_range<4>(data, 0, std::plus<>(), [](auto&& val) {
-            if (val == 9) {
-                return ilp::reduce_break<int>();
-            }
-            return ilp::reduce_value(val);
-        });
+        auto result = ilp::reduce_range<4>(data, 0, std::plus<>(),
+            [](auto&& val) -> std::optional<int> {
+                if (val == 9) return std::nullopt;
+                return val;
+            });
 
         REQUIRE(result == 36);
     }
@@ -228,18 +225,18 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
 }
 
 // =============================================================================
-// Path detection tests - verify ReduceResult detection
+// Path detection tests - verify std::optional detection
 // =============================================================================
 
-TEST_CASE("ReduceResult is detected correctly", "[reduce][path]") {
+TEST_CASE("std::optional is detected correctly", "[reduce][path]") {
     using namespace ilp::detail;
 
-    // ReduceResult<T> has value and _break fields
-    auto lambda = [](int i) {
-        return ReduceResult<int>{i, false};
+    // std::optional<T> for early break support
+    auto lambda = [](int i) -> std::optional<int> {
+        return i;
     };
     using R = std::invoke_result_t<decltype(lambda), int>;
-    static_assert(is_reduce_result_v<R>, "Should detect ReduceResult");
+    static_assert(is_optional_v<R>, "Should detect std::optional");
 
     auto result = ilp::reduce_auto(0, 10, 0, std::plus<>{}, [](auto i) {
         return i;
@@ -247,11 +244,12 @@ TEST_CASE("ReduceResult is detected correctly", "[reduce][path]") {
     CHECK(result == 45);
 }
 
-TEST_CASE("ReduceResult with break stops correctly", "[reduce][path]") {
-    auto result = ilp::reduce_auto(0, 100, 0, std::plus<>{}, [](auto i) {
-        if (i >= 10) return ilp::reduce_break<int>();
-        return ilp::reduce_value(i);
-    });
+TEST_CASE("std::optional with nullopt stops correctly", "[reduce][path]") {
+    auto result = ilp::reduce_auto(0, 100, 0, std::plus<>{},
+        [](auto i) -> std::optional<int> {
+            if (i >= 10) return std::nullopt;
+            return i;
+        });
     CHECK(result == 45);  // 0+1+...+9
 }
 
@@ -264,13 +262,14 @@ TEST_CASE("Range-based reduce auto", "[reduce][path][range]") {
     CHECK(result == 10);
 }
 
-TEST_CASE("Range-based reduce with break stops correctly", "[reduce][path][range]") {
+TEST_CASE("Range-based reduce with nullopt stops correctly", "[reduce][path][range]") {
     std::vector<int> data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-    auto result = ilp::reduce_range_auto(data, 0, std::plus<>{}, [](auto val) {
-        if (val >= 5) return ilp::reduce_break<int>();
-        return ilp::reduce_value(val);
-    });
+    auto result = ilp::reduce_range_auto(data, 0, std::plus<>{},
+        [](auto val) -> std::optional<int> {
+            if (val >= 5) return std::nullopt;
+            return val;
+        });
     CHECK(result == 10);  // 0+1+2+3+4
 }
 

@@ -344,7 +344,7 @@ TEST_CASE("Find in remainder", "[edge][find]") {
 }
 
 TEST_CASE("Find in empty range", "[edge][find]") {
-    auto result = ilp::find<4>(0, 0, [&](auto i, auto) {
+    auto result = ilp::find<4>(0, 0, [&](auto, auto) {
         return true;  // Would find immediately, but empty
     });
     REQUIRE(result == 0);  // Sentinel (end of empty range)
@@ -579,18 +579,19 @@ TEST_CASE("Large offset range", "[edge][offset]") {
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 
 TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) {
-        if (i >= 10) return ilp::reduce_break<int>();
-        return ilp::reduce_value(i);
-    });
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(),
+        [&](auto i) -> std::optional<int> {
+            if (i >= 10) return std::nullopt;
+            return i;
+        });
     REQUIRE(result == 45);  // 0+1+...+9
 }
 
 TEST_CASE("Reduce breaks on first", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto i) {
-        (void)i;
-        return ilp::reduce_break<int>();
-    });
+    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
+        [&](auto) -> std::optional<int> {
+            return std::nullopt;
+        });
     REQUIRE(result == 100);  // Initial value
 }
 

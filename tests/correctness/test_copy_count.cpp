@@ -159,7 +159,7 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
     CHECK(CopyMoveCounter::copies == 0);
 #else
     // ILP mode: N copies from accs.fill(identity) for unknown ops
-    CHECK(CopyMoveCounter::copies == 4);
+    CHECK(CopyMoveCounter::copies == 3);
 #endif
 }
 
@@ -176,7 +176,7 @@ TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
 #if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);
 #else
-    CHECK(CopyMoveCounter::copies == 4);
+    CHECK(CopyMoveCounter::copies == 3);
 #endif
 }
 
@@ -216,18 +216,22 @@ TEST_CASE("Minimal copies in reduce_range return path - plain return (transform_
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    // transform_reduce path is more efficient - no copies needed
+    // Custom ops require copies for accumulator init; known ops (std::plus) get zero copies
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 3);
+#endif
 }
 
-TEST_CASE("Minimal copies in reduce_range return path - ReduceResult (nested loops)", "[copy_count][range][reduce]") {
+TEST_CASE("Minimal copies in reduce_range return path - std::optional (nested loops)", "[copy_count][range][reduce]") {
     CopyMoveCounter::reset();
     std::vector<int> data = {0, 1, 2, 3};
 
-    // ReduceResult return: uses nested loops path (supports early break)
+    // std::optional return: uses nested loops path (supports early break)
     auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, add_counters,
-        [](int val) {
-            return ilp::detail::ReduceResult<CopyMoveCounter>{CopyMoveCounter(val), false};
+        [](int val) -> std::optional<CopyMoveCounter> {
+            return CopyMoveCounter(val);
         });
 
     CHECK(result.value == 6);
@@ -236,7 +240,7 @@ TEST_CASE("Minimal copies in reduce_range return path - ReduceResult (nested loo
 #if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);  // Simple/pragma modes don't use multiple accumulators
 #else
-    CHECK(CopyMoveCounter::copies == 4);  // ILP mode: one copy per accumulator slot
+    CHECK(CopyMoveCounter::copies == 3);  // ILP mode: one copy per accumulator slot
 #endif
 }
 
@@ -280,10 +284,10 @@ TEST_CASE("Move-only type works with ILP_FOR macro", "[copy_count][macro][compil
 }
 
 // =============================================================================
-// ReduceResult wrapper copy count tests
+// Reduce copy count tests
 // =============================================================================
 
-TEST_CASE("ReduceResult<Value> has minimal copy overhead", "[copy_count][reduce]") {
+TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
     auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, add_counters, [&](auto i) {
@@ -295,24 +299,25 @@ TEST_CASE("ReduceResult<Value> has minimal copy overhead", "[copy_count][reduce]
 #if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);
 #else
-    CHECK(CopyMoveCounter::copies == 4);
+    CHECK(CopyMoveCounter::copies == 3);
 #endif
 }
 
-TEST_CASE("ReduceResult<Break> has minimal copy overhead", "[copy_count][reduce]") {
+TEST_CASE("std::optional reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto(0, 10, CopyMoveCounter{0}, add_counters, [&](auto i) {
-        if (i >= 4) return ilp::reduce_break<CopyMoveCounter>();
-        return ilp::reduce_value(CopyMoveCounter(i));
-    });
+    auto result = ilp::reduce_auto(0, 10, CopyMoveCounter{0}, add_counters,
+        [&](auto i) -> std::optional<CopyMoveCounter> {
+            if (i >= 4) return std::nullopt;
+            return CopyMoveCounter(i);
+        });
 
     CHECK(result.value == 6);  // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
 #if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);
 #else
-    CHECK(CopyMoveCounter::copies == 4);
+    CHECK(CopyMoveCounter::copies == 3);
 #endif
 }
 
@@ -320,19 +325,23 @@ TEST_CASE("ReduceResult<Break> has minimal copy overhead", "[copy_count][reduce]
 // make_identity for zero-copy accumulator initialization. Unknown ops
 // (custom lambdas) still require copying the identity value.
 
-TEST_CASE("Range-based reduce copy count with ILP_REDUCE_RETURN", "[copy_count][reduce][range]") {
+TEST_CASE("Range-based reduce copy count with plain return", "[copy_count][reduce][range]") {
     CopyMoveCounter::reset();
     std::vector<int> data = {0, 1, 2, 3};
 
-    // ILP_REDUCE_RETURN now returns plain value → uses transform_reduce → 0 copies
+    // Plain return uses transform_reduce → 0 copies
     auto result = ilp::reduce_range_auto(data, CopyMoveCounter{0}, add_counters, [&](auto val) {
         return CopyMoveCounter(val);
     });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    // All modes now use transform_reduce for plain returns (0 copies)
+    // Custom ops require copies for accumulator init; known ops (std::plus) get zero copies
+#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
     CHECK(CopyMoveCounter::copies == 0);
+#else
+    CHECK(CopyMoveCounter::copies == 3);
+#endif
 }
 
 // =============================================================================
@@ -368,7 +377,7 @@ TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_co
     CHECK(CopyMoveCounter::copies == 0);
 }
 
-TEST_CASE("Zero copies with ILP_REDUCE_RETURN and std::plus<>", "[copy_count][reduce][zero_copy]") {
+TEST_CASE("Zero copies with plain return and std::plus<>", "[copy_count][reduce][zero_copy]") {
     CopyMoveCounter::reset();
 
     auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, std::plus<>{}, [&](auto i) {

@@ -45,7 +45,7 @@ std::optional<int> ilp_find_optional(std::span<const int> arr, int target) {
 
 // ILP range-based find using bool mode (returns iterator)
 auto ilp_range_find_bool(std::span<const int> arr, int target) {
-    return ilp::find_range_idx<4>(arr, [&](auto&& val, auto idx, auto) {
+    return ilp::find_range_idx<4>(arr, [&](auto&& val, auto, auto) {
         return val == target;  // bool mode - returns iterator
     });
 }

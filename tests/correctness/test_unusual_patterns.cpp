@@ -87,7 +87,7 @@ TEST_CASE("All_of pattern (inverted)", "[unusual][pattern]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce always returns zero", "[unusual][reduce]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto) {
         return 0;  // Always zero
     });
     REQUIRE(result == 0);

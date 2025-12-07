@@ -98,7 +98,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("find_range_idx with bool and remainder - found") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};  // 9 elements
 
-        auto it = ilp::find_range_idx<4>(data, [](auto&& val, auto idx, auto) {
+        auto it = ilp::find_range_idx<4>(data, [](auto&&, auto idx, auto) {
             return idx == 8;  // Last index in cleanup
         });
 
@@ -109,7 +109,7 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("find_range_idx with bool - not found") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        auto it = ilp::find_range_idx<4>(data, [](auto&& val, auto idx, auto) {
+        auto it = ilp::find_range_idx<4>(data, [](auto&&, auto idx, auto) {
             return idx == 999;  // Never found
         });
 

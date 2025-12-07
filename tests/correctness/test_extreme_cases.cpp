@@ -40,10 +40,10 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 #if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto i) {
-        (void)i;
-        return ilp::reduce_break<int>();  // Immediately break
-    });
+    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
+        [&](auto) -> std::optional<int> {
+            return std::nullopt;  // Immediately break
+        });
     // Should be 100, NOT 400
     INFO("Result should be init value (100), not N*init (400)");
     REQUIRE(result == 100);

@@ -400,11 +400,11 @@ TEST_CASE("Array pointer iteration", "[mistake][pointer]") {
 }
 
 // -----------------------------------------------------------------------------
-// Mistake 27: Using ctrl in reduce is optional
+// Mistake 27: Early exit in reduce
 // -----------------------------------------------------------------------------
 
-// Since reduce() auto-detects from signature, lambdas without ctrl work fine.
-// Use ILP_REDUCE_BREAK if you need early exit.
+// For early exit from reduce, return std::optional<T> and use std::nullopt to break.
+// Plain returns (without std::optional) are SIMD-optimized but don't support early exit.
 
 // -----------------------------------------------------------------------------
 // Mistake 29: Comparing iterators incorrectly
