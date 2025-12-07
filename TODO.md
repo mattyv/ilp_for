@@ -14,8 +14,9 @@
 - [ ] Update coverage report
 - [ ] Regen godbolt links
 - [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
-- [ ] use clang-format
+- [x] use clang-format
 - [ ] Get rid of all the silly LLM comments and formatting.
+- [ ] code review with gemini 3
 
 ## Build
 - [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)

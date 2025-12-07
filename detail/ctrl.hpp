@@ -87,19 +87,26 @@ namespace ilp {
         struct Proxy {
             AnyStorage& s;
 
-            // Convert to any non-optional type R
+#if defined(_MSC_VER) && !defined(__clang__)
+            // MSVC: Single conversion operator handles both regular and optional types
+            // MSVC doesn't do two-step implicit conversion (Proxy → T → optional<T>),
+            // so we handle optional explicitly via if constexpr
+            template<typename R>
+            inline operator R() && {
+                if constexpr (detail::is_optional_v<R>) {
+                    using T = typename R::value_type;
+                    return R(s.template extract<T>());
+                } else {
+                    return s.template extract<R>();
+                }
+            }
+#else
+            // GCC/Clang: Convert to non-optional types only
+            // Two-step implicit conversion handles optional: Proxy → T → optional<T>
             template<typename R>
                 requires(!detail::is_optional_v<R>)
             [[gnu::always_inline]] inline operator R() && {
                 return s.template extract<R>();
-            }
-
-#if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC needs explicit std::optional conversion (doesn't do Proxy → T → optional<T>)
-            // Only enabled on MSVC to avoid ambiguity with GCC/Clang
-            template<typename T>
-            inline operator std::optional<T>() && {
-                return std::optional<T>(s.template extract<T>());
             }
 #endif
 
