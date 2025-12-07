@@ -1,7 +1,9 @@
-#pragma once
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
 
-// SUPER_SIMPLE mode: Direct for-loop expansion with native break/continue/return
-// Uses range-based for with ilp::iota to sidestep preprocessor limitations
+#pragma once
 
 #include "iota.hpp"
 

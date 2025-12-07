@@ -1,8 +1,4 @@
-// Comparison: Find minimum element
-// Demonstrates multi-accumulator reduce pattern
-//
-// This is a self-contained example for Godbolt Compiler Explorer.
-// The implementation below is extracted LINE-FOR-LINE from the ilp_for library.
+// parallel min - godbolt example
 
 #include <algorithm>
 #include <array>
@@ -15,14 +11,9 @@
 #include <utility>
 #include <vector>
 
-// =============================================================================
-// Extracted from ilp_for library (LINE-FOR-LINE EXACT COPY)
-// =============================================================================
-
 namespace ilp {
     namespace detail {
 
-        // From detail/ctrl.hpp lines 15-17:
         template<typename T>
         struct is_optional : std::false_type {};
         template<typename T>
@@ -30,8 +21,6 @@ namespace ilp {
         template<typename T>
         inline constexpr bool is_optional_v = is_optional<T>::value;
 
-        // From detail/loops_ilp.hpp lines 24-36:
-        // Trait to detect operations with compile-time known identity elements
         template<typename Op, typename T>
         constexpr bool has_known_identity_v =
             std::is_same_v<std::decay_t<Op>, std::plus<>> || std::is_same_v<std::decay_t<Op>, std::plus<T>> ||
@@ -41,7 +30,6 @@ namespace ilp {
             std::is_same_v<std::decay_t<Op>, std::bit_or<T>> || std::is_same_v<std::decay_t<Op>, std::bit_xor<>> ||
             std::is_same_v<std::decay_t<Op>, std::bit_xor<T>>;
 
-        // From detail/loops_ilp.hpp lines 39-59:
         template<typename Op, typename T>
         constexpr T make_identity() {
             if constexpr (std::is_same_v<std::decay_t<Op>, std::plus<>> ||
@@ -52,7 +40,7 @@ namespace ilp {
                 return T{1};
             } else if constexpr (std::is_same_v<std::decay_t<Op>, std::bit_and<>> ||
                                  std::is_same_v<std::decay_t<Op>, std::bit_and<T>>) {
-                return ~T{}; // All 1s
+                return ~T{};
             } else if constexpr (std::is_same_v<std::decay_t<Op>, std::bit_or<>> ||
                                  std::is_same_v<std::decay_t<Op>, std::bit_or<T>>) {
                 return T{};
@@ -64,16 +52,13 @@ namespace ilp {
             }
         }
 
-        // From detail/loops_ilp.hpp lines 74-90:
         template<std::size_t N, typename BinaryOp, typename R, typename Init>
         std::array<R, N> make_accumulators([[maybe_unused]] const BinaryOp& op, [[maybe_unused]] Init&& init) {
             if constexpr (has_known_identity_v<BinaryOp, R>) {
-                // Zero-copy: directly construct identity elements via guaranteed copy elision
                 return []<std::size_t... Is>(std::index_sequence<Is...>) {
                     return std::array<R, N>{((void)Is, make_identity<BinaryOp, R>())...};
                 }(std::make_index_sequence<N>{});
             } else {
-                // Unknown ops: move first, copy rest ((N-1) copies for rvalue init)
                 std::array<R, N> accs;
                 accs[0] = static_cast<R>(std::forward<Init>(init));
                 for (std::size_t i = 1; i < N; ++i) {
@@ -83,7 +68,6 @@ namespace ilp {
             }
         }
 
-        // From detail/loops_common.hpp lines 51-63:
         template<std::size_t N>
         [[deprecated("Unroll factor N > 16 is likely counterproductive: "
                      "exceeds CPU execution port throughput and causes instruction cache bloat. "
@@ -98,11 +82,9 @@ namespace ilp {
             }
         }
 
-        // From detail/loops_common.hpp line 131:
         template<typename F, typename T>
         concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
 
-        // From detail/loops_ilp.hpp lines 425-488:
         template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
             requires ReduceBody<F, T>
         auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
@@ -111,7 +93,6 @@ namespace ilp {
             using ResultT = std::invoke_result_t<F, T>;
 
             if constexpr (is_optional_v<ResultT>) {
-                // Optional path - supports early break via nullopt
                 using R = typename ResultT::value_type;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -144,7 +125,6 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                // Plain value path - no early break, SIMD friendly
                 using R = ResultT;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -170,7 +150,6 @@ namespace ilp {
 
     } // namespace detail
 
-    // From detail/loops_ilp.hpp lines 707-711:
     template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
         requires detail::ReduceBody<F, T>
     auto reduce(T start, T end, Init&& init, BinaryOp op, F&& body) {
@@ -179,22 +158,14 @@ namespace ilp {
 
 } // namespace ilp
 
-// =============================================================================
-// ILP Version - Using ilp::reduce with custom min operation
-// =============================================================================
-
+// ilp version
 int find_min_ilp(const std::vector<int>& data) {
     auto min_op = [](int a, int b) { return std::min(a, b); };
-
     return ilp::reduce<4>(0uz, data.size(), std::numeric_limits<int>::max(), min_op, [&](auto i) { return data[i]; });
 }
 
-// =============================================================================
-// Hand-rolled Version - 4 independent accumulators
-// =============================================================================
-
+// hand-rolled
 int find_min_handrolled(const std::vector<int>& data) {
-    // 4 independent accumulators - no dependency chain!
     int min0 = std::numeric_limits<int>::max();
     int min1 = std::numeric_limits<int>::max();
     int min2 = std::numeric_limits<int>::max();
@@ -202,25 +173,20 @@ int find_min_handrolled(const std::vector<int>& data) {
     size_t i = 0;
 
     for (; i + 4 <= data.size(); i += 4) {
-        min0 = std::min(min0, data[i]);     // Independent
-        min1 = std::min(min1, data[i + 1]); // Independent
-        min2 = std::min(min2, data[i + 2]); // Independent
-        min3 = std::min(min3, data[i + 3]); // Independent
+        min0 = std::min(min0, data[i]);
+        min1 = std::min(min1, data[i + 1]);
+        min2 = std::min(min2, data[i + 2]);
+        min3 = std::min(min3, data[i + 3]);
     }
 
-    // Cleanup
     for (; i < data.size(); ++i) {
         min0 = std::min(min0, data[i]);
     }
 
-    // Final reduction
     return std::min({min0, min1, min2, min3});
 }
 
-// =============================================================================
-// Simple Version - Baseline
-// =============================================================================
-
+// simple
 int find_min_simple(const std::vector<int>& data) {
     int min_val = std::numeric_limits<int>::max();
     for (size_t i = 0; i < data.size(); ++i) {
@@ -229,7 +195,6 @@ int find_min_simple(const std::vector<int>& data) {
     return min_val;
 }
 
-// Test usage
 int main() {
     volatile size_t n = 1000;
     std::vector<int> data(n);

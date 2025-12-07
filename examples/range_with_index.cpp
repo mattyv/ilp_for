@@ -1,5 +1,4 @@
-// Example: Range iteration with index tracking
-// Demonstrates ilp::find_range_idx
+// range iteration with index
 
 #include "../ilp_for.hpp"
 #include <iostream>

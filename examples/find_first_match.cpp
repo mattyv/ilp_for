@@ -1,5 +1,4 @@
-// Example: Find first element matching a predicate
-// Demonstrates early-exit search with ILP
+// find first match
 
 #include "../ilp_for.hpp"
 #include <iostream>

@@ -1,16 +1,13 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-// ILP CPU Profile: Intel Skylake
+// Intel Skylake
+// Source: https://uops.info
 //
-// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
-// Source: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
-//
-// Skylake characteristics:
-// - 4 scalar ALU ports (0, 1, 5, 6)
-// - 3 SIMD/FP ports (0, 1, 5)
-// - 2 load ports, 1 store port
-//
-// Instruction metrics (AVX2 YMM registers):
 // +----------------+----------+---------+------+-------+
 // | Instruction    | Use Case | Latency | RThr | L×TPC |
 // +----------------+----------+---------+------+-------+
@@ -26,10 +23,6 @@
 // | VPAND/POR/PXOR | Bitwise  |    1    | 0.33 |   3   |
 // | VPSLLW/VPSRLW  | Shift    |    1    | 0.50 |   2   |
 // +----------------+----------+---------+------+-------+
-
-// =============================================================================
-// Macro definitions (must be defined before including ilp_optimal_n.hpp)
-// =============================================================================
 
 // Sum - Integer (VPADD*): L=1, RThr=0.33, TPC=3 → 1×3 = 3
 #define ILP_N_SUM_1 3  // VPADDB
@@ -62,10 +55,6 @@
 #define ILP_N_TRANSFORM_2 4
 #define ILP_N_TRANSFORM_4 4
 #define ILP_N_TRANSFORM_8 4
-
-// -----------------------------------------------------------------------------
-// New execution unit operations (verified from uops.info)
-// -----------------------------------------------------------------------------
 
 // Multiply - product reduction (acc *= val)
 // VMULPS/PD: L=4, RThr=0.5, TPC=2 → 8

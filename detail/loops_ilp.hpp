@@ -1,7 +1,9 @@
-#pragma once
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
 
-// Full ILP loop implementations - multi-accumulator pattern for latency hiding
-// Best for Clang which generates ccmp chains
+#pragma once
 
 #include <array>
 #include <concepts>
@@ -17,11 +19,6 @@
 namespace ilp {
     namespace detail {
 
-        // =============================================================================
-        // Identity element inference for common operations
-        // =============================================================================
-
-        // Trait to detect operations with compile-time known identity elements
         template<typename Op, typename T>
         constexpr bool has_known_identity_v =
             std::is_same_v<std::decay_t<Op>, std::plus<>> || std::is_same_v<std::decay_t<Op>, std::plus<T>> ||
@@ -31,7 +28,6 @@ namespace ilp {
             std::is_same_v<std::decay_t<Op>, std::bit_or<T>> || std::is_same_v<std::decay_t<Op>, std::bit_xor<>> ||
             std::is_same_v<std::decay_t<Op>, std::bit_xor<T>>;
 
-        // Construct identity element directly (zero copies)
         template<typename Op, typename T>
         constexpr T make_identity() {
             if constexpr (std::is_same_v<std::decay_t<Op>, std::plus<>> ||
@@ -54,28 +50,22 @@ namespace ilp {
             }
         }
 
-        // Legacy: infer identity from init (copies init for unknown ops)
         template<typename Op, typename T>
         constexpr T operation_identity([[maybe_unused]] const Op& op, [[maybe_unused]] T init) {
             if constexpr (has_known_identity_v<Op, T>) {
                 return make_identity<Op, T>();
             } else {
-                // For unknown operations (lambdas, etc.), fall back to using init as identity
-                // This is only correct if init is actually the identity element
                 return init;
             }
         }
 
-        // Create accumulator array - zero copies for known ops, N copies for unknown ops
         template<std::size_t N, typename BinaryOp, typename R, typename Init>
         std::array<R, N> make_accumulators([[maybe_unused]] const BinaryOp& op, [[maybe_unused]] Init&& init) {
             if constexpr (has_known_identity_v<BinaryOp, R>) {
-                // Zero-copy: directly construct identity elements via guaranteed copy elision
                 return []<std::size_t... Is>(std::index_sequence<Is...>) {
                     return std::array<R, N>{((void)Is, make_identity<BinaryOp, R>())...};
                 }(std::make_index_sequence<N>{});
             } else {
-                // Unknown ops: move first, copy rest ((N-1) copies for rvalue init)
                 std::array<R, N> accs;
                 accs[0] = static_cast<R>(std::forward<Init>(init));
                 for (std::size_t i = 1; i < N; ++i) {
@@ -85,11 +75,6 @@ namespace ilp {
             }
         }
 
-        // =============================================================================
-        // Index-based loops
-        // =============================================================================
-
-        // Type-erased for_loop (new API - no return type parameter)
         template<std::size_t N, std::integral T, typename F>
             requires ForUntypedCtrlBody<F, T>
         ForResult for_loop_untyped_impl(T start, T end, F&& body) {
@@ -97,7 +82,6 @@ namespace ilp {
             ForCtrl ctrl;
             T i = start;
 
-            // Main unrolled loop - explicit early-exit check generates proper branches
             for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
                 for (std::size_t j = 0; j < N; ++j) {
                     body(i + static_cast<T>(j), ctrl);
@@ -122,7 +106,6 @@ namespace ilp {
             using R = std::invoke_result_t<F, T, T>;
 
             if constexpr (std::is_same_v<R, bool>) {
-                // Bool mode - optimized for find, returns index
                 T i = start;
                 for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
                     std::array<bool, N> matches;
@@ -141,7 +124,6 @@ namespace ilp {
                 }
                 return end;
             } else if constexpr (is_optional_v<R>) {
-                // Optional mode - return first with value
                 T i = start;
                 for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
                     std::array<R, N> results;
@@ -161,7 +143,6 @@ namespace ilp {
                 }
                 return R{};
             } else {
-                // Value mode with sentinel - returns first != end
                 T i = start;
                 for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
                     std::array<R, N> results;
@@ -183,11 +164,6 @@ namespace ilp {
             }
         }
 
-        // =============================================================================
-        // Range-based loops
-        // =============================================================================
-
-        // Unified for_loop_range implementation - handles both simple (no ctrl) and ctrl-enabled lambdas
         template<std::size_t N, std::ranges::random_access_range Range, typename F>
         void for_loop_range_impl(Range&& range, F&& body) {
             validate_unroll_factor<N>();
@@ -225,7 +201,6 @@ namespace ilp {
             }
         }
 
-        // Type-erased range for_loop (new API - no return type parameter)
         template<std::size_t N, std::ranges::random_access_range Range, typename F>
             requires ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
         ForResult for_loop_range_untyped_impl(Range&& range, F&& body) {
@@ -235,7 +210,6 @@ namespace ilp {
             auto size = std::ranges::size(range);
             std::size_t i = 0;
 
-            // Main unrolled loop - explicit early-exit check generates proper branches
             for (; i + N <= size; i += N) {
                 for (std::size_t j = 0; j < N; ++j) {
                     body(it[i + j], ctrl);
@@ -265,7 +239,6 @@ namespace ilp {
             using R = std::invoke_result_t<F, std::ranges::range_reference_t<Range>, Sentinel>;
 
             if constexpr (std::is_same_v<R, bool>) {
-                // Bool mode - return iterator to first match
                 std::size_t i = 0;
                 for (; i + N <= size; i += N) {
                     std::array<bool, N> matches;
@@ -284,7 +257,6 @@ namespace ilp {
                 }
                 return end_it;
             } else if constexpr (is_optional_v<R>) {
-                // Optional mode - return first with value
                 std::size_t i = 0;
                 for (; i + N <= size; i += N) {
                     std::array<R, N> results;
@@ -304,7 +276,6 @@ namespace ilp {
                 }
                 return R{};
             } else {
-                // Value mode with sentinel
                 std::size_t i = 0;
                 for (; i + N <= size; i += N) {
                     std::array<R, N> results;
@@ -360,7 +331,6 @@ namespace ilp {
                 }
                 return end_it;
             } else if constexpr (is_optional_v<R>) {
-                // Optional mode - return first with value
                 std::size_t i = 0;
                 for (; i + N <= size; i += N) {
                     std::array<R, N> results;
@@ -380,7 +350,6 @@ namespace ilp {
                 }
                 return R{};
             } else {
-                // Value mode with sentinel
                 std::size_t i = 0;
                 for (; i + N <= size; i += N) {
                     std::array<R, N> results;
@@ -413,7 +382,6 @@ namespace ilp {
             auto size = std::ranges::size(range);
             std::size_t i = 0;
 
-            // Unrolled main loop
             for (; i + N <= size; i += N) {
                 std::array<bool, N> matches;
                 for (std::size_t j = 0; j < N; ++j) {
@@ -425,20 +393,14 @@ namespace ilp {
                 }
             }
 
-            // Cleanup loop
             for (; i < size; ++i) {
                 if (pred(it[i]))
                     return it + static_cast<std::ptrdiff_t>(i);
             }
 
-            return end_it; // Not found sentinel
+            return end_it;
         }
 
-        // =============================================================================
-        // Reduce loops (multi-accumulator for true ILP)
-        // =============================================================================
-
-        // Reduce implementation - body returns T or std::optional<T> (nullopt = break)
         template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
             requires ReduceBody<F, T>
         auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
@@ -447,7 +409,6 @@ namespace ilp {
             using ResultT = std::invoke_result_t<F, T>;
 
             if constexpr (is_optional_v<ResultT>) {
-                // Optional path - supports early break via nullopt
                 using R = typename ResultT::value_type;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -480,7 +441,6 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                // Plain value path - no early break, SIMD friendly
                 using R = ResultT;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -504,7 +464,6 @@ namespace ilp {
             }
         }
 
-        // Range-based reduce - body returns T or std::optional<T> (nullopt = break)
         template<std::size_t N, std::ranges::contiguous_range Range, typename Init, typename BinaryOp, typename F>
         auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
             validate_unroll_factor<N>();
@@ -515,7 +474,6 @@ namespace ilp {
             using ResultT = std::invoke_result_t<F, decltype(*ptr)>;
 
             if constexpr (is_optional_v<ResultT>) {
-                // Optional path - supports early break via nullopt
                 using R = typename ResultT::value_type;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -548,12 +506,11 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                // Plain value → std::transform_reduce (SIMD vectorization!)
                 return std::transform_reduce(ptr, ptr + size, std::forward<Init>(init), op, body);
             }
         }
 
-        // Range-based reduce - fallback for random access (non-contiguous) ranges
+        // non-contiguous ranges
         template<std::size_t N, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
             requires(!std::ranges::contiguous_range<Range>)
         auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
@@ -565,7 +522,6 @@ namespace ilp {
             using ResultT = std::invoke_result_t<F, decltype(*it)>;
 
             if constexpr (is_optional_v<ResultT>) {
-                // Optional path - supports early break via nullopt
                 using R = typename ResultT::value_type;
                 auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
 
@@ -598,23 +554,16 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                // Plain value → std::transform_reduce (SIMD vectorization!)
                 return std::transform_reduce(std::ranges::begin(range), std::ranges::end(range),
                                              std::forward<Init>(init), op, body);
             }
         }
 
-        // =============================================================================
-        // For-until loops - optimized early exit with predicate baked into loop condition
-        // =============================================================================
-
-        // Index-based for_until - returns index of first match
         template<std::size_t N, std::integral T, typename Pred>
             requires PredicateBody<Pred, T>
         std::optional<T> for_until_impl(T start, T end, Pred&& pred) {
             validate_unroll_factor<N>();
 
-            // Use pragma unroll like std::find - GCC optimizes this pattern best
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4)) for (T i = start; i < end; ++i) {
                 if (pred(i))
                     return i;
@@ -623,7 +572,6 @@ namespace ilp {
             return std::nullopt;
         }
 
-        // Range-based for_until - returns index of first match
         template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
         std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
             validate_unroll_factor<N>();
@@ -631,7 +579,6 @@ namespace ilp {
             auto* data = std::ranges::data(range);
             std::size_t n = std::ranges::size(range);
 
-            // Use pragma unroll like std::find - GCC optimizes this pattern best
             _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4)) for (std::size_t i = 0; i < n; ++i) {
                 if (pred(data[i]))
                     return i;
@@ -642,11 +589,6 @@ namespace ilp {
 
     } // namespace detail
 
-    // =============================================================================
-    // Public API - Index-based loops
-    // =============================================================================
-
-    // Type-erased for_loop - return type deduced from function context
     template<std::size_t N = 4, std::integral T, typename F>
         requires detail::ForUntypedCtrlBody<F, T>
     ForResult for_loop(T start, T end, F&& body) {
@@ -659,11 +601,6 @@ namespace ilp {
         return detail::find_impl<N>(start, end, std::forward<F>(body));
     }
 
-    // =============================================================================
-    // Public API - Range-based loops
-    // =============================================================================
-
-    // Type-erased for_loop_range - return type deduced from function context
     template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
         requires detail::ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
     ForResult for_loop_range(Range&& range, F&& body) {
@@ -698,10 +635,6 @@ namespace ilp {
                                                                        std::forward<Pred>(pred));
     }
 
-    // =============================================================================
-    // Public API - For-until loops (optimized early exit)
-    // =============================================================================
-
     template<std::size_t N = 8, std::integral T, typename Pred>
         requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
     std::optional<T> for_until(T start, T end, Pred&& pred) {
@@ -712,10 +645,6 @@ namespace ilp {
     std::optional<std::size_t> for_until_range(Range&& range, Pred&& pred) {
         return detail::for_until_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
-
-    // =============================================================================
-    // Public API - Reduce
-    // =============================================================================
 
     template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
         requires detail::ReduceBody<F, T>
@@ -730,11 +659,6 @@ namespace ilp {
                                             std::forward<F>(body));
     }
 
-    // =============================================================================
-    // Auto-selecting functions
-    // =============================================================================
-
-    // Type-erased auto-selecting for_loop
     template<std::integral T, typename F>
         requires detail::ForUntypedCtrlBody<F, T>
     ForResult for_loop_auto(T start, T end, F&& body) {

@@ -1,16 +1,10 @@
-// Example: Reduce with early exit
-// Demonstrates ilp::reduce with std::optional (nullopt = break)
-//
-// Note: nullopt breaks based on index or external conditions,
-// not on the accumulated value (multiple parallel accumulators make
-// that impractical). For running-total checks, use a regular loop.
+// reduce with early exit (nullopt = break)
 
 #include "../ilp_for.hpp"
 #include <iostream>
 #include <optional>
 #include <vector>
 
-// Sum first N elements only
 int sum_first_n(const std::vector<int>& data, size_t n) {
     return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{}, [&](auto i) -> std::optional<int> {
         if (i >= n)
@@ -19,7 +13,6 @@ int sum_first_n(const std::vector<int>& data, size_t n) {
     });
 }
 
-// Sum until sentinel value encountered
 int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
     return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{}, [&](auto i) -> std::optional<int> {
         if (data[i] == sentinel)
@@ -28,7 +21,6 @@ int sum_until_sentinel(const std::vector<int>& data, int sentinel) {
     });
 }
 
-// Count positive values, stop at first negative
 size_t count_positive_until_negative(const std::vector<int>& data) {
     return ilp::reduce<4>(size_t{0}, data.size(), size_t{0}, std::plus<>{}, [&](auto i) -> std::optional<size_t> {
         if (data[i] < 0)
@@ -37,17 +29,14 @@ size_t count_positive_until_negative(const std::vector<int>& data) {
     });
 }
 
-// Sum with skip and early termination
-// Skip zeros, stop at negative
 int sum_nonzero_until_negative(const std::vector<int>& data) {
     return ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{}, [&](auto i) -> std::optional<int> {
         if (data[i] < 0)
             return std::nullopt;
-        return data[i]; // Zeros contribute 0 (identity for +)
+        return data[i];
     });
 }
 
-// Product with early termination on zero
 int64_t product_until_zero(const std::vector<int>& data) {
     return ilp::reduce<4>(size_t{0}, data.size(), 1LL, std::multiplies<>{}, [&](auto i) -> std::optional<int64_t> {
         if (data[i] == 0)
@@ -57,27 +46,19 @@ int64_t product_until_zero(const std::vector<int>& data) {
 }
 
 int main() {
-    // Sum first N elements
     std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     std::cout << "Sum of first 5: " << sum_first_n(data, 5) << "\n";
     std::cout << "Sum of first 3: " << sum_first_n(data, 3) << "\n\n";
 
-    // Sum until sentinel
-    std::vector<int> with_sentinel = {10, 20, 30, -1, 40, 50}; // -1 is sentinel
+    std::vector<int> with_sentinel = {10, 20, 30, -1, 40, 50};
     std::cout << "Sum until -1: " << sum_until_sentinel(with_sentinel, -1) << "\n\n";
 
-    // Count positive until negative
     std::vector<int> mixed = {5, 3, 0, 7, 2, -1, 8, 9};
     std::cout << "Positive count before negative: " << count_positive_until_negative(mixed) << "\n\n";
 
-    // Sum nonzero until negative
     std::vector<int> sparse = {1, 0, 2, 0, 0, 3, -1, 4, 5};
     std::cout << "Sum nonzero until negative: " << sum_nonzero_until_negative(sparse) << "\n\n";
 
-    // Product with zero termination
     std::vector<int> factors = {2, 3, 4, 0, 5, 6};
-    int64_t prod = product_until_zero(factors);
-    // Note: result depends on unrolling - may not be exactly 24
-    // because parallel accumulators may see 0 at different times
-    std::cout << "Product until zero: " << prod << "\n";
+    std::cout << "Product until zero: " << product_until_zero(factors) << "\n";
 }

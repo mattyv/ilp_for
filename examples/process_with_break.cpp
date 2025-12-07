@@ -1,12 +1,9 @@
-// Example: Control flow with ILP_BREAK and ILP_CONTINUE
-// Demonstrates early exit and skipping elements
+// ILP_BREAK and ILP_CONTINUE
 
 #include "../ilp_for.hpp"
 #include <iostream>
 #include <vector>
 
-// Process items until encountering negative (error) value
-// Skip zeros (placeholder entries)
 void process_until_error(const std::vector<int>& data) {
     int sum = 0;
     int count = 0;
@@ -17,7 +14,7 @@ void process_until_error(const std::vector<int>& data) {
             ILP_BREAK;
         }
         if (data[i] == 0) {
-            ILP_CONTINUE; // Skip placeholder entries
+            ILP_CONTINUE;
         }
         sum += data[i];
         ++count;
@@ -27,7 +24,6 @@ void process_until_error(const std::vector<int>& data) {
     std::cout << "Processed " << count << " items, sum = " << sum << "\n";
 }
 
-// Validate entries until first invalid
 bool validate_entries(const std::vector<int>& data, int min_val, int max_val) {
     bool valid = true;
 
@@ -44,19 +40,16 @@ bool validate_entries(const std::vector<int>& data, int min_val, int max_val) {
 }
 
 int main() {
-    // Process with skip and early exit
     std::vector<int> data1 = {5, 0, 10, 0, 15, -1, 20, 25};
     process_until_error(data1);
 
     std::cout << "\n";
 
-    // All valid
     std::vector<int> data2 = {1, 5, 3, 8, 2, 9};
     if (validate_entries(data2, 0, 10)) {
         std::cout << "All entries valid\n";
     }
 
-    // Contains invalid
     std::vector<int> data3 = {1, 5, 15, 8};
     validate_entries(data3, 0, 10);
 }

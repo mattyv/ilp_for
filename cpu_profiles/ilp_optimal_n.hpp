@@ -1,14 +1,11 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-// ILP Optimal N Computation
-//
-// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
-// Sources:
-// - x86: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
-// - ARM: https://dougallj.github.io/applecpu/firestorm.html
-//
-// This header provides the TMP-based computation of optimal_N.
-// Each CPU profile defines the ILP_N_* macros, then includes this header.
+// optimal_N computation from CPU profile macros
 
 #include <cstddef>
 #include <type_traits>
@@ -22,35 +19,22 @@
 
 namespace ilp {
 
-    // =============================================================================
-    // Loop Types
-    // =============================================================================
-
     enum class LoopType {
-        // Existing
         Sum,        // acc += val (VADD)
         DotProduct, // acc += a * b (VFMA)
-        Search,     // find with early exit (Branch)
+        Search,     // find with early exit
         Copy,       // dst = src (Load/Store)
-        Transform,  // dst = f(src) (Load + ALU + Store)
-
-        // New execution unit operations
-        Multiply, // acc *= val (VMUL) - product reduction
-        Divide,   // val / const (VDIV) - high latency
-        Sqrt,     // sqrt(val) (VSQRT) - high latency
-        MinMax,   // acc = min/max(acc, val) (VMIN/VMAX)
-        Bitwise,  // acc &= val, |=, ^= (VPAND/OR/XOR)
-        Shift,    // val << n, val >> n (VPSLL/SRL)
+        Transform,  // dst = f(src)
+        Multiply,   // acc *= val (VMUL)
+        Divide,     // val / const (VDIV)
+        Sqrt,       // sqrt(val) (VSQRT)
+        MinMax,     // acc = min/max(acc, val)
+        Bitwise,    // acc &= val, |=, ^=
+        Shift,      // val << n, val >> n
     };
-
-    // =============================================================================
-    // Optimal Unroll Factor Computation (Type-Aware via TMP)
-    // =============================================================================
 
     namespace detail {
 
-        // Compile-time computation of optimal_N based on type traits
-        // Uses macros defined by the including CPU profile
         template<LoopType L, typename T>
         constexpr std::size_t compute_optimal_N() {
             constexpr std::size_t size = sizeof(T);

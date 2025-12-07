@@ -1,3 +1,8 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include <cstddef>
@@ -11,7 +16,6 @@
 namespace ilp {
 
     namespace detail {
-        // Trait to detect std::optional - needed to avoid ambiguous conversion
         template<typename T>
         struct is_optional : std::false_type {};
         template<typename T>
@@ -19,10 +23,6 @@ namespace ilp {
         template<typename T>
         inline constexpr bool is_optional_v = is_optional<T>::value;
     } // namespace detail
-
-    // =============================================================================
-    // Typed control (legacy - used by ILP_FOR(ret_type, ...) overloads)
-    // =============================================================================
 
     template<typename R = void>
     struct LoopCtrl {
@@ -42,11 +42,7 @@ namespace ilp {
         void break_loop() { ok = false; }
     };
 
-    // =============================================================================
-    // Type-erased control (new API - ILP_FOR(var, ...) without return type)
-    // =============================================================================
-
-    // Type-erased storage for return values (64 bytes covers most types)
+    // 64 bytes fits most types
     struct AnyStorage {
         alignas(std::max_align_t) char buffer[64];
 
@@ -64,33 +60,25 @@ namespace ilp {
         }
     };
 
-    // Control structure with inline storage
-    // - ok: false means early exit requested (ILP_BREAK or ILP_RETURN)
-    // - return_set: true means ILP_RETURN was called and storage contains a value
-    // This distinction allows ILP_BREAK to work in void functions without returning
+    // ok=false means early exit
     struct ForCtrl {
         bool ok = true;
         bool return_set = false;
         AnyStorage storage;
     };
 
-    // Result wrapper returned from untyped for_loop
-    // operator bool() returns true if ILP_RETURN was called
-    // operator*() returns a proxy that converts to the target type
     struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResult {
         bool has_return;
         AnyStorage storage;
 
         explicit operator bool() const noexcept { return has_return; }
 
-        // Proxy enables "return *_ilp_ret_" to deduce type from function return
+        // deduces type from function return
         struct Proxy {
             AnyStorage& s;
 
 #if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC: Single conversion operator handles both regular and optional types
-            // MSVC doesn't do two-step implicit conversion (Proxy → T → optional<T>),
-            // so we handle optional explicitly via if constexpr
+            // MSVC needs explicit optional handling
             template<typename R>
             inline operator R() && {
                 if constexpr (detail::is_optional_v<R>) {
@@ -101,8 +89,7 @@ namespace ilp {
                 }
             }
 #else
-            // GCC/Clang: Convert to non-optional types only
-            // Two-step implicit conversion handles optional: Proxy → T → optional<T>
+            // GCC/Clang do implicit Proxy→T→optional
             template<typename R>
                 requires(!detail::is_optional_v<R>)
             [[gnu::always_inline]] inline operator R() && {
@@ -110,7 +97,6 @@ namespace ilp {
             }
 #endif
 
-            // For void functions - makes "return *_ilp_ret_" compile
             void operator*() && {}
         };
 
@@ -119,10 +105,7 @@ namespace ilp {
 
     namespace detail {
 
-        // Called when ILP_RETURN is used but ILP_END (not ILP_END_RETURN) was specified
-        // This is a programming error - always aborts with a clear message
         [[noreturn]] inline void ilp_end_with_return_error() {
-            // Use fprintf to stderr for maximum compatibility (no exceptions, works in signal handlers)
             std::fprintf(stderr, "\n*** ILP_FOR ERROR ***\n"
                                  "ILP_RETURN was called but ILP_END was used instead of ILP_END_RETURN.\n"
                                  "The return value would be silently discarded. This is a bug.\n"

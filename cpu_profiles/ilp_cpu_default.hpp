@@ -1,17 +1,16 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-// ILP CPU Profile: Default (conservative cross-platform values)
+// default profile - conservative cross-platform values
 //
-// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
+// Formula: optimal_N = Latency × TPC
 // Sources:
 // - x86: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
 // - ARM: https://dougallj.github.io/applecpu/firestorm.html
-//
-// Default values are conservative estimates suitable for most modern CPUs.
-
-// =============================================================================
-// Macro definitions (must be defined before including ilp_optimal_n.hpp)
-// =============================================================================
 
 // Sum - Integer (VPADD* or ADD vec): conservative L=1, TPC=4 → 4
 #define ILP_N_SUM_1 4  // int8
@@ -44,10 +43,6 @@
 #define ILP_N_TRANSFORM_2 4
 #define ILP_N_TRANSFORM_4 4
 #define ILP_N_TRANSFORM_8 4
-
-// -----------------------------------------------------------------------------
-// New execution unit operations
-// -----------------------------------------------------------------------------
 
 // Multiply - product reduction (acc *= val)
 // FP: VMULPS/PD L=4, TPC=2 → 8; Int: VPMULLD L=10, TPC=1 → 10

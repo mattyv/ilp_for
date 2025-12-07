@@ -1,5 +1,4 @@
-// Example: Search with ilp::find_range_auto
-// Demonstrates the recommended pattern for early-exit search
+// search with find_range_auto
 
 #include "../ilp_for.hpp"
 #include <iostream>

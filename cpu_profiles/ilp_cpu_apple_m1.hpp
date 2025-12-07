@@ -1,17 +1,13 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-// ILP CPU Profile: Apple M1 (Firestorm P-cores)
-//
-// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
+// Apple M1 (Firestorm P-cores)
 // Source: https://dougallj.github.io/applecpu/firestorm.html
 //
-// Firestorm characteristics:
-// - 8-wide decode
-// - 6 integer ALU units
-// - 4 SIMD/FP units (exceptional throughput)
-// - 4 load/store units
-//
-// Instruction metrics (ARM NEON):
 // +----------------+----------+---------+------+-------+
 // | Instruction    | Use Case | Latency | RThr | L×TPC |
 // +----------------+----------+---------+------+-------+
@@ -19,10 +15,6 @@
 // | FADD           | FP Add   |    3    | 0.25 |  12   |
 // | ADD (vec)      | Int Add  |    2    | 0.25 |   8   |
 // +----------------+----------+---------+------+-------+
-
-// =============================================================================
-// Macro definitions (must be defined before including ilp_optimal_n.hpp)
-// =============================================================================
 
 // Sum - Integer (ADD vec): L=2, RThr=0.25, TPC=4 → 2×4 = 8
 #define ILP_N_SUM_1 8  // ADD 8B/16B
@@ -56,10 +48,7 @@
 #define ILP_N_TRANSFORM_4 4
 #define ILP_N_TRANSFORM_8 4
 
-// -----------------------------------------------------------------------------
-// New execution unit operations (from dougallj.github.io/applecpu)
-// Note: M1 has 4 SIMD/FP units → exceptional TPC of 4
-// -----------------------------------------------------------------------------
+// M1 has 4 SIMD/FP units → exceptional TPC of 4
 
 // Multiply - product reduction (acc *= val)
 // FMUL: L=3, RThr=0.25, TPC=4 → 12 (same execution path as FADD)

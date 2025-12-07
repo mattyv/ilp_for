@@ -1,19 +1,15 @@
-// Example: Manual unroll factor specification
-// Demonstrates when and why to use explicit N instead of AUTO
+// manual unroll factor
 
 #include "../ilp_for.hpp"
 #include <array>
 #include <iostream>
 #include <vector>
 
-// Use optimal_N to query the recommended value for your use case
 constexpr auto N_SUM_DOUBLE = ilp::optimal_N<ilp::LoopType::Sum, double>;
 constexpr auto N_SEARCH_INT = ilp::optimal_N<ilp::LoopType::Search, int>;
 
-// Small fixed-size array: use small N to avoid overhead
 template<size_t Size>
 int sum_small_array(const std::array<int, Size>& arr) {
-    // For small arrays, N=2 reduces loop overhead while maintaining ILP
     int sum = 0;
     ILP_FOR(auto i, 0uz, Size, 2) {
         sum += arr[i];

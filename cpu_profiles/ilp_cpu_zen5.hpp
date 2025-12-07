@@ -1,16 +1,13 @@
+// ilp_for - ILP loop unrolling for C++23
+// Copyright (c) 2025 Matt Vanderdorff
+// https://github.com/mattyv/ilp_for
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-// ILP CPU Profile: AMD Zen 4/5 (Ryzen 7000/9000 series)
+// AMD Zen 4/5 (Ryzen 7000/9000 series)
+// Source: https://uops.info
 //
-// Formula: optimal_N = Latency × TPC (Throughput Per Cycle)
-// Source: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
-//
-// Zen 4/5 characteristics:
-// - 6-wide decode, 8-wide dispatch (Zen 5)
-// - 4 FP/SIMD pipes with excellent throughput
-// - ROB: 320 (Zen 4), 448 (Zen 5)
-//
-// Instruction metrics (AVX2 YMM registers):
 // +----------------+----------+---------+------+-------+
 // | Instruction    | Use Case | Latency | RThr | L×TPC |
 // +----------------+----------+---------+------+-------+
@@ -18,10 +15,6 @@
 // | VADDPS/VADDPD  | FP Add   |    3    | 0.50 |   6   |
 // | VPADDB/W/D/Q   | Int Add  |    1    | 0.25 |   4   |
 // +----------------+----------+---------+------+-------+
-
-// =============================================================================
-// Macro definitions (must be defined before including ilp_optimal_n.hpp)
-// =============================================================================
 
 // Sum - Integer (VPADD*): L=1, RThr=0.25, TPC=4 → 1×4 = 4
 #define ILP_N_SUM_1 4  // VPADDB
@@ -54,10 +47,6 @@
 #define ILP_N_TRANSFORM_2 4
 #define ILP_N_TRANSFORM_4 4
 #define ILP_N_TRANSFORM_8 4
-
-// -----------------------------------------------------------------------------
-// New execution unit operations (verified from uops.info - Zen 4)
-// -----------------------------------------------------------------------------
 
 // Multiply - product reduction (acc *= val)
 // VMULPS: L=3, RThr=0.5, TPC=2 → 6

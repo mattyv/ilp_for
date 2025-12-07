@@ -1,5 +1,4 @@
-// Example: Compute min and max in single pass
-// Demonstrates parallel reduction with multiple accumulators
+// parallel min/max in single pass
 
 #include "../ilp_for.hpp"
 #include <iostream>

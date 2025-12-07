@@ -1,5 +1,4 @@
-// Example: Count occurrences of a value
-// Demonstrates simple reduction without early exit
+// counting with reduce
 
 #include "../ilp_for.hpp"
 #include <iostream>

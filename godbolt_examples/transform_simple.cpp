@@ -1,20 +1,11 @@
-// Comparison: Simple in-place transformation
-// Demonstrates ILP_MODE_SIMPLE - macros expand to plain for-loops
-//
-// This is a self-contained example for Godbolt Compiler Explorer.
-// The implementation below is extracted LINE-FOR-LINE from the ilp_for library.
+// simple transform - godbolt example (SIMPLE mode)
 
 #include <concepts>
 #include <cstddef>
 #include <vector>
 
-// =============================================================================
-// Extracted from ilp_for library (LINE-FOR-LINE EXACT COPY)
-// =============================================================================
-
 namespace ilp {
 
-    // From detail/iota.hpp lines 7-25:
     template<std::integral T>
     struct iota_view {
         T first, last;
@@ -40,15 +31,10 @@ namespace ilp {
 
 } // namespace ilp
 
-// From detail/macros_simple.hpp lines 8-20:
 #define ILP_FOR(loop_var_decl, start, end, N) for (loop_var_decl : ::ilp::iota((start), (end)))
-
 #define ILP_END
 
-// =============================================================================
-// ILP_FOR Version - Using public macro API (SIMPLE mode)
-// =============================================================================
-
+// ilp version
 void transform_ilp(std::vector<int>& data) {
     ILP_FOR(auto i, 0uz, data.size(), 4) {
         data[i] = data[i] * 2 + 1;
@@ -56,10 +42,7 @@ void transform_ilp(std::vector<int>& data) {
     ILP_END;
 }
 
-// =============================================================================
-// Hand-rolled Version - Unrolled 4x
-// =============================================================================
-
+// hand-rolled
 void transform_handrolled(std::vector<int>& data) {
     size_t i = 0;
     for (; i + 4 <= data.size(); i += 4) {
@@ -69,23 +52,18 @@ void transform_handrolled(std::vector<int>& data) {
         data[i + 3] = data[i + 3] * 2 + 1;
     }
 
-    // Cleanup
     for (; i < data.size(); ++i) {
         data[i] = data[i] * 2 + 1;
     }
 }
 
-// =============================================================================
-// Simple Version - Baseline
-// =============================================================================
-
+// simple
 void transform_simple(std::vector<int>& data) {
     for (size_t i = 0; i < data.size(); ++i) {
         data[i] = data[i] * 2 + 1;
     }
 }
 
-// Test usage
 int main() {
     volatile size_t n = 1000;
 

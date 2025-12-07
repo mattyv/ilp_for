@@ -1,31 +1,27 @@
-// Example: ILP_FOR with ILP_RETURN
-// ILP_RETURN(x) returns x from the enclosing function
+// ILP_RETURN
 
 #include "../ilp_for.hpp"
 #include <iostream>
 #include <vector>
 
-// Search returning index - ILP_RETURN exits find_index() directly
 int find_index(const std::vector<int>& data, int target) {
     ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] == target)
             ILP_RETURN(i);
     }
     ILP_END_RETURN;
-    return -1; // Not found
+    return -1;
 }
 
-// Search returning the value itself
 int find_first_above_threshold(const std::vector<int>& data, int threshold) {
     ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] > threshold)
             ILP_RETURN(data[i]);
     }
     ILP_END_RETURN;
-    return -1; // Not found
+    return -1;
 }
 
-// Search with complex condition
 struct Point {
     int x, y;
 };
@@ -51,7 +47,7 @@ Point find_point_in_quadrant(const std::vector<Point>& points, int quadrant) {
             ILP_RETURN(points[i]);
     }
     ILP_END_RETURN;
-    return Point{0, 0}; // Not found
+    return Point{0, 0};
 }
 
 int main() {

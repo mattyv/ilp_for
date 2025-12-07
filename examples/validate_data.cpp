@@ -1,5 +1,4 @@
-// Example: Validate array elements against constraints
-// Demonstrates any-of with early exit
+// validate array elements
 
 #include "../ilp_for.hpp"
 #include <iostream>
