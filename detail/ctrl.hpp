@@ -86,14 +86,23 @@ struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] 
     struct Proxy {
         AnyStorage& s;
 
-        // Exclude std::optional to avoid ambiguity with optional's converting constructor
-        // When returning optional<T>, the value stored is T, not optional<T>
+        // Convert to any non-optional type R
         template<typename R>
             requires (!detail::is_optional_v<R>)
         [[gnu::always_inline]] inline
         operator R() && {
             return s.template extract<R>();
         }
+
+#ifdef _MSC_VER
+        // MSVC needs explicit std::optional conversion (doesn't do Proxy → T → optional<T>)
+        // Only enabled on MSVC to avoid ambiguity with GCC/Clang
+        template<typename T>
+        [[msvc::forceinline]] inline
+        operator std::optional<T>() && {
+            return std::optional<T>(s.template extract<T>());
+        }
+#endif
 
         // For void functions - makes "return *_ilp_ret_" compile
         void operator*() && {}

@@ -14,7 +14,7 @@
 - [ ] Update coverage report
 - [ ] Regen godbolt links
 - [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
-- [ ] Test `#if defined(__GNUC__) && !defined(__clang__)` macro on Windows (MSVC, MinGW)
+- [ ] Get rid of all the silly LLM comments
 
 ## Build
 - [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)
