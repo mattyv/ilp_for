@@ -98,7 +98,7 @@ struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] 
         // MSVC needs explicit std::optional conversion (doesn't do Proxy → T → optional<T>)
         // Only enabled on MSVC to avoid ambiguity with GCC/Clang
         template<typename T>
-        [[msvc::forceinline]] inline
+        __forceinline
         operator std::optional<T>() && {
             return std::optional<T>(s.template extract<T>());
         }
