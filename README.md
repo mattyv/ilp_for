@@ -17,7 +17,7 @@ The library unrolls your loop body N times, allowing the CPU to execute multiple
 
 ```cpp
 // Your code
-ILP_FOR(void, auto i, 0, n, 4) {
+ILP_FOR(auto i, 0, n, 4) {
     if (data[i] == target) ILP_BREAK;
     process(data[i]);
 } ILP_END;
@@ -111,7 +111,7 @@ int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
 ### Loop with Break/Continue
 
 ```cpp
-ILP_FOR(void, auto i, 0, n, 4) {
+ILP_FOR(auto i, 0, n, 4) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
@@ -123,9 +123,9 @@ ILP_FOR(void, auto i, 0, n, 4) {
 ```cpp
 // ILP_RETURN(x) returns from enclosing function
 int find_index(const std::vector<int>& data, int target) {
-    ILP_FOR(int, auto i, 0, static_cast<int>(data.size()), 4) {
+    ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] == target) ILP_RETURN(i);  // Returns from find_index()
-    } ILP_END;
+    } ILP_END_RETURN;  // Must use ILP_END_RETURN when ILP_RETURN is used
     return -1;  // Not found
 }
 ```
@@ -136,16 +136,14 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Loop Macros
 
-| Macro | Description | Effect of `ILP_RETURN(x)` |
-|-------|-------------|---------------------------|
-| `ILP_FOR(void, var, start, end, N)` | Basic loop with break/continue | N/A |
-| `ILP_FOR(type, var, start, end, N)` | Loop with return capability | Returns `x` from enclosing function |
-| `ILP_FOR_RANGE(void, var, range, N)` | Range-based loop | N/A |
-| `ILP_FOR_RANGE(type, var, range, N)` | Range loop with return | Returns `x` from enclosing function |
-| `ILP_FOR_AUTO(type, var, start, end)` | Auto-selects optimal N | Returns `x` from enclosing function |
-| `ILP_FOR_RANGE_AUTO(type, var, range)` | Range with auto N | Returns `x` from enclosing function |
+| Macro | Description |
+|-------|-------------|
+| `ILP_FOR(var, start, end, N)` | Index loop with explicit N |
+| `ILP_FOR_RANGE(var, range, N)` | Range-based loop with explicit N |
+| `ILP_FOR_AUTO(var, start, end)` | Index loop with auto-selected N |
+| `ILP_FOR_RANGE_AUTO(var, range)` | Range loop with auto-selected N |
 
-All loop macros end with `ILP_END`.
+End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 
 ### Find Functions
 
@@ -321,16 +319,18 @@ All macros expand to simple `for` loops with same semantics.
 ### optimal_N
 
 ```cpp
-constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, sizeof(double)>;
+constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, double>;
 ```
 
-| LoopType | 1B | 2B | 4B | 8B |
-|----------|----|----|----|----|
-| Sum | 16 | 8 | 4 | 8 |
+Default profile values (int / float):
+
+| LoopType | int32 | int64 | float | double |
+|----------|-------|-------|-------|--------|
+| Sum | 4 | 4 | 8 | 8 |
 | DotProduct | - | - | 8 | 8 |
-| Search | 8 | 4 | 4 | 4 |
-| Copy | 16 | 8 | 4 | 4 |
-| Transform | 8 | 4 | 4 | 4 |
+| Search | 4 | 4 | 4 | 4 |
+| Multiply | 8 | 8 | 8 | 8 |
+| MinMax | 4 | 4 | 8 | 8 |
 
 ---
 

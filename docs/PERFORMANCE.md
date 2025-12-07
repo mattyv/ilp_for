@@ -43,11 +43,11 @@ Return early using `ILP_RETURN` (returns from enclosing function):
 
 ```cpp
 std::optional<int> find_expensive() {
-    ILP_FOR(int, auto i, 0uz, data.size(), 4) {
+    ILP_FOR(auto i, 0uz, data.size(), 4) {
         if (expensive_check(data[i])) {
             ILP_RETURN(compute(data[i]));  // Returns from find_expensive()
         }
-    } ILP_END;
+    } ILP_END_RETURN;
     return std::nullopt;  // Not found
 }
 ```
@@ -58,9 +58,9 @@ When using `ILP_FOR` with return type, the compiler generates `csel` instruction
 
 ```cpp
 // Slower - generates csel dependency chain
-ILP_FOR(size_t, auto i, 0uz, n, 4) {
+ILP_FOR(auto i, 0uz, n, 4) {
     if (data[i] == target) ILP_RETURN(i);
-} ILP_END;
+} ILP_END_RETURN;
 ```
 
 Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
