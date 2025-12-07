@@ -1,7 +1,7 @@
 // ilp_for - ILP loop unrolling for C++23
 // Copyright (c) 2025 Matt Vanderdorff
 // https://github.com/mattyv/ilp_for
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BSL-1.0
 
 #pragma once
 
