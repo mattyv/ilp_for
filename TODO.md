@@ -5,7 +5,8 @@
 - [x] Consolidate ILP_FOR_RANGE + ILP_FOR_RANGE_RET into single ILP_FOR_RANGE(ret_type, ...) macro
 - [x] Add ILP_FOR_AUTO and ILP_FOR_RANGE_AUTO macros
 - [x] Remove ILP_FIND* and ILP_REDUCE* macros (use ilp::find, ilp::reduce functions instead)
-- [ ] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
+- [x] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
+- [ ] Remove simple and use super simple in its place. Rename super simple -> simple
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
