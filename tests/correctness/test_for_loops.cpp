@@ -157,7 +157,7 @@ TEST_CASE("ILP_FOR_RANGE_AUTO basic", "[for_range_auto][basic]") {
 }
 
 // Test ILP_RETURN only in non-SUPER_SIMPLE modes (different semantics)
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 TEST_CASE("ILP_FOR with ILP_RETURN", "[for][return]") {
     SECTION("return value from loop exits function") {
         auto find_and_double = []() -> int {

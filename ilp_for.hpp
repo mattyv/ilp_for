@@ -6,15 +6,10 @@
 // =============================================================================
 // Mode Selection
 // =============================================================================
-// Define one of these before including to change behavior:
-//   ILP_MODE_SIMPLE       - Plain loops for testing/debugging
-//   ILP_MODE_PRAGMA       - Pragma-unrolled loops (best for GCC auto-vectorization)
-//   ILP_MODE_SUPER_SIMPLE - Direct for-loop expansion (debug mode, native break/continue)
-// Default: Full ILP pattern (best for Clang ccmp optimization)
-
-#if (defined(ILP_MODE_SIMPLE) + defined(ILP_MODE_PRAGMA) + defined(ILP_MODE_SUPER_SIMPLE)) > 1
-    #error "Cannot define more than one ILP_MODE_*"
-#endif
+// Define ILP_MODE_SIMPLE for debug mode: macros expand to plain for-loops
+// with native break/continue/return. Functions (ilp::reduce, ilp::find, etc.)
+// always use full ILP pattern regardless of mode.
+// Default: Full ILP pattern for both macros and functions
 
 #include <cassert>
 #include <cstddef>
@@ -50,17 +45,17 @@ namespace ilp::detail {
 #endif
 
 #include "detail/iota.hpp"
-#include "detail/loops.hpp"
+#include "detail/loops_ilp.hpp"
 
 // =============================================================================
 // Macros
 // =============================================================================
 
-#ifdef ILP_MODE_SUPER_SIMPLE
+#ifdef ILP_MODE_SIMPLE
 
-#include "detail/macros_super_simple.hpp"
+#include "detail/macros_simple.hpp"
 
-#else // !ILP_MODE_SUPER_SIMPLE
+#else // !ILP_MODE_SIMPLE
 
 // Type-erased control flow - return type deduced from function context.
 // ILP_RETURN stores value in type-erased buffer, extracted via operator R().
@@ -123,4 +118,4 @@ else (void)0
 #define ILP_RETURN(x) \
     do { _ilp_ctrl.storage.set(x); _ilp_ctrl.return_set = true; _ilp_ctrl.ok = false; return; } while(0)
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

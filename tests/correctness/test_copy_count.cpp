@@ -8,7 +8,7 @@
 #include "catch.hpp"
 #include "../../ilp_for.hpp"
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 namespace {
 
@@ -154,13 +154,8 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
     // 0 + 1 + 2 + 3 = 6
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
-    // Single accumulator - no fill needed
-    CHECK(CopyMoveCounter::copies == 0);
-#else
-    // ILP mode: N copies from accs.fill(identity) for unknown ops
+    // ILP mode: N-1 copies for unknown ops (move first, copy rest)
     CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
@@ -173,11 +168,8 @@ TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
-    CHECK(CopyMoveCounter::copies == 0);
-#else
+    // ILP mode: N-1 copies for unknown ops (move first, copy rest)
     CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 // =============================================================================
@@ -216,12 +208,8 @@ TEST_CASE("Minimal copies in reduce_range return path - plain return (transform_
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    // Custom ops require copies for accumulator init; known ops (std::plus) get zero copies
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    // transform_reduce handles accumulator internally - zero copies
     CHECK(CopyMoveCounter::copies == 0);
-#else
-    CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 TEST_CASE("Minimal copies in reduce_range return path - std::optional (nested loops)", "[copy_count][range][reduce]") {
@@ -237,11 +225,7 @@ TEST_CASE("Minimal copies in reduce_range return path - std::optional (nested lo
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
     // Nested loops path requires copies for accumulator management
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
-    CHECK(CopyMoveCounter::copies == 0);  // Simple/pragma modes don't use multiple accumulators
-#else
     CHECK(CopyMoveCounter::copies == 3);  // ILP mode: one copy per accumulator slot
-#endif
 }
 
 // =============================================================================
@@ -296,11 +280,7 @@ TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]
 
     CHECK(result.value == 6);  // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
-    CHECK(CopyMoveCounter::copies == 0);
-#else
     CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 TEST_CASE("std::optional reduce has minimal copy overhead", "[copy_count][reduce]") {
@@ -314,11 +294,7 @@ TEST_CASE("std::optional reduce has minimal copy overhead", "[copy_count][reduce
 
     CHECK(result.value == 6);  // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
-    CHECK(CopyMoveCounter::copies == 0);
-#else
     CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 // Note: Move-only types require known ops (std::plus<>, etc.) which use
@@ -336,12 +312,8 @@ TEST_CASE("Range-based reduce copy count with plain return", "[copy_count][reduc
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
-    // Custom ops require copies for accumulator init; known ops (std::plus) get zero copies
-#if defined(ILP_MODE_SIMPLE) || defined(ILP_MODE_PRAGMA)
+    // transform_reduce handles accumulator internally - zero copies
     CHECK(CopyMoveCounter::copies == 0);
-#else
-    CHECK(CopyMoveCounter::copies == 3);
-#endif
 }
 
 // =============================================================================
@@ -414,4 +386,4 @@ TEST_CASE("Move-only type works with std::plus<> reduce", "[copy_count][reduce][
     CHECK(result.value == 6);
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

@@ -5,7 +5,7 @@
 #include <exception>
 #include <bit>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // UNUSUAL PATTERNS - Testing weird/rare use cases
@@ -351,4 +351,4 @@ TEST_CASE("Reduce to pair", "[unusual][nonnum]") {
     REQUIRE(result.first == 0);   // Min
     REQUIRE(result.second == 99); // Max
 }
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

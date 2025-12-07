@@ -74,11 +74,9 @@ BENCHMARK_REGISTER_F(SumFixture, StdAccumulate)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
-#if !defined(ILP_MODE_PRAGMA)
 BENCHMARK_REGISTER_F(SumFixture, Handrolled)
     ->Arg(1000)->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
-#endif
 
 BENCHMARK_REGISTER_F(SumFixture, ILP)
     ->Arg(1000)

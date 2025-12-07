@@ -14,7 +14,7 @@
 #include <limits>
 #include <cstdint>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <string>
 
 // =============================================================================
@@ -257,7 +257,7 @@ TEST_CASE("Different element types in vector", "[edge][types]") {
 // Section 7: Control Flow Edge Cases
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Break on first iteration", "[edge][control]") {
     int count = 0;
@@ -576,7 +576,7 @@ TEST_CASE("Large offset range", "[edge][offset]") {
 // Section 18: Reduce with Break
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
     auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(),
@@ -827,4 +827,4 @@ TEST_CASE("All N values 1-8", "[edge][comprehensive]") {
     REQUIRE(sum8 == expected(20));
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

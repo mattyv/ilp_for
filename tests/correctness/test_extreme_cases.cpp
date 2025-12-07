@@ -6,7 +6,7 @@
 #include <array>
 #include <random>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // EXTREME TESTS: Push boundaries even further
@@ -37,7 +37,7 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
     }
 }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
     auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(),
@@ -430,4 +430,4 @@ TEST_CASE("Range = 2^n for various n", "[extreme][pow2]") {
     REQUIRE(s5 == sum(32));
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

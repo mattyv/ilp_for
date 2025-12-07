@@ -91,7 +91,6 @@ if [ -n "$CLANG_CMD" ]; then
     run_benchmark "clang_ilp" "$CLANG_CMD" "-O3 -march=native"
     if [ "$QUICK_MODE" = false ]; then
         run_benchmark "clang_simple" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
-        run_benchmark "clang_pragma" "$CLANG_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
     fi
 fi
 
@@ -99,7 +98,6 @@ if [ -n "$GCC_CMD" ]; then
     run_benchmark "gcc_ilp" "$GCC_CMD" "-O3 -march=native"
     if [ "$QUICK_MODE" = false ]; then
         run_benchmark "gcc_simple" "$GCC_CMD" "-O3 -march=native -DILP_MODE_SIMPLE"
-        run_benchmark "gcc_pragma" "$GCC_CMD" "-O3 -march=native -DILP_MODE_PRAGMA"
     fi
 fi
 

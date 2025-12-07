@@ -1,4 +1,4 @@
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <cstddef>
 #include <span>
 #include "ilp_for.hpp"
@@ -14,4 +14,4 @@ unsigned sum_range_ilp(std::span<const unsigned> data) {
     return result;
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

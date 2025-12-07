@@ -2,7 +2,7 @@
 #include "../../ilp_for.hpp"
 
 // ============== ASM Compare Tests (Unix only - requires asm_compare libs) ==============
-#if !defined(_MSC_VER) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(_MSC_VER) && !defined(ILP_MODE_SIMPLE)
 
 // Hand-rolled declarations
 unsigned sum_plain_handrolled(unsigned n);
@@ -12,7 +12,7 @@ int sum_negative_handrolled(int start, int end);
 
 // ILP declarations
 unsigned sum_plain_ilp(unsigned n);
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 unsigned sum_with_break_ilp(unsigned n, unsigned stop_at);
 #endif
 unsigned sum_odd_ilp(unsigned n);
@@ -33,7 +33,7 @@ TEST_CASE("Plain accumulation", "[basic]") {
     }
 }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 TEST_CASE("Break on condition", "[control]") {
     SECTION("breaks early") {
         REQUIRE(sum_with_break_ilp(100, 50) == sum_with_break_handrolled(100, 50));
@@ -80,9 +80,9 @@ TEST_CASE("Negative range", "[signed]") {
     }
 }
 
-#endif // !_MSC_VER && !ILP_MODE_SUPER_SIMPLE
+#endif // !_MSC_VER && !ILP_MODE_SIMPLE
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     SECTION("find with optional and remainder") {
         // 7 elements with unroll 4: hits cleanup for last 3 elements
@@ -117,5 +117,5 @@ TEST_CASE("FOR loops with remainders hit cleanup", "[cleanup][for]") {
     }
 
 }
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE
 

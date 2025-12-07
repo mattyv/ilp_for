@@ -6,7 +6,7 @@
 #include <climits>
 #include <span>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Auto-selecting reduce sum", "[auto][reduce]") {
     std::vector<int> data(1000);
@@ -176,4 +176,4 @@ TEST_CASE("Different element sizes use different N", "[auto][optimal_N]") {
     }
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

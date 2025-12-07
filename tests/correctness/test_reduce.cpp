@@ -4,7 +4,7 @@
 #include <numeric>
 #include <cstdint>
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce with Break", "[reduce][control]") {
     SECTION("Range-based reduce with break stops correctly") {

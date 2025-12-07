@@ -6,7 +6,7 @@
 - [x] Add ILP_FOR_AUTO and ILP_FOR_RANGE_AUTO macros
 - [x] Remove ILP_FIND* and ILP_REDUCE* macros (use ilp::find, ilp::reduce functions instead)
 - [x] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
-- [ ] Remove simple and use super simple in its place. Rename super simple -> simple
+- [x] Remove old SIMPLE/PRAGMA modes, rename SUPER_SIMPLE -> SIMPLE
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
@@ -21,7 +21,7 @@
 - [x] Add ASan CMake option (`-DENABLE_ASAN=ON`)
 
 ## CI
-- [x] Add all ILP modes (ILP, SIMPLE, PRAGMA) testing to GitHub CI
+- [x] Add all ILP modes (ILP, SIMPLE) testing to GitHub CI
 
 ## Experimental
 - [ ] Experiment with DSL for calculating ILP unroll value for N

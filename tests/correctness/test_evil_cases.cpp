@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <numeric>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // EVIL TEST CASES: Really trying to break things
@@ -144,7 +144,7 @@ TEST_CASE("Reduce with max int init", "[evil][reduce]") {
 // Evil 6: Control flow in every position
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Break at N boundary", "[evil][control]") {
     // N=4, break exactly at position 4
@@ -209,7 +209,7 @@ TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
 // Evil 8: Reduce with early break returns
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
     // Breaking returns nullopt from body, but what about accumulated values?
@@ -496,4 +496,4 @@ TEST_CASE("Nested reduce", "[evil][nested]") {
     REQUIRE(total == 50);
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

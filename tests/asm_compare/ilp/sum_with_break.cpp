@@ -1,5 +1,5 @@
-#if !defined(ILP_MODE_SUPER_SIMPLE)
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -15,4 +15,4 @@ unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
 }
 #endif
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

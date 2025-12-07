@@ -4,7 +4,7 @@
 #include <limits>
 #include <functional>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // ACCUMULATOR BUG INVESTIGATION TESTS
@@ -130,7 +130,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
 // Early Break Tests
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break on first iteration") {
@@ -355,4 +355,4 @@ TEST_CASE("reduce_sum uses correct zero init", "[accumulator][correct]") {
     }
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

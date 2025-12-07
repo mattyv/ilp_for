@@ -12,7 +12,7 @@
 #include <vector>
 #include <cstdint>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // TEST: Overflow Risk Detection
@@ -194,4 +194,4 @@ TEST_CASE("Workaround: Explicit init with larger type", "[overflow][workaround]"
 //   return static_cast<int64_t>(val);  // Use larger accumulator type
 //   return static_cast<double>(val);   // Use floating point
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

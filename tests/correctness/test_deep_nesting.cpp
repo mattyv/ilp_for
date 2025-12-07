@@ -2,7 +2,7 @@
 #include "../../ilp_for.hpp"
 #include <vector>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // DEEP NESTING STRESS TESTS
@@ -217,7 +217,7 @@ TEST_CASE("Nested reduce - matrix sum", "[nesting][reduce]") {
 // Nested with Control Flow
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Nested loops - break inner", "[nesting][control]") {
     int count = 0;
@@ -421,4 +421,4 @@ TEST_CASE("Triangular with accumulation", "[nesting][pattern]") {
     REQUIRE(sum == expected);
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

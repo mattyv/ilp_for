@@ -1,5 +1,5 @@
-#if !defined(ILP_MODE_SUPER_SIMPLE)
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -14,4 +14,4 @@ std::optional<std::size_t> find_value_no_ctrl_ilp(std::span<const int> data, [[m
 }
 #endif
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

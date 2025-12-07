@@ -1,4 +1,4 @@
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <cstddef>
 #include <functional>
 #include "ilp_for.hpp"
@@ -10,4 +10,4 @@ int sum_negative_ilp(int start, int end) {
     });
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

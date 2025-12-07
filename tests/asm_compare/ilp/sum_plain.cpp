@@ -1,4 +1,4 @@
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 #include <cstddef>
 #include "ilp_for.hpp"
 #include "../escape.hpp"
@@ -13,4 +13,4 @@ unsigned sum_plain_ilp(unsigned n) {
     return result;
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

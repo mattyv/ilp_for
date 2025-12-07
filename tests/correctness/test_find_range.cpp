@@ -4,7 +4,7 @@
 #include <span>
 #include <array>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // Helper function using ilp::find_range - returns iterator
 auto ilp_find_range_test(std::span<const int> arr, int target) {
@@ -261,4 +261,4 @@ TEST_CASE("ilp::find_range with complex predicate", "[find_range][predicate]") {
     }
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

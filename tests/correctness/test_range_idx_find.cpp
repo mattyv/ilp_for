@@ -4,7 +4,7 @@
 #include <span>
 #include <optional>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // Hand-rolled find with index
 std::optional<std::size_t> handrolled_find(std::span<const int> arr, int target) {
@@ -166,4 +166,4 @@ TEST_CASE("Find edge cases", "[find][edge]") {
     }
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

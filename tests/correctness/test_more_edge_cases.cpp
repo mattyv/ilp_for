@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <span>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // MORE EDGE CASES - Seeking additional issues
@@ -276,7 +276,7 @@ TEST_CASE("Very long vector iteration - overflow bug", "[bug][overflow]") {
 // Control Flow in Last Element
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Break on exactly last element", "[edge][control]") {
     int sum = 0;
@@ -381,4 +381,4 @@ TEST_CASE("Return type preservation", "[edge][types]") {
     }
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

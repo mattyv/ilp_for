@@ -4,7 +4,7 @@
 #include <numeric>
 #include <cstdint>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 using namespace ilp;
 
@@ -217,7 +217,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         REQUIRE(sum == 5050);
     }
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
     SECTION("for_loop with return type search") {
         std::vector<int> data(100);
         std::iota(data.begin(), data.end(), 0);
@@ -269,4 +269,4 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
 #endif
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

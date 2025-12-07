@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string>
 
-#if !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // TEST: Dumb Stuff Users Might Do
@@ -41,7 +41,7 @@ TEST_CASE("Return sentinel correctly", "[mistake][sentinel]") {
 // Mistake 3: Using wrong loop type for the task
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Using SIMPLE when need control flow", "[mistake][type]") {
     // User tries to "break" in a SIMPLE loop - this would be a compile error
@@ -533,7 +533,7 @@ TEST_CASE("Need index but using range loop", "[mistake][index]") {
 // Mistake 37: Misunderstanding return vs break
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA) && !defined(ILP_MODE_SUPER_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Return vs break confusion", "[mistake][control]") {
     // ILP_BREAK exits loop, ILP_RETURN exits function
@@ -599,4 +599,4 @@ TEST_CASE("Accumulator combination order", "[mistake][order]") {
     REQUIRE(result == 190);  // Sum is always correct
 }
 
-#endif // !ILP_MODE_SUPER_SIMPLE
+#endif // !ILP_MODE_SIMPLE

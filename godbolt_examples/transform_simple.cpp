@@ -1,72 +1,59 @@
 // Comparison: Simple in-place transformation
-// Demonstrates loop without control flow (SIMPLE variant)
+// Demonstrates ILP_MODE_SIMPLE - macros expand to plain for-loops
+//
+// This is a self-contained example for Godbolt Compiler Explorer.
+// The implementation below is extracted LINE-FOR-LINE from the ilp_for library.
 
 #include <vector>
 #include <cstddef>
 #include <concepts>
 
-// Minimal ILP_FOR implementation for this example
+// =============================================================================
+// Extracted from ilp_for library (LINE-FOR-LINE EXACT COPY)
+// =============================================================================
+
 namespace ilp {
-namespace detail {
 
-template<std::size_t N>
-[[deprecated("Unroll factor N > 16 is likely counterproductive")]]
-constexpr void warn_large_unroll_factor() {}
+// From detail/iota.hpp lines 7-25:
+template<std::integral T>
+struct iota_view {
+    T first, last;
 
-template<std::size_t N>
-constexpr void validate_unroll_factor() {
-    static_assert(N >= 1, "Unroll factor N must be at least 1");
-    if constexpr (N > 16) { warn_large_unroll_factor<N>(); }
-}
+    struct iterator {
+        T value;
+        constexpr T operator*() const { return value; }
+        constexpr iterator& operator++() { ++value; return *this; }
+        constexpr bool operator!=(iterator o) const { return value != o.value; }
+    };
 
-template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
-void for_loop_simple_impl(T start, T end, F&& body) {
-    validate_unroll_factor<N>();
-    T i = start;
+    constexpr iterator begin() const { return {first}; }
+    constexpr iterator end() const { return {last}; }
+};
 
-    // Main unrolled loop - nested loop pattern enables universal vectorization
-    for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-        for (std::size_t j = 0; j < N; ++j) {
-            body(i + static_cast<T>(j));
-        }
-    }
-
-    for (; i < end; ++i) {
-        body(i);
-    }
-}
-
-struct For_Context_USE_ILP_END {};
-
-} // namespace detail
-
-template<std::size_t N, std::integral T, typename F>
-    requires std::invocable<F, T>
-void for_loop_simple(T start, T end, F&& body) {
-    detail::for_loop_simple_impl<N>(start, end, std::forward<F>(body));
-}
+template<std::integral T>
+constexpr iota_view<T> iota(T start, T end) { return {start, end}; }
 
 } // namespace ilp
 
-#define ILP_FOR(ret_type, loop_var_decl, start, end, N) \
-    [&]() { ::ilp::for_loop_simple<N>(start, end, [&, _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}](loop_var_decl)
+// From detail/macros_simple.hpp lines 8-20:
+#define ILP_FOR(loop_var_decl, start, end, N) \
+    for (loop_var_decl : ::ilp::iota((start), (end)))
 
-#define ILP_END ); }()
+#define ILP_END
 
-// ============================================================
-// ILP_FOR Version - Using public macro API
-// ============================================================
+// =============================================================================
+// ILP_FOR Version - Using public macro API (SIMPLE mode)
+// =============================================================================
 
 void transform_ilp(std::vector<int>& data) {
-    ILP_FOR(void, auto i, 0uz, data.size(), 4) {
+    ILP_FOR(auto i, 0uz, data.size(), 4) {
         data[i] = data[i] * 2 + 1;
     } ILP_END;
 }
 
-// ============================================================
+// =============================================================================
 // Hand-rolled Version - Unrolled 4x
-// ============================================================
+// =============================================================================
 
 void transform_handrolled(std::vector<int>& data) {
     size_t i = 0;
@@ -83,9 +70,9 @@ void transform_handrolled(std::vector<int>& data) {
     }
 }
 
-// ============================================================
+// =============================================================================
 // Simple Version - Baseline
-// ============================================================
+// =============================================================================
 
 void transform_simple(std::vector<int>& data) {
     for (size_t i = 0; i < data.size(); ++i) {
@@ -101,7 +88,7 @@ int main() {
     std::vector<int> data2(n);
     std::vector<int> data3(n);
 
-    for (volatile size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         data1[i] = data2[i] = data3[i] = i;
     }
 

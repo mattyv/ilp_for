@@ -531,27 +531,8 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
             return out;
         }(std::make_index_sequence<N>{});
     } else {
-        // Plain value path - no early break, SIMD friendly
-        using R = ResultT;
-        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
-
-        std::size_t i = 0;
-
-        for (; i + N <= size; i += N) {
-            for (std::size_t j = 0; j < N; ++j) {
-                accs[j] = op(accs[j], body(ptr[i + j]));
-            }
-        }
-
-        for (; i < size; ++i) {
-            accs[0] = op(accs[0], body(ptr[i]));
-        }
-
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R out = std::forward<Init>(init);
-            ((out = op(out, accs[Is])), ...);
-            return out;
-        }(std::make_index_sequence<N>{});
+        // Plain value → std::transform_reduce (SIMD vectorization!)
+        return std::transform_reduce(ptr, ptr + size, std::forward<Init>(init), op, body);
     }
 }
 
@@ -600,27 +581,14 @@ auto reduce_range_impl(Range&& range, Init&& init, BinaryOp op, F&& body) {
             return out;
         }(std::make_index_sequence<N>{});
     } else {
-        // Plain value path - no early break, SIMD friendly
-        using R = ResultT;
-        auto accs = make_accumulators<N, BinaryOp, R>(op, std::forward<Init>(init));
-
-        std::size_t i = 0;
-
-        for (; i + N <= size; i += N) {
-            for (std::size_t j = 0; j < N; ++j) {
-                accs[j] = op(accs[j], body(it[i + j]));
-            }
-        }
-
-        for (; i < size; ++i) {
-            accs[0] = op(accs[0], body(it[i]));
-        }
-
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            R out = std::forward<Init>(init);
-            ((out = op(out, accs[Is])), ...);
-            return out;
-        }(std::make_index_sequence<N>{});
+        // Plain value → std::transform_reduce (SIMD vectorization!)
+        return std::transform_reduce(
+            std::ranges::begin(range),
+            std::ranges::end(range),
+            std::forward<Init>(init),
+            op,
+            body
+        );
     }
 }
 
