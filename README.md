@@ -17,14 +17,15 @@ The library unrolls your loop body N times, allowing the CPU to execute multiple
 
 Imagine you want to write:
 ```cpp
-for(int i; i<n; ++i)
+for (int i = 0; i < n; ++i)
 {
     if (data[i] == target) break;
     process(data[i]);
 }
 ```
-...where processes() is an inlineable small operation function.<br>
-But you realise your compiler is not unrolling the loop because you put the if ... break statement in, so you write the bellow knowing that most hardwar can execute your process() calcultion 4 at at time using ILP.
+...where process() is an inlineable small operation function.
+
+But you realise your compiler is not unrolling the loop because of the `if ... break` statement, so you write the below knowing that most hardware can execute your process() calculation 4 at a time using ILP.
 ```cpp
 size_t i = 0;
 for (; i + 4 <= n; i += 4) {
@@ -46,17 +47,19 @@ for (; i < n; ++i) {                // Remainder
     process(data[i]);
 }
 ```
-.. but this is tedius!<br>
-This is where ILP_FOR macro helps. So all you need to write is ...
+...but this is tedious!
+
+This is where ILP_FOR macro helps. All you need to write is:
 ```cpp
 ILP_FOR(auto i, 0, n, 4) {
     if (data[i] == target) ILP_BREAK;
     process(data[i]);
 } ILP_END;
 ```
-.. which effectively generates the above unrolled code. <br>
-<br>
-The library also has ILP_FOR_AUTO veriations which aim to simplify the selection of the unroll factor for you hardware making portability a little more managable (see below).
+...which effectively generates the above unrolled code.
+
+The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below).
+
 ---
 
 ## Quick Start
