@@ -27,3 +27,6 @@
 
 ## Experimental
 - [ ] Experiment with DSL for calculating ILP unroll value for N
+
+## Guts
+- [ ] AnyStorage with fixed buffer seems odd. 
