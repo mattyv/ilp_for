@@ -1,19 +1,45 @@
 # Assembly Examples
 
-View side-by-side comparisons of ILP_FOR implementations on Compiler Explorer (Godbolt).
+View side-by-side comparisons on Compiler Explorer (Godbolt).
 
 Each example shows three versions:
-- **ILP_FOR**: Multi-accumulator pattern with parallel operations
-- **Hand-rolled**: Manual 4x unroll with sequential dependencies
+- **ILP**: Multi-accumulator pattern with parallel operations
+- **Hand-rolled**: Manual 4x unroll for comparison
 - **Simple**: Baseline single-iteration loop
-
-Compare assembly output across architectures to see the optimization differences.
 
 ---
 
+# ILP_FOR Macro
+
+The primary API for loops with `break`, `continue`, or `return`.
+
+## Loop with Break
+
+ILP_FOR with ILP_BREAK showing early exit from unrolled loop
+
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/4cvM78YYd) | [x86-64 GCC](https://godbolt.org/z/ds9rafdeK) | [ARM64](https://godbolt.org/z/TPrzccqM9)
+
+[Source code](../godbolt_examples/loop_with_break.cpp)
+
+---
+
+## Loop with Return
+
+ILP_FOR with ILP_RETURN to exit enclosing function from loop
+
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/jq756WEYx) | [x86-64 GCC](https://godbolt.org/z/xz9ovq454) | [ARM64](https://godbolt.org/z/hGvx6xaez)
+
+[Source code](../godbolt_examples/loop_with_return.cpp)
+
+---
+
+# Function API
+
+Alternative `std::`-style functions with early exit support.
+
 ## Find First Match
 
-Early-exit search comparing ILP multi-accumulator vs sequential checks
+ilp::find for early-exit search (std::find alternative)
 
 **View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/9GeTbxPhh) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
 
@@ -23,7 +49,7 @@ Early-exit search comparing ILP multi-accumulator vs sequential checks
 
 ## Parallel Minimum
 
-Parallel accumulator reduce breaking dependency chains
+ilp::reduce breaking dependency chains (std::min_element alternative)
 
 **View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/s3cY9qaEo) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
 
@@ -33,21 +59,11 @@ Parallel accumulator reduce breaking dependency chains
 
 ## Sum with Early Exit
 
-Reduce with break condition showing control flow handling
+ilp::reduce with early termination (std::accumulate alternative)
 
 **View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/Webz8EfPf) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
 
 [Source code](../godbolt_examples/sum_with_break.cpp)
-
----
-
-## Simple Transform
-
-In-place transformation without control flow (SIMPLE variant)
-
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/o7qqe4dz8) | [x86-64 GCC](https://godbolt.org/z/TMsf9GM1W) | [ARM64](https://godbolt.org/z/oz64r4411)
-
-[Source code](../godbolt_examples/transform_simple.cpp)
 
 ---
 

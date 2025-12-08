@@ -52,62 +52,6 @@ The unrolled comparisons have no data dependencies, so out-of-order CPUs can exe
 
 **[View Assembly Examples](docs/EXAMPLES.md)** - Compare ILP vs hand-rolled code on Compiler Explorer
 
-### Find First Match
-
-```cpp
-// Returns index, or end value (sentinel) if not found
-auto idx = ilp::find<4>(0, data.size(), [&](auto i, auto) {
-    return data[i] == target;
-});
-
-if (idx != data.size()) {
-    std::cout << "Found at " << idx << "\n";
-}
-
-// Range version - returns iterator
-auto it = ilp::find_range<4>(data, [&](auto&& val) {
-    return val == target;
-});
-
-// Auto-selecting optimal N
-auto it = ilp::find_range_auto(data, [&](auto&& val) {
-    return val == target;
-});
-```
-
-### Sum / Reduce
-
-```cpp
-// Sum with explicit N
-int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
-    return data[i];
-});
-
-// Range sum with auto-selected N
-int sum = ilp::reduce_range_auto(data, 0, std::plus<>{}, [&](auto&& val) {
-    return val;
-});
-
-// Min/Max
-int min_val = ilp::reduce_range<4>(
-    data,
-    std::numeric_limits<int>::max(),
-    [](int a, int b) { return std::min(a, b); },
-    [&](auto&& val) { return val; }
-);
-```
-
-### Reduce with Early Exit
-
-```cpp
-// Use std::optional with nullopt for early termination
-int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
-    [&](auto i) -> std::optional<int> {
-        if (data[i] < 0) return std::nullopt;  // Stop reduction
-        return data[i];
-    });
-```
-
 ### Loop with Break/Continue
 
 ```cpp
@@ -130,11 +74,37 @@ int find_index(const std::vector<int>& data, int target) {
 }
 ```
 
+### Function API (Alternative)
+
+For `std::`-style functions with early exit support:
+
+```cpp
+// Find - returns index (or end if not found)
+auto idx = ilp::find<4>(0, data.size(), [&](auto i, auto) {
+    return data[i] == target;
+});
+
+// Reduce with early exit via std::optional
+int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
+    [&](auto i) -> std::optional<int> {
+        if (data[i] < 0) return std::nullopt;  // Stop
+        return data[i];
+    });
+
+// Parallel min (breaks dependency chain)
+int min_val = ilp::reduce_range<4>(
+    data,
+    std::numeric_limits<int>::max(),
+    [](int a, int b) { return std::min(a, b); },
+    [&](auto&& val) { return val; }
+);
+```
+
 ---
 
 ## API Reference
 
-### Loop Macros
+### Loop Macros 
 
 | Macro | Description |
 |-------|-------------|
@@ -145,26 +115,6 @@ int find_index(const std::vector<int>& data, int target) {
 
 End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 
-### Find Functions
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `ilp::find<N>(start, end, body)` | Index (or end if not found) | Find first match by index |
-| `ilp::find_auto(start, end, body)` | Index (or end if not found) | Auto-selects optimal N |
-| `ilp::find_range<N>(range, body)` | Iterator (or end()) | Find in range |
-| `ilp::find_range_auto(range, body)` | Iterator (or end()) | Auto-selects optimal N |
-| `ilp::find_range_idx<N>(range, body)` | Iterator (or end()) | Find in range with index |
-| `ilp::find_range_idx_auto(range, body)` | Iterator (or end()) | Auto-selects optimal N |
-
-### Reduce Functions
-
-| Function | Description |
-|----------|-------------|
-| `ilp::reduce<N>(start, end, init, op, body)` | Index-based reduce |
-| `ilp::reduce_auto(start, end, init, op, body)` | Auto-selects optimal N |
-| `ilp::reduce_range<N>(range, init, op, body)` | Range-based reduce |
-| `ilp::reduce_range_auto(range, init, op, body)` | Auto-selects optimal N |
-
 ### Control Flow
 
 | Macro/Function | Use In | Description |
@@ -174,6 +124,17 @@ End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 | `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
 | `-> std::optional<T>` | Reduce body | Return type for early exit support |
 | `return std::nullopt` | Reduce body | Exit early from reduction |
+
+### Function API (Alternative)
+
+| Function | Description |
+|----------|-------------|
+| `ilp::find<N>(start, end, body)` | Find first match, returns index |
+| `ilp::find_range<N>(range, body)` | Find in range, returns iterator |
+| `ilp::reduce<N>(start, end, init, op, body)` | Reduce with optional early exit |
+| `ilp::reduce_range<N>(range, init, op, body)` | Range reduce |
+
+All have `_auto` variants that select optimal N automatically.
 
 ---
 

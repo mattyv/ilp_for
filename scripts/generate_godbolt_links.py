@@ -30,25 +30,32 @@ COMPILERS = {
 }
 
 EXAMPLES = [
+    # ILP_FOR macro examples (primary)
+    {
+        'file': 'loop_with_break.cpp',
+        'title': 'Loop with Break',
+        'description': 'ILP_FOR with ILP_BREAK showing early exit from unrolled loop'
+    },
+    {
+        'file': 'loop_with_return.cpp',
+        'title': 'Loop with Return',
+        'description': 'ILP_FOR with ILP_RETURN to exit enclosing function from loop'
+    },
+    # ilp::find and ilp::reduce function examples (auxiliary)
     {
         'file': 'find_first_match.cpp',
         'title': 'Find First Match',
-        'description': 'Early-exit search comparing ILP multi-accumulator vs sequential checks'
+        'description': 'ilp::find for early-exit search (std::find alternative)'
     },
     {
         'file': 'parallel_min.cpp',
         'title': 'Parallel Minimum',
-        'description': 'Parallel accumulator reduce breaking dependency chains'
+        'description': 'ilp::reduce breaking dependency chains (std::min_element alternative)'
     },
     {
         'file': 'sum_with_break.cpp',
         'title': 'Sum with Early Exit',
-        'description': 'Reduce with break condition showing control flow handling'
-    },
-    {
-        'file': 'transform_simple.cpp',
-        'title': 'Simple Transform',
-        'description': 'In-place transformation without control flow (SIMPLE variant)'
+        'description': 'ilp::reduce with early termination (std::accumulate alternative)'
     }
 ]
 
@@ -375,20 +382,47 @@ def generate_markdown(links: Dict[str, Dict[str, str]]) -> str:
     """Generate EXAMPLES.md content with links."""
     md = """# Assembly Examples
 
-View side-by-side comparisons of ILP_FOR implementations on Compiler Explorer (Godbolt).
+View side-by-side comparisons on Compiler Explorer (Godbolt).
 
 Each example shows three versions:
-- **ILP_FOR**: Multi-accumulator pattern with parallel operations
-- **Hand-rolled**: Manual 4x unroll with sequential dependencies
+- **ILP**: Multi-accumulator pattern with parallel operations
+- **Hand-rolled**: Manual 4x unroll for comparison
 - **Simple**: Baseline single-iteration loop
-
-Compare assembly output across architectures to see the optimization differences.
 
 ---
 
+# ILP_FOR Macro
+
+The primary API for loops with `break`, `continue`, or `return`.
+
 """
 
-    for example in EXAMPLES:
+    # ILP_FOR examples (first two)
+    for example in EXAMPLES[:2]:
+        file_name = example['file']
+        if file_name not in links or not links[file_name]:
+            continue
+
+        md += f"## {example['title']}\n\n"
+        md += f"{example['description']}\n\n"
+
+        arch_links = links[file_name]
+        link_parts = []
+        for arch, link in arch_links.items():
+            link_parts.append(f"[{arch}]({link})")
+
+        md += f"**View on Godbolt:** {' | '.join(link_parts)}\n\n"
+        md += f"[Source code](../godbolt_examples/{file_name})\n\n"
+        md += "---\n\n"
+
+    md += """# Function API
+
+Alternative `std::`-style functions with early exit support.
+
+"""
+
+    # Function API examples (remaining)
+    for example in EXAMPLES[2:]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue

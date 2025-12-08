@@ -1,4 +1,14 @@
 {
+  "loop_with_break.cpp": {
+    "x86-64 Clang": "https://godbolt.org/z/4cvM78YYd",
+    "x86-64 GCC": "https://godbolt.org/z/ds9rafdeK",
+    "ARM64": "https://godbolt.org/z/TPrzccqM9"
+  },
+  "loop_with_return.cpp": {
+    "x86-64 Clang": "https://godbolt.org/z/jq756WEYx",
+    "x86-64 GCC": "https://godbolt.org/z/xz9ovq454",
+    "ARM64": "https://godbolt.org/z/hGvx6xaez"
+  },
   "find_first_match.cpp": {
     "x86-64 Clang": "https://godbolt.org/z/9GeTbxPhh",
     "x86-64 GCC": "https://godbolt.org/z/GbhM5njcv",
@@ -13,10 +23,5 @@
     "x86-64 Clang": "https://godbolt.org/z/Webz8EfPf",
     "x86-64 GCC": "https://godbolt.org/z/cqMerK4hG",
     "ARM64": "https://godbolt.org/z/K716KaYd5"
-  },
-  "transform_simple.cpp": {
-    "x86-64 Clang": "https://godbolt.org/z/o7qqe4dz8",
-    "x86-64 GCC": "https://godbolt.org/z/TMsf9GM1W",
-    "ARM64": "https://godbolt.org/z/oz64r4411"
   }
 }
