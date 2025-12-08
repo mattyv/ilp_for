@@ -62,6 +62,18 @@ The library also has `ILP_FOR_AUTO` variations which simplify the selection of t
 
 ---
 
+## Contents
+
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [Important Notes](#important-notes)
+- [When to Use ILP](#when-to-use-ilp)
+- [Advanced](#advanced)
+- [Test Coverage](#test-coverage)
+- [Requirements](#requirements)
+
+---
+
 ## Quick Start
 
 **[View Assembly Examples](docs/EXAMPLES.md)** - Compare ILP vs hand-rolled code on Compiler Explorer
