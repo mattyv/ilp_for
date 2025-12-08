@@ -15,7 +15,7 @@ Compare assembly output across architectures to see the optimization differences
 
 Early-exit search comparing ILP multi-accumulator vs sequential checks
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/jrTb1GG4T) | [x86-64 GCC](https://godbolt.org/z/qY3dcd4EE) | [ARM64](https://godbolt.org/z/nbde8oKvP)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/9GeTbxPhh) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
 
 [Source code](../godbolt_examples/find_first_match.cpp)
 
@@ -25,7 +25,7 @@ Early-exit search comparing ILP multi-accumulator vs sequential checks
 
 Parallel accumulator reduce breaking dependency chains
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/4Ko7qfh9E) | [x86-64 GCC](https://godbolt.org/z/94c1G6TGr) | [ARM64](https://godbolt.org/z/5EcEnfodb)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/s3cY9qaEo) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
 
 [Source code](../godbolt_examples/parallel_min.cpp)
 
@@ -35,7 +35,7 @@ Parallel accumulator reduce breaking dependency chains
 
 Reduce with break condition showing control flow handling
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/97j8ejMYz) | [x86-64 GCC](https://godbolt.org/z/7bx9esxr8) | [ARM64](https://godbolt.org/z/fYP7a6ajb)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/Webz8EfPf) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
 
 [Source code](../godbolt_examples/sum_with_break.cpp)
 
@@ -45,7 +45,7 @@ Reduce with break condition showing control flow handling
 
 In-place transformation without control flow (SIMPLE variant)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/dq5f9bx3r) | [x86-64 GCC](https://godbolt.org/z/3fs1Wjh9o) | [ARM64](https://godbolt.org/z/n89T56raP)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/o7qqe4dz8) | [x86-64 GCC](https://godbolt.org/z/TMsf9GM1W) | [ARM64](https://godbolt.org/z/oz64r4411)
 
 [Source code](../godbolt_examples/transform_simple.cpp)
 

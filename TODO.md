@@ -11,11 +11,11 @@
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
 - [x] Add ASan (Address Sanitizer) to test builds
-- [ ] Update coverage report
-- [ ] Regen godbolt links
+- [x] Update coverage report
+- [x] Regen godbolt links
 - [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
 - [x] use clang-format
-- [ ] Get rid of all the silly LLM comments and formatting.
+- [x] Get rid of all the silly LLM comments and formatting.
 - [ ] code review with gemini 3
 
 ## Build
