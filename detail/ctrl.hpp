@@ -87,15 +87,15 @@ namespace ilp {
             AnyStorage& s;
 
 #if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC needs explicit overloads - templated conversion operators
-            // don't deduce properly in return statements
+            // MSVC needs explicit overloads without && qualifier
+            // templated conversion operators don't deduce properly in return statements
             template<typename T>
-            inline operator std::optional<T>() && {
+            operator std::optional<T>() {
                 return std::optional<T>(s.template extract<T>());
             }
 
-            template<typename R>
-            inline operator R() && {
+            template<typename R, std::enable_if_t<!detail::is_optional_v<R>, int> = 0>
+            operator R() {
                 return s.template extract<R>();
             }
 #else
