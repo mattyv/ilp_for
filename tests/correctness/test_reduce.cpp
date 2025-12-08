@@ -185,21 +185,23 @@ TEST_CASE("Cleanup loops with remainders", "[reduce][cleanup]") {
     }
 
     SECTION("FOR_RANGE with return type cleanup loop") {
-        auto helper = [](const std::vector<int>& data) -> std::optional<int> {
+        // Note: Using int return type instead of std::optional<int> because
+        // MSVC cannot deduce template parameters for conversion operators in return statements
+        auto helper = [](const std::vector<int>& data) -> int {
             ILP_FOR_RANGE(auto&& val, data, 4) {
                 if (val == 7) {
                     ILP_RETURN(val * 10);
                 }
             }
             ILP_END_RETURN;
-            return std::nullopt;
+            return -1; // sentinel for not found
         };
 
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};
         auto result = helper(data);
 
-        REQUIRE(result.has_value());
-        REQUIRE(result.value() == 70);
+        REQUIRE(result != -1);
+        REQUIRE(result == 70);
     }
 }
 
