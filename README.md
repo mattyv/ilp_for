@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. contain `break`, `continue`, `return`), where compilers typically cannot unroll.
+Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`), where compilers typically cannot unroll.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -15,14 +15,17 @@ Compile-time loop unrolling for complex or early exit loops (i.e. contain `break
 
 The library unrolls your loop body N times, allowing the CPU to execute multiple iterations in parallel:
 
+Imagine you want to write:
 ```cpp
-// Your code
-ILP_FOR(auto i, 0, n, 4) {
-    if (data[i] == target) ILP_BREAK;
+for(int i; i<n; ++i)
+{
+    if (data[i] == target) break;
     process(data[i]);
-} ILP_END;
-
-// Conceptually expands to:
+}
+```
+...where processes() is an inlineable small operation function.<br>
+But you realise your compiler is not unrolling the loop because you put the if ... break statement in, so you write the bellow knowing that most hardwar can execute your process() calcultion 4 at at time using ILP.
+```cpp
 size_t i = 0;
 for (; i + 4 <= n; i += 4) {
     bool b0 = data[i+0] == target;  // Parallel evaluation
@@ -43,9 +46,17 @@ for (; i < n; ++i) {                // Remainder
     process(data[i]);
 }
 ```
-
-The unrolled comparisons have no data dependencies, so out-of-order CPUs can execute them simultaneously while waiting for memory.
-
+.. but this is tedius!<br>
+This is where ILP_FOR macro helps. So all you need to write is ...
+```cpp
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] == target) ILP_BREAK;
+    process(data[i]);
+} ILP_END;
+```
+.. which effectively generates the above unrolled code. <br>
+<br>
+The library also has ILP_FOR_AUTO veriations which aim to simplify the selection of the unroll factor for you hardware making portability a little more managable (see below).
 ---
 
 ## Quick Start
