@@ -2,79 +2,68 @@
 
 This library's goal is not to be a performance library, but to ensure performance doesn't stop you from using it. The patterns here generate efficient code comparable to hand-written unrolled loops.
 
-## Benchmarks
+## ILP_FOR Benchmarks
 
 Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
-| Operation | std | ILP | Speedup |
-|-----------|-----|-----|---------|
-| Min | 3.47ms | 0.58ms | **6.0x** |
-| Any-of | 3.96ms | 1.86ms | **2.1x** |
-| Sum with break | 1.80ms | 1.11ms | **1.6x** |
-| Find | 1.86ms | 1.86ms | ~1.0x |
+| Loop Type | Simple | ILP | Speedup |
+|-----------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.49ms | 1.15ms | **1.29x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.66ms | 0.94ms | **1.77x** |
 
-### Simple Reductions
+### Why ILP_RETURN is Faster
 
-| Operation | Handrolled | ILP | Result |
-|-----------|------------|-----|--------|
-| Sum | 0.75ms | 0.75ms | **equivalent** |
-
-Modern compilers auto-vectorize simple sums effectively. ILP matches hand-optimized code.
-
-## Early Return Performance
-
-The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type.
-
-### Bool Mode (Fastest)
-
-Return `bool` to get the iterator to the first match. This avoids `csel` (conditional select) dependencies:
+`ILP_RETURN` allows the compiler to hoist comparisons before the conditional return logic:
 
 ```cpp
-// Matches std::find performance
-auto it = ilp::find_range_auto(data, [&](auto&& val) {
-    return val == target;  // returns bool
-});
-// Returns: iterator - points to match, or end() if not found
-```
-
-### Optional Mode (General Purpose)
-
-Return early using `ILP_RETURN` (returns from enclosing function):
-
-```cpp
-std::optional<int> find_expensive() {
-    ILP_FOR(auto i, 0uz, data.size(), 4) {
-        if (expensive_check(data[i])) {
-            ILP_RETURN(compute(data[i]));  // Returns from find_expensive()
-        }
-    } ILP_END_RETURN;
-    return std::nullopt;  // Not found
-}
-```
-
-### Why Bool Mode is Faster
-
-When using `ILP_FOR` with return type, the compiler generates `csel` instructions:
-
-```cpp
-// Slower - generates csel dependency chain
-ILP_FOR(auto i, 0uz, n, 4) {
+// ILP pattern - comparisons run in parallel
+ILP_FOR(auto i, 0, n, 4) {
     if (data[i] == target) ILP_RETURN(i);
 } ILP_END_RETURN;
+
+// Conceptually:
+bool b0 = data[i+0] == target;  // parallel
+bool b1 = data[i+1] == target;  // parallel
+bool b2 = data[i+2] == target;  // parallel
+bool b3 = data[i+3] == target;  // parallel
+// then sequential check and return
 ```
 
-Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
+## Function API Benchmarks
 
-With `ilp::find`, comparisons run in parallel without dependencies:
+For `ilp::find` and `ilp::reduce` (alternative API):
+
+| Operation | std | ILP | Speedup |
+|-----------|-----|-----|---------|
+| Min (`ilp::reduce`) | 3.47ms | 0.60ms | **5.8x** |
+| Sum with break | 1.81ms | 1.11ms | **1.6x** |
+| Any-of | 1.99ms | 0.93ms | **2.1x** |
+| Find | 0.93ms | 0.93ms | ~1.0x |
+
+The 5.8x speedup on min comes from breaking the dependency chain - `std::min_element` must compare sequentially, while `ilp::reduce` maintains N independent accumulators.
+
+## When ILP Helps
+
+**Good candidates:**
+- Loops with early exit (`ILP_BREAK`, `ILP_RETURN`)
+- Operations with dependency chains (min, max)
+- Search operations where comparisons can run in parallel
+
+**Skip ILP for:**
+- Simple sums without early exit - compilers auto-vectorize better
+- Operations where the compiler already optimizes well
 
 ```cpp
-// Fast - parallel comparisons, no csel
-size_t idx = ilp::find<4>(0uz, n, [&](auto i, auto) {
-    return data[i] == target;
-});
+// Use ILP - early exit benefits from parallel evaluation
+ILP_FOR(auto i, 0, n, 4) {
+    if (expensive_check(data[i])) ILP_RETURN(result);
+} ILP_END_RETURN;
+
+// Skip ILP - compiler auto-vectorizes better
+int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
 
-## Why Not Just Use `#pragma unroll`?
+## Why Not `#pragma unroll`?
 
 Pragma unroll duplicates loop bodies but doesn't parallelize conditional checks:
 
