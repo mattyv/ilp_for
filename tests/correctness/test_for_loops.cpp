@@ -157,7 +157,7 @@ TEST_CASE("ILP_FOR_RANGE basic", "[for_range][basic]") {
 TEST_CASE("ILP_FOR_AUTO basic", "[for_auto][basic]") {
     SECTION("auto N selection") {
         int sum = 0;
-        ILP_FOR_AUTO(auto i, 0, 10) {
+        ILP_FOR_AUTO(auto i, 0, 10, Sum) {
             sum += i;
         }
         ILP_END;
@@ -169,7 +169,7 @@ TEST_CASE("ILP_FOR_RANGE_AUTO basic", "[for_range_auto][basic]") {
     SECTION("auto N with range") {
         std::vector<int> data = {10, 20, 30, 40, 50};
         int sum = 0;
-        ILP_FOR_RANGE_AUTO(auto val, data) {
+        ILP_FOR_RANGE_AUTO(auto val, data, Sum) {
             sum += val;
         }
         ILP_END;
@@ -220,7 +220,7 @@ TEST_CASE("ILP_FOR with ILP_RETURN", "[for][return]") {
 
     SECTION("ILP_RETURN with AUTO loops") {
         auto find_first_even = []() -> int {
-            ILP_FOR_AUTO(auto i, 1, 100) {
+            ILP_FOR_AUTO(auto i, 1, 100, Search) {
                 if (i % 2 == 0)
                     ILP_RETURN(i);
             }

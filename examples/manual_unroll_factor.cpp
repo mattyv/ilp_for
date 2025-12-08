@@ -27,7 +27,7 @@ double dot_product_tuned(const double* a, const double* b, size_t n) {
 // Compare AUTO vs manual for demonstration
 void compare_approaches(const std::vector<int>& data) {
     // AUTO: lets the library choose based on CPU profile and element size
-    auto sum_auto = ilp::reduce_range_auto(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto sum_auto = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     // Manual N=4: explicit control
     auto sum_manual = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });

@@ -63,8 +63,8 @@ BENCHMARK_DEFINE_F(SumFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(SumFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        uint64_t sum =
-            ilp::reduce_range_auto(arr, 0ull, std::plus<>{}, [](auto&& val) { return static_cast<uint64_t>(val); });
+        uint64_t sum = ilp::reduce_range_auto<ilp::LoopType::Sum>(
+            arr, 0ull, std::plus<>{}, [](auto&& val) { return static_cast<uint64_t>(val); });
         benchmark::DoNotOptimize(sum);
     }
     state.SetItemsProcessed(state.iterations() * data.size());
@@ -276,7 +276,7 @@ BENCHMARK_DEFINE_F(MinFixture, Handrolled)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(MinFixture, ILP)(benchmark::State& state) {
     for (auto _ : state) {
         std::span<const uint32_t> arr(data);
-        auto min_val = ilp::reduce_range_auto(
+        auto min_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
             arr, std::numeric_limits<uint32_t>::max(), [](auto a, auto b) { return a < b ? a : b; },
             [](auto&& val) { return val; });
         benchmark::DoNotOptimize(min_val);

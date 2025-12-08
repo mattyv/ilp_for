@@ -270,7 +270,8 @@ TEST_CASE("Move-only type works with ILP_FOR macro", "[copy_count][macro][compil
 TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, add_counters, [&](auto i) { return CopyMoveCounter(i); });
+    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 4, CopyMoveCounter{0}, add_counters,
+                                                       [&](auto i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6); // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -280,12 +281,12 @@ TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]
 TEST_CASE("std::optional reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result =
-        ilp::reduce_auto(0, 10, CopyMoveCounter{0}, add_counters, [&](auto i) -> std::optional<CopyMoveCounter> {
-            if (i >= 4)
-                return std::nullopt;
-            return CopyMoveCounter(i);
-        });
+    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 10, CopyMoveCounter{0}, add_counters,
+                                                       [&](auto i) -> std::optional<CopyMoveCounter> {
+                                                           if (i >= 4)
+                                                               return std::nullopt;
+                                                           return CopyMoveCounter(i);
+                                                       });
 
     CHECK(result.value == 6); // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -301,8 +302,8 @@ TEST_CASE("Range-based reduce copy count with plain return", "[copy_count][reduc
     std::vector<int> data = {0, 1, 2, 3};
 
     // Plain return uses transform_reduce → 0 copies
-    auto result =
-        ilp::reduce_range_auto(data, CopyMoveCounter{0}, add_counters, [&](auto val) { return CopyMoveCounter(val); });
+    auto result = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, CopyMoveCounter{0}, add_counters,
+                                                             [&](auto val) { return CopyMoveCounter(val); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -340,7 +341,8 @@ TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_co
 TEST_CASE("Zero copies with plain return and std::plus<>", "[copy_count][reduce][zero_copy]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto(0, 4, CopyMoveCounter{0}, std::plus<>{}, [&](auto i) { return CopyMoveCounter(i); });
+    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 4, CopyMoveCounter{0}, std::plus<>{},
+                                                       [&](auto i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);

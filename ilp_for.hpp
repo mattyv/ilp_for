@@ -51,16 +51,16 @@ namespace ilp::detail {
         return ::ilp::for_loop_range<N>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
-#define ILP_FOR_AUTO(loop_var_decl, start, end)                                                                        \
+#define ILP_FOR_AUTO(loop_var_decl, start, end, loop_type)                                                             \
     if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
         [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_auto(start, end, \
+        return ::ilp::for_loop_auto<::ilp::LoopType::loop_type>(start, end, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
-#define ILP_FOR_RANGE_AUTO(loop_var_decl, range)                                                                       \
+#define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type)                                                            \
     if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
         [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_auto(range, \
+        return ::ilp::for_loop_range_auto<::ilp::LoopType::loop_type>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
 // IMPORTANT: if ILP_RETURN is used, you MUST use ILP_END_RETURN instead!

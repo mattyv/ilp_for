@@ -217,12 +217,12 @@ TEST_CASE("std::optional is detected correctly", "[reduce][path]") {
     using R = std::invoke_result_t<decltype(lambda), int>;
     static_assert(is_optional_v<R>, "Should detect std::optional");
 
-    auto result = ilp::reduce_auto(0, 10, 0, std::plus<>{}, [](auto i) { return i; });
+    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 10, 0, std::plus<>{}, [](auto i) { return i; });
     CHECK(result == 45);
 }
 
 TEST_CASE("std::optional with nullopt stops correctly", "[reduce][path]") {
-    auto result = ilp::reduce_auto(0, 100, 0, std::plus<>{}, [](auto i) -> std::optional<int> {
+    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 100, 0, std::plus<>{}, [](auto i) -> std::optional<int> {
         if (i >= 10)
             return std::nullopt;
         return i;
@@ -233,18 +233,19 @@ TEST_CASE("std::optional with nullopt stops correctly", "[reduce][path]") {
 TEST_CASE("Range-based reduce auto", "[reduce][path][range]") {
     std::vector<int> data = {0, 1, 2, 3, 4};
 
-    auto result = ilp::reduce_range_auto(data, 0, std::plus<>{}, [](auto val) { return val; });
+    auto result = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](auto val) { return val; });
     CHECK(result == 10);
 }
 
 TEST_CASE("Range-based reduce with nullopt stops correctly", "[reduce][path][range]") {
     std::vector<int> data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-    auto result = ilp::reduce_range_auto(data, 0, std::plus<>{}, [](auto val) -> std::optional<int> {
-        if (val >= 5)
-            return std::nullopt;
-        return val;
-    });
+    auto result =
+        ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](auto val) -> std::optional<int> {
+            if (val >= 5)
+                return std::nullopt;
+            return val;
+        });
     CHECK(result == 10); // 0+1+2+3+4
 }
 

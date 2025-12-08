@@ -598,13 +598,12 @@ namespace ilp {
     }
 
     // Auto-selecting N based on CPU profile
-    template<std::ranges::random_access_range Range, typename Pred>
+    template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename Pred>
         requires std::invocable<Pred, std::ranges::range_reference_t<Range>> &&
                  std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
     auto find_range_auto(Range&& range, Pred&& pred) {
         using T = std::ranges::range_value_t<Range>;
-        return detail::find_range_impl<optimal_N<LoopType::Search, T>>(std::forward<Range>(range),
-                                                                       std::forward<Pred>(pred));
+        return detail::find_range_impl<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
 
     template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
@@ -620,45 +619,45 @@ namespace ilp {
                                             std::forward<F>(body));
     }
 
-    template<std::integral T, typename F>
+    template<LoopType LT, std::integral T, typename F>
         requires detail::ForUntypedCtrlBody<F, T>
     ForResult for_loop_auto(T start, T end, F&& body) {
-        return for_loop<optimal_N<LoopType::Sum, T>>(start, end, std::forward<F>(body));
+        return for_loop<optimal_N<LT, T>>(start, end, std::forward<F>(body));
     }
 
-    template<std::ranges::random_access_range Range, typename F>
+    template<LoopType LT, std::ranges::random_access_range Range, typename F>
         requires detail::ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
     ForResult for_loop_range_auto(Range&& range, F&& body) {
         using T = std::ranges::range_value_t<Range>;
-        return for_loop_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<F>(body));
+        return for_loop_range<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    template<std::integral T, typename F>
+    template<LoopType LT = LoopType::Search, std::integral T, typename F>
         requires std::invocable<F, T, T>
     auto find_auto(T start, T end, F&& body) {
-        return detail::find_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<F>(body));
+        return detail::find_impl<optimal_N<LT, T>>(start, end, std::forward<F>(body));
     }
 
-    template<std::integral T, typename Init, typename BinaryOp, typename F>
+    template<LoopType LT, std::integral T, typename Init, typename BinaryOp, typename F>
         requires detail::ReduceBody<F, T>
     auto reduce_auto(T start, T end, Init&& init, BinaryOp op, F&& body) {
-        return reduce<optimal_N<LoopType::Sum, T>>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
+        return reduce<optimal_N<LT, T>>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
     }
 
-    template<std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
+    template<LoopType LT, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
         requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
     auto reduce_range_auto(Range&& range, Init&& init, BinaryOp op, F&& body) {
         using T = std::ranges::range_value_t<Range>;
-        return reduce_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<Init>(init), op,
-                                                         std::forward<F>(body));
+        return reduce_range<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<Init>(init), op,
+                                              std::forward<F>(body));
     }
 
-    template<std::ranges::random_access_range Range, typename F>
+    template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename F>
         requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t,
                                 decltype(std::ranges::end(std::declval<Range>()))>
     auto find_range_idx_auto(Range&& range, F&& body) {
         using T = std::ranges::range_value_t<Range>;
-        return find_range_idx<optimal_N<LoopType::Search, T>>(std::forward<Range>(range), std::forward<F>(body));
+        return find_range_idx<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<F>(body));
     }
 
 } // namespace ilp
