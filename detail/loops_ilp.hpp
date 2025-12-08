@@ -559,34 +559,6 @@ namespace ilp {
             }
         }
 
-        template<std::size_t N, std::integral T, typename Pred>
-            requires PredicateBody<Pred, T>
-        std::optional<T> for_until_impl(T start, T end, Pred&& pred) {
-            validate_unroll_factor<N>();
-
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4)) for (T i = start; i < end; ++i) {
-                if (pred(i))
-                    return i;
-            }
-
-            return std::nullopt;
-        }
-
-        template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
-        std::optional<std::size_t> for_until_range_impl(Range&& range, Pred&& pred) {
-            validate_unroll_factor<N>();
-
-            auto* data = std::ranges::data(range);
-            std::size_t n = std::ranges::size(range);
-
-            _Pragma(ILP_PRAGMA_STR(GCC unroll ILP_N_SEARCH_4)) for (std::size_t i = 0; i < n; ++i) {
-                if (pred(data[i]))
-                    return i;
-            }
-
-            return std::nullopt;
-        }
-
     } // namespace detail
 
     template<std::size_t N = 4, std::integral T, typename F>
@@ -635,17 +607,6 @@ namespace ilp {
                                                                        std::forward<Pred>(pred));
     }
 
-    template<std::size_t N = 8, std::integral T, typename Pred>
-        requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
-    std::optional<T> for_until(T start, T end, Pred&& pred) {
-        return detail::for_until_impl<N>(start, end, std::forward<Pred>(pred));
-    }
-
-    template<std::size_t N = 8, std::ranges::random_access_range Range, typename Pred>
-    std::optional<std::size_t> for_until_range(Range&& range, Pred&& pred) {
-        return detail::for_until_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
-    }
-
     template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
         requires detail::ReduceBody<F, T>
     auto reduce(T start, T end, Init&& init, BinaryOp op, F&& body) {
@@ -690,19 +651,6 @@ namespace ilp {
         using T = std::ranges::range_value_t<Range>;
         return reduce_range<optimal_N<LoopType::Sum, T>>(std::forward<Range>(range), std::forward<Init>(init), op,
                                                          std::forward<F>(body));
-    }
-
-    template<std::integral T, typename Pred>
-        requires std::invocable<Pred, T> && std::same_as<std::invoke_result_t<Pred, T>, bool>
-    std::optional<T> for_until_auto(T start, T end, Pred&& pred) {
-        return detail::for_until_impl<optimal_N<LoopType::Search, T>>(start, end, std::forward<Pred>(pred));
-    }
-
-    template<std::ranges::random_access_range Range, typename Pred>
-    std::optional<std::size_t> for_until_range_auto(Range&& range, Pred&& pred) {
-        using T = std::ranges::range_value_t<Range>;
-        return detail::for_until_range_impl<optimal_N<LoopType::Search, T>>(std::forward<Range>(range),
-                                                                            std::forward<Pred>(pred));
     }
 
     template<std::ranges::random_access_range Range, typename F>

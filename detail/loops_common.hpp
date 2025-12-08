@@ -14,9 +14,6 @@
 
 #include "ctrl.hpp"
 
-#define ILP_PRAGMA_STR_(x) #x
-#define ILP_PRAGMA_STR(x) ILP_PRAGMA_STR_(x)
-
 namespace ilp {
     namespace detail {
 

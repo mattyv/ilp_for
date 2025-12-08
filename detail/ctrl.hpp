@@ -13,6 +13,15 @@
 #include <type_traits>
 #include <utility>
 
+// Cross-platform always_inline attribute
+#if defined(_MSC_VER) && !defined(__clang__)
+    #define ILP_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+    #define ILP_ALWAYS_INLINE [[gnu::always_inline]] inline
+#else
+    #define ILP_ALWAYS_INLINE inline
+#endif
+
 namespace ilp {
 
     namespace detail {
@@ -47,7 +56,7 @@ namespace ilp {
         alignas(std::max_align_t) char buffer[64];
 
         template<typename T>
-        [[gnu::always_inline]] inline void set(T&& val) {
+        ILP_ALWAYS_INLINE void set(T&& val) {
             using U = std::decay_t<T>;
             static_assert(sizeof(U) <= sizeof(buffer), "Return type too large for ILP_RETURN (max 64 bytes)");
             static_assert(alignof(U) <= alignof(std::max_align_t), "Return type alignment too strict");
@@ -55,7 +64,7 @@ namespace ilp {
         }
 
         template<typename R>
-        [[gnu::always_inline]] inline R extract() {
+        ILP_ALWAYS_INLINE R extract() {
             return static_cast<R&&>(*reinterpret_cast<R*>(buffer));
         }
     };
@@ -78,21 +87,22 @@ namespace ilp {
             AnyStorage& s;
 
 #if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC needs explicit optional handling
+            // MSVC needs explicit overloads - templated conversion operators
+            // don't deduce properly in return statements
+            template<typename T>
+            inline operator std::optional<T>() && {
+                return std::optional<T>(s.template extract<T>());
+            }
+
             template<typename R>
             inline operator R() && {
-                if constexpr (detail::is_optional_v<R>) {
-                    using T = typename R::value_type;
-                    return R(s.template extract<T>());
-                } else {
-                    return s.template extract<R>();
-                }
+                return s.template extract<R>();
             }
 #else
             // GCC/Clang do implicit Proxy→T→optional
             template<typename R>
                 requires(!detail::is_optional_v<R>)
-            [[gnu::always_inline]] inline operator R() && {
+            ILP_ALWAYS_INLINE operator R() && {
                 return s.template extract<R>();
             }
 #endif
@@ -100,7 +110,7 @@ namespace ilp {
             void operator*() && {}
         };
 
-        [[gnu::always_inline]] inline Proxy operator*() { return {storage}; }
+        ILP_ALWAYS_INLINE Proxy operator*() { return {storage}; }
     };
 
     namespace detail {

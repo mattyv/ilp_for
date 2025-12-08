@@ -177,7 +177,7 @@ TEST_CASE("User confused about remainder", "[mistake][remainder]") {
 }
 
 // -----------------------------------------------------------------------------
-// Mistake 11: Trying to use break in for_until
+// Mistake 11: Trying to use break in find
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Using return false for continue in find", "[mistake][find]") {
@@ -345,7 +345,7 @@ TEST_CASE("Initializer list as range", "[mistake][init]") {
 }
 
 // -----------------------------------------------------------------------------
-// Mistake 23: Boolean result confusion in for_until
+// Mistake 23: Boolean result confusion in find
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Inverted boolean logic in find", "[mistake][logic]") {
