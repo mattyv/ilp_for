@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ILP Tuner - Find Optimal Unroll Factor</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --surface: #252526;
+            --border: #3c3c3c;
+            --text: #d4d4d4;
+            --text-dim: #808080;
+            --accent: #569cd6;
+            --success: #4ec9b0;
+            --error: #f14c4c;
+            --warning: #dcdcaa;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1 {
+            color: var(--accent);
+            margin: 0 0 10px;
+            font-size: 1.5rem;
+        }
+        .subtitle {
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+        }
+        .panel h2 {
+            margin: 0 0 15px;
+            font-size: 1rem;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+        label {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+        textarea, input, select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 300px;
+            resize: vertical;
+        }
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .row > * { flex: 1; }
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .output {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: var(--error); }
+        .success { color: var(--success); }
+        .warning { color: var(--warning); }
+        .recommendation {
+            background: #2d4a3e;
+            border: 1px solid var(--success);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .recommendation h3 {
+            margin: 0 0 10px;
+            color: var(--success);
+        }
+        .metric {
+            display: inline-block;
+            background: var(--bg);
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 2px;
+        }
+        .metric-label { color: var(--text-dim); }
+        .metric-value { color: var(--accent); font-weight: bold; }
+        .hidden { display: none; }
+        a { color: var(--accent); }
+        .help {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ILP Tuner</h1>
+        <p class="subtitle">Analyze your loop with LLVM-MCA to find the optimal unroll factor (N) and LoopType</p>
+
+        <div class="grid">
+            <div class="panel">
+                <h2>Input</h2>
+
+                <label for="code">Loop Code</label>
+                <textarea id="code" placeholder="// Paste your loop body here
+// Example:
+for (size_t i = 0; i < n; ++i) {
+    sum += data[i];
+}">// Example: simple sum
+for (size_t i = 0; i < n; ++i) {
+    sum += data[i];
+}</textarea>
+
+                <div class="row">
+                    <div>
+                        <label for="arch">Target Architecture</label>
+                        <select id="arch">
+                            <option value="skylake" selected>Intel Skylake (x86-64)</option>
+                            <option value="znver4">AMD Zen 4 (x86-64)</option>
+                            <option value="apple-m1">Apple M1 (ARM64)</option>
+                            <option value="cortex-a72">Cortex-A72 (ARM64)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="compiler">Compiler</label>
+                        <select id="compiler">
+                            <option value="clang_trunk" selected>Clang (trunk)</option>
+                            <option value="clang1800">Clang 18</option>
+                            <option value="clang1700">Clang 17</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label for="args">Compiler Arguments</label>
+                        <input type="text" id="args" value="-std=c++2b -O3">
+                    </div>
+                </div>
+
+                <button id="analyze" onclick="analyze()">Analyze</button>
+
+                <p class="help">
+                    Your code is wrapped in a test function and compiled with LLVM-MCA analysis.
+                    <a href="https://llvm.org/docs/CommandGuide/llvm-mca.html" target="_blank">Learn about MCA</a>
+                </p>
+            </div>
+
+            <div class="panel">
+                <h2>Results</h2>
+
+                <div id="recommendation" class="recommendation hidden">
+                    <h3>Recommendation</h3>
+                    <div id="rec-content"></div>
+                </div>
+
+                <div id="metrics" class="hidden" style="margin-bottom: 15px;">
+                    <span class="metric">
+                        <span class="metric-label">Block RThroughput:</span>
+                        <span class="metric-value" id="rthroughput">-</span>
+                    </span>
+                    <span class="metric">
+                        <span class="metric-label">Total Cycles:</span>
+                        <span class="metric-value" id="cycles">-</span>
+                    </span>
+                </div>
+
+                <label>Compiler Output</label>
+                <div id="compiler-output" class="output" style="max-height: 150px; margin-bottom: 15px;">
+                    <span class="text-dim">Compiler output will appear here...</span>
+                </div>
+
+                <label>LLVM-MCA Analysis</label>
+                <div id="mca-output" class="output">
+                    <span class="text-dim">MCA analysis will appear here...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GODBOLT_API = 'https://godbolt.org/api';
+
+        function wrapCode(userCode, arch) {
+            // Detect if user code uses specific types/patterns
+            const isARM = arch.includes('apple') || arch.includes('cortex');
+
+            return `#include <cstddef>
+#include <cstdint>
+
+// Prevent optimization of the result
+template<typename T>
+void escape(T&& val) {
+    asm volatile("" : : "g"(val) : "memory");
+}
+
+// Prevent optimization of reads
+void clobber() {
+    asm volatile("" : : : "memory");
+}
+
+void analyze_loop(int* __restrict data, size_t n) {
+    int sum = 0;
+    int* __restrict ptr = data;
+
+    ${userCode}
+
+    escape(sum);
+}
+`;
+        }
+
+        function getArchFlag(arch) {
+            switch(arch) {
+                case 'skylake': return '-march=skylake';
+                case 'znver4': return '-march=znver4';
+                case 'apple-m1': return '-mcpu=apple-m1';
+                case 'cortex-a72': return '-mcpu=cortex-a72';
+                default: return '-march=skylake';
+            }
+        }
+
+        function getMcaCpu(arch) {
+            switch(arch) {
+                case 'skylake': return '-mcpu=skylake';
+                case 'znver4': return '-mcpu=znver4';
+                case 'apple-m1': return '-mcpu=apple-m1';
+                case 'cortex-a72': return '-mcpu=cortex-a72';
+                default: return '-mcpu=skylake';
+            }
+        }
+
+        function parseMetrics(mcaOutput) {
+            const metrics = {};
+
+            // Block RThroughput
+            const rtMatch = mcaOutput.match(/Block RThroughput:\s*([\d.]+)/);
+            if (rtMatch) metrics.rthroughput = parseFloat(rtMatch[1]);
+
+            // Total Cycles
+            const cyclesMatch = mcaOutput.match(/Total Cycles:\s*(\d+)/);
+            if (cyclesMatch) metrics.cycles = parseInt(cyclesMatch[1]);
+
+            // Bottleneck
+            const bottleneckMatch = mcaOutput.match(/Bottleneck:\s*([^\n]+)/);
+            if (bottleneckMatch) metrics.bottleneck = bottleneckMatch[1].trim();
+
+            // Resource pressure - find most used ports
+            const portPressure = [];
+            const pressureMatch = mcaOutput.match(/Resource pressure per iteration:[\s\S]*?\n([\s\S]*?)(?:\n\n|\nTimeline)/);
+            if (pressureMatch) {
+                const lines = pressureMatch[1].split('\n').filter(l => l.trim());
+                // Parse port usage from header and values
+            }
+
+            return metrics;
+        }
+
+        function generateRecommendation(metrics, code) {
+            let loopType = 'Search'; // Safe default
+            let suggestedN = 4;
+            let reasoning = [];
+
+            // Analyze code patterns
+            const hasBreak = /\bbreak\b/.test(code);
+            const hasReturn = /\breturn\b/.test(code);
+            const hasFMA = /\*.*\+|\+.*\*/.test(code) || /fma|FMA/.test(code);
+            const hasMin = /\bmin\b|<.*\?/.test(code);
+            const hasMax = /\bmax\b|>.*\?/.test(code);
+            const hasMul = /\*=/.test(code);
+            const hasAdd = /\+=/.test(code);
+            const hasBitwise = /[&|^]=/.test(code);
+
+            if (hasBreak || hasReturn) {
+                loopType = 'Search';
+                suggestedN = 4;
+                reasoning.push('Early exit detected (break/return) - branch prediction is bottleneck');
+            } else if (hasFMA) {
+                loopType = 'DotProduct';
+                suggestedN = 8;
+                reasoning.push('FMA pattern detected (multiply + add)');
+            } else if (hasMin || hasMax) {
+                loopType = 'MinMax';
+                suggestedN = 8;
+                reasoning.push('Min/max comparison detected');
+            } else if (hasMul && !hasAdd) {
+                loopType = 'Multiply';
+                suggestedN = 8;
+                reasoning.push('Product reduction detected');
+            } else if (hasAdd) {
+                loopType = 'Sum';
+                suggestedN = 8;
+                reasoning.push('Summation pattern detected');
+            } else if (hasBitwise) {
+                loopType = 'Bitwise';
+                suggestedN = 4;
+                reasoning.push('Bitwise operations detected');
+            }
+
+            // Adjust based on MCA metrics
+            if (metrics.rthroughput) {
+                if (metrics.rthroughput < 2) {
+                    reasoning.push(`Low RThroughput (${metrics.rthroughput}) - already efficient`);
+                } else if (metrics.rthroughput > 8) {
+                    reasoning.push(`High RThroughput (${metrics.rthroughput}) - consider higher N`);
+                    suggestedN = Math.min(16, suggestedN * 2);
+                }
+            }
+
+            if (metrics.bottleneck) {
+                reasoning.push(`Bottleneck: ${metrics.bottleneck}`);
+            }
+
+            return { loopType, suggestedN, reasoning };
+        }
+
+        async function analyze() {
+            const btn = document.getElementById('analyze');
+            const code = document.getElementById('code').value;
+            const arch = document.getElementById('arch').value;
+            const compiler = document.getElementById('compiler').value;
+            const args = document.getElementById('args').value;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Analyzing...';
+
+            document.getElementById('recommendation').classList.add('hidden');
+            document.getElementById('metrics').classList.add('hidden');
+            document.getElementById('compiler-output').innerHTML = 'Compiling...';
+            document.getElementById('mca-output').innerHTML = 'Waiting for compilation...';
+
+            try {
+                const wrappedCode = wrapCode(code, arch);
+                const archFlag = getArchFlag(arch);
+                const mcaCpu = getMcaCpu(arch);
+                const fullArgs = `${args} ${archFlag}`;
+
+                // Compile with Godbolt API
+                const response = await fetch(`${GODBOLT_API}/compiler/${compiler}/compile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        source: wrappedCode,
+                        options: {
+                            userArguments: fullArgs,
+                            filters: {
+                                binary: false,
+                                execute: false,
+                                intel: true,
+                                demangle: true,
+                                labels: true,
+                                libraryCode: false,
+                                directives: true,
+                                commentOnly: true,
+                                trim: false
+                            },
+                            tools: [{
+                                id: 'llvm-mcatrunk',
+                                args: `-timeline -bottleneck-analysis ${mcaCpu}`
+                            }]
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // Show compiler output
+                let compilerOut = '';
+                if (result.stderr && result.stderr.length > 0) {
+                    compilerOut = result.stderr.map(s => s.text).join('\n');
+                    document.getElementById('compiler-output').innerHTML =
+                        `<span class="error">${escapeHtml(compilerOut)}</span>`;
+                } else if (result.stdout && result.stdout.length > 0) {
+                    compilerOut = result.stdout.map(s => s.text).join('\n');
+                    document.getElementById('compiler-output').innerHTML = escapeHtml(compilerOut);
+                } else {
+                    document.getElementById('compiler-output').innerHTML =
+                        '<span class="success">Compilation successful (no warnings)</span>';
+                }
+
+                // Show MCA output
+                let mcaOutput = '';
+                if (result.tools && result.tools.length > 0) {
+                    const mcaTool = result.tools.find(t => t.id === 'llvm-mcatrunk');
+                    if (mcaTool) {
+                        if (mcaTool.stderr && mcaTool.stderr.length > 0) {
+                            mcaOutput = mcaTool.stderr.map(s => s.text).join('\n');
+                        }
+                        if (mcaTool.stdout && mcaTool.stdout.length > 0) {
+                            mcaOutput += mcaTool.stdout.map(s => s.text).join('\n');
+                        }
+                    }
+                }
+
+                if (mcaOutput) {
+                    document.getElementById('mca-output').innerHTML = escapeHtml(mcaOutput);
+
+                    // Parse and display metrics
+                    const metrics = parseMetrics(mcaOutput);
+                    if (metrics.rthroughput !== undefined) {
+                        document.getElementById('rthroughput').textContent = metrics.rthroughput.toFixed(2);
+                        document.getElementById('cycles').textContent = metrics.cycles || '-';
+                        document.getElementById('metrics').classList.remove('hidden');
+                    }
+
+                    // Generate recommendation
+                    const rec = generateRecommendation(metrics, code);
+                    document.getElementById('rec-content').innerHTML = `
+                        <p><strong>Suggested LoopType:</strong> <code>${rec.loopType}</code></p>
+                        <p><strong>Suggested N:</strong> <code>${rec.suggestedN}</code></p>
+                        <p><strong>Usage:</strong></p>
+                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR_AUTO(auto i, 0, n, ${rec.loopType}) {
+    // your loop body
+} ILP_END;</pre>
+                        <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">
+                            ${rec.reasoning.map(r => '• ' + r).join('<br>')}
+                        </p>
+                    `;
+                    document.getElementById('recommendation').classList.remove('hidden');
+                } else {
+                    document.getElementById('mca-output').innerHTML =
+                        '<span class="warning">No MCA output available. Check for compilation errors.</span>';
+                }
+
+            } catch (err) {
+                document.getElementById('compiler-output').innerHTML =
+                    `<span class="error">Error: ${escapeHtml(err.message)}</span>`;
+                document.getElementById('mca-output').innerHTML = '';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Analyze';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
