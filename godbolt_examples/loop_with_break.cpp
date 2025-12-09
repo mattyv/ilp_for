@@ -37,38 +37,38 @@ namespace ilp {
 
     } // namespace detail
 
-    struct AnyStorage {
-        alignas(std::max_align_t) char buffer[64];
+    struct SmallStorage {
+        alignas(8) char buffer[8];
 
         template<typename T>
         [[gnu::always_inline]] inline void set(T&& val) {
             using U = std::decay_t<T>;
-            static_assert(sizeof(U) <= sizeof(buffer), "Return type too large for ILP_RETURN (max 64 bytes)");
-            static_assert(alignof(U) <= alignof(std::max_align_t), "Return type alignment too strict");
+            static_assert(sizeof(U) <= 8, "Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(alignof(U) <= 8, "Return type alignment exceeds 8. Use ILP_FOR_T(type, ...) instead.");
             new (buffer) U(static_cast<T&&>(val));
         }
 
         template<typename R>
         [[gnu::always_inline]] inline R extract() {
-            return static_cast<R&&>(*reinterpret_cast<R*>(buffer));
+            return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
         }
     };
 
     struct ForCtrl {
         bool ok = true;
         bool return_set = false;
-        AnyStorage storage;
+        SmallStorage storage;
     };
 
     struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResult {
         bool has_return;
-        AnyStorage storage;
+        SmallStorage storage;
 
         explicit operator bool() const noexcept { return has_return; }
 
         // deduces type from function return
         struct Proxy {
-            AnyStorage& s;
+            SmallStorage& s;
 
 #if defined(_MSC_VER) && !defined(__clang__)
             // MSVC needs explicit optional handling

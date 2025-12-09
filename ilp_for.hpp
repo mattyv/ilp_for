@@ -63,6 +63,30 @@ namespace ilp::detail {
         return ::ilp::for_loop_range_auto<::ilp::LoopType::loop_type>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
 
+#define ILP_FOR_T(type, loop_var_decl, start, end, N)                                                                  \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResultTyped<type> { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_typed<type, N>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& _ilp_ctrl)
+
+#define ILP_FOR_RANGE_T(type, loop_var_decl, range, N)                                                                 \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResultTyped<type> { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_range_typed<type, N>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& _ilp_ctrl)
+
+#define ILP_FOR_T_AUTO(type, loop_var_decl, start, end, loop_type)                                                     \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResultTyped<type> { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_typed_auto<type, ::ilp::LoopType::loop_type>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& _ilp_ctrl)
+
+#define ILP_FOR_RANGE_T_AUTO(type, loop_var_decl, range, loop_type)                                                    \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResultTyped<type> { \
+        [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
+        return ::ilp::for_loop_range_typed_auto<type, ::ilp::LoopType::loop_type>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& _ilp_ctrl)
+
 // IMPORTANT: if ILP_RETURN is used, you MUST use ILP_END_RETURN instead!
 #define ILP_END );                                                                                                     \
     }                                                                                                                  \

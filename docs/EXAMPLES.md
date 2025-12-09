@@ -17,7 +17,7 @@ The primary API for loops with `break`, `continue`, or `return`.
 
 ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/4cvM78YYd) | [x86-64 GCC](https://godbolt.org/z/ds9rafdeK) | [ARM64](https://godbolt.org/z/TPrzccqM9)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/sqn6cbd5G) | [x86-64 GCC](https://godbolt.org/z/r7x5qnTzs) | [ARM64](https://godbolt.org/z/K8r9rnETn)
 
 [Source code](../godbolt_examples/loop_with_break.cpp)
 
@@ -27,9 +27,19 @@ ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
 ILP_FOR with ILP_RETURN to exit enclosing function from loop
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/jq756WEYx) | [x86-64 GCC](https://godbolt.org/z/xz9ovq454) | [ARM64](https://godbolt.org/z/hGvx6xaez)
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/ffx3h6Yqh) | [x86-64 GCC](https://godbolt.org/z/1ajchdz61) | [ARM64](https://godbolt.org/z/9xf4Kxrrd)
 
 [Source code](../godbolt_examples/loop_with_return.cpp)
+
+---
+
+## Loop with Large Return Type
+
+ILP_FOR_T for return types > 8 bytes (structs, large objects)
+
+**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/a1zdWWh89) | [x86-64 GCC](https://godbolt.org/z/Mc8fb4eTv) | [ARM64](https://godbolt.org/z/ePGEYhqnc)
+
+[Source code](../godbolt_examples/loop_with_return_typed.cpp)
 
 ---
 

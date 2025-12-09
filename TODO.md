@@ -18,6 +18,8 @@
 - [x] use clang-format
 - [x] Get rid of all the silly LLM comments and formatting.
 - [ ] code review with gemini 3
+- [ ] are asm test serving any real purpose?
+- [ ] might want to overhaul benchmarks
 
 ## Build
 - [x] Add UBSan CMake option (`-DENABLE_UBSAN=ON`)
@@ -30,7 +32,7 @@
 - [ ] Experiment with DSL for calculating ILP unroll value for N
 
 ## Guts
-- [ ] AnyStorage with fixed buffer seems odd.
+- [x] AnyStorage with fixed buffer seems odd.
 
 ## Misc
 - [ ] Optionally compile in and out cpp 23 features

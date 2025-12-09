@@ -41,6 +41,11 @@ EXAMPLES = [
         'title': 'Loop with Return',
         'description': 'ILP_FOR with ILP_RETURN to exit enclosing function from loop'
     },
+    {
+        'file': 'loop_with_return_typed.cpp',
+        'title': 'Loop with Large Return Type',
+        'description': 'ILP_FOR_T for return types > 8 bytes (structs, large objects)'
+    },
     # ilp::find and ilp::reduce function examples (auxiliary)
     {
         'file': 'find_first_match.cpp',
@@ -397,8 +402,8 @@ The primary API for loops with `break`, `continue`, or `return`.
 
 """
 
-    # ILP_FOR examples (first two)
-    for example in EXAMPLES[:2]:
+    # ILP_FOR examples (first three)
+    for example in EXAMPLES[:3]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue
@@ -422,7 +427,7 @@ Alternative `std::`-style functions with early exit support.
 """
 
     # Function API examples (remaining)
-    for example in EXAMPLES[2:]:
+    for example in EXAMPLES[3:]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue

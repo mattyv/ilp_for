@@ -15,11 +15,11 @@
 
 // Cross-platform always_inline attribute
 #if defined(_MSC_VER) && !defined(__clang__)
-    #define ILP_ALWAYS_INLINE __forceinline
+#define ILP_ALWAYS_INLINE __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
-    #define ILP_ALWAYS_INLINE [[gnu::always_inline]] inline
+#define ILP_ALWAYS_INLINE [[gnu::always_inline]] inline
 #else
-    #define ILP_ALWAYS_INLINE inline
+#define ILP_ALWAYS_INLINE inline
 #endif
 
 namespace ilp {
@@ -51,40 +51,61 @@ namespace ilp {
         void break_loop() { ok = false; }
     };
 
-    // 64 bytes fits most types
-    struct AnyStorage {
-        alignas(std::max_align_t) char buffer[64];
+    // Small storage for integral types (8 bytes max - covers int, size_t, pointers)
+    struct SmallStorage {
+        alignas(8) char buffer[8];
 
         template<typename T>
         ILP_ALWAYS_INLINE void set(T&& val) {
             using U = std::decay_t<T>;
-            static_assert(sizeof(U) <= sizeof(buffer), "Return type too large for ILP_RETURN (max 64 bytes)");
-            static_assert(alignof(U) <= alignof(std::max_align_t), "Return type alignment too strict");
+            static_assert(sizeof(U) <= 8, "Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(alignof(U) <= 8, "Return type alignment exceeds 8. Use ILP_FOR_T(type, ...) instead.");
             new (buffer) U(static_cast<T&&>(val));
         }
 
         template<typename R>
         ILP_ALWAYS_INLINE R extract() {
-            return static_cast<R&&>(*reinterpret_cast<R*>(buffer));
+            return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
         }
     };
 
-    // ok=false means early exit
+    // Typed storage for user-specified types (exact size)
+    template<typename R>
+    struct TypedStorage {
+        alignas(R) char buffer[sizeof(R)];
+
+        template<typename T>
+        ILP_ALWAYS_INLINE void set(T&& val) {
+            new (buffer) R(static_cast<T&&>(val));
+        }
+
+        ILP_ALWAYS_INLINE R extract() { return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer))); }
+    };
+
+    // ok=false means early exit (simple version - 8-byte storage)
     struct ForCtrl {
         bool ok = true;
         bool return_set = false;
-        AnyStorage storage;
+        SmallStorage storage;
+    };
+
+    // ok=false means early exit (typed version - exact size storage)
+    template<typename R>
+    struct ForCtrlTyped {
+        bool ok = true;
+        bool return_set = false;
+        TypedStorage<R> storage;
     };
 
     struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResult {
         bool has_return;
-        AnyStorage storage;
+        SmallStorage storage;
 
         explicit operator bool() const noexcept { return has_return; }
 
         // deduces type from function return
         struct Proxy {
-            AnyStorage& s;
+            SmallStorage& s;
 
 #if defined(_MSC_VER) && !defined(__clang__)
             // MSVC needs explicit overloads without && qualifier
@@ -108,6 +129,30 @@ namespace ilp {
 #endif
 
             void operator*() && {}
+        };
+
+        ILP_ALWAYS_INLINE Proxy operator*() { return {storage}; }
+    };
+
+    // ForResult for typed version
+    template<typename R>
+    struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResultTyped {
+        bool has_return;
+        TypedStorage<R> storage;
+
+        explicit operator bool() const noexcept { return has_return; }
+
+        // Proxy for consistency with ForResult (type is known here)
+        struct Proxy {
+            TypedStorage<R>& s;
+
+#if defined(_MSC_VER) && !defined(__clang__)
+            operator std::optional<R>() { return std::optional<R>(s.extract()); }
+
+            operator R() { return s.extract(); }
+#else
+            ILP_ALWAYS_INLINE operator R() && { return s.extract(); }
+#endif
         };
 
         ILP_ALWAYS_INLINE Proxy operator*() { return {storage}; }

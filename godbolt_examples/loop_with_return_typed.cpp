@@ -1,5 +1,5 @@
-// ILP_FOR with ILP_RETURN - godbolt example
-// Early exit loop that returns a value from the enclosing function
+// ILP_FOR_T with large return type - godbolt example
+// For return types > 8 bytes, use ILP_FOR_T(type, ...) instead of ILP_FOR
 
 #include <concepts>
 #include <cstddef>
@@ -37,60 +37,41 @@ namespace ilp {
 
     } // namespace detail
 
-    struct SmallStorage {
-        alignas(8) char buffer[8];
+    // Typed storage for user-specified types (exact size)
+    template<typename R>
+    struct TypedStorage {
+        alignas(R) char buffer[sizeof(R)];
 
         template<typename T>
         [[gnu::always_inline]] inline void set(T&& val) {
-            using U = std::decay_t<T>;
-            static_assert(sizeof(U) <= 8, "Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.");
-            static_assert(alignof(U) <= 8, "Return type alignment exceeds 8. Use ILP_FOR_T(type, ...) instead.");
-            new (buffer) U(static_cast<T&&>(val));
+            new (buffer) R(static_cast<T&&>(val));
         }
 
-        template<typename R>
         [[gnu::always_inline]] inline R extract() {
             return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
         }
     };
 
-    struct ForCtrl {
+    // ok=false means early exit (typed version - exact size storage)
+    template<typename R>
+    struct ForCtrlTyped {
         bool ok = true;
         bool return_set = false;
-        SmallStorage storage;
+        TypedStorage<R> storage;
     };
 
-    struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResult {
+    // ForResult for typed version
+    template<typename R>
+    struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResultTyped {
         bool has_return;
-        SmallStorage storage;
+        TypedStorage<R> storage;
 
         explicit operator bool() const noexcept { return has_return; }
 
-        // deduces type from function return
         struct Proxy {
-            SmallStorage& s;
+            TypedStorage<R>& s;
 
-#if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC needs explicit optional handling
-            template<typename R>
-            inline operator R() && {
-                if constexpr (detail::is_optional_v<R>) {
-                    using T = typename R::value_type;
-                    return R(s.template extract<T>());
-                } else {
-                    return s.template extract<R>();
-                }
-            }
-#else
-            // GCC/Clang do implicit Proxy→T→optional
-            template<typename R>
-                requires(!detail::is_optional_v<R>)
-            [[gnu::always_inline]] inline operator R() && {
-                return s.template extract<R>();
-            }
-#endif
-
-            void operator*() && {}
+            [[gnu::always_inline]] inline operator R() && { return s.extract(); }
         };
 
         [[gnu::always_inline]] inline Proxy operator*() { return {storage}; }
@@ -106,31 +87,31 @@ namespace ilp {
             std::abort();
         }
 
-        template<typename F, typename T>
-        concept ForUntypedCtrlBody = std::invocable<F, T, ForCtrl&>;
+        template<typename F, typename T, typename R>
+        concept ForTypedCtrlBody = std::invocable<F, T, ForCtrlTyped<R>&>;
 
-        template<std::size_t N, std::integral T, typename F>
-            requires ForUntypedCtrlBody<F, T>
-        ForResult for_loop_untyped_impl(T start, T end, F&& body) {
+        template<typename R, std::size_t N, std::integral T, typename F>
+            requires ForTypedCtrlBody<F, T, R>
+        ForResultTyped<R> for_loop_typed_impl(T start, T end, F&& body) {
             validate_unroll_factor<N>();
-            ForCtrl ctrl;
+            ForCtrlTyped<R> ctrl;
             T i = start;
 
             for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
                 for (std::size_t j = 0; j < N; ++j) {
                     body(i + static_cast<T>(j), ctrl);
                     if (!ctrl.ok) [[unlikely]]
-                        return ForResult{ctrl.return_set, std::move(ctrl.storage)};
+                        return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
                 }
             }
 
             for (; i < end; ++i) {
                 body(i, ctrl);
                 if (!ctrl.ok) [[unlikely]]
-                    return ForResult{ctrl.return_set, std::move(ctrl.storage)};
+                    return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
             }
 
-            return ForResult{false, {}};
+            return ForResultTyped<R>{false, {}};
         }
 
         struct For_Context_USE_ILP_END {};
@@ -138,19 +119,19 @@ namespace ilp {
 
     } // namespace detail
 
-    template<std::size_t N = 4, std::integral T, typename F>
-        requires detail::ForUntypedCtrlBody<F, T>
-    ForResult for_loop(T start, T end, F&& body) {
-        return detail::for_loop_untyped_impl<N>(start, end, std::forward<F>(body));
+    template<typename R, std::size_t N = 4, std::integral T, typename F>
+        requires detail::ForTypedCtrlBody<F, T, R>
+    ForResultTyped<R> for_loop_typed(T start, T end, F&& body) {
+        return detail::for_loop_typed_impl<R, N>(start, end, std::forward<F>(body));
     }
 
 } // namespace ilp
 
-#define ILP_FOR(loop_var_decl, start, end, N)                                                                          \
-    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResult { \
+#define ILP_FOR_T(type, loop_var_decl, start, end, N)                                                                  \
+    if ([[maybe_unused]] auto _ilp_ret_ = [&]() -> ::ilp::ForResultTyped<type> { \
         [[maybe_unused]] auto _ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop<N>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& _ilp_ctrl)
+        return ::ilp::for_loop_typed<type, N>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& _ilp_ctrl)
 
 #define ILP_END_RETURN );                                                                                              \
     }                                                                                                                  \
@@ -167,47 +148,56 @@ namespace ilp {
     } while (0)
 
 // ============================================================================
-// Example: Find index and compute result, returning from function
+// Example: Find matching element and return a struct with details
 // ============================================================================
 
-// ILP version - uses ILP_FOR with ILP_RETURN
-int find_and_square_ilp(const std::vector<int>& data, int target) {
-    ILP_FOR(auto i, 0, static_cast<int>(data.size()), 4) {
+struct Result {
+    int index;
+    int value;
+    int squared;
+    double ratio;
+};
+
+static_assert(sizeof(Result) > 8, "Result must be > 8 bytes for this example");
+
+// ILP version - uses ILP_FOR_T for large return type
+Result find_and_compute_ilp(const std::vector<int>& data, int target) {
+    ILP_FOR_T(Result, auto i, 0, static_cast<int>(data.size()), 4) {
         if (data[i] == target)
-            ILP_RETURN(i * i);
+            ILP_RETURN((Result{i, data[i], data[i] * data[i], static_cast<double>(data[i]) / 100.0}));
     }
     ILP_END_RETURN;
-    return -1;
+    return Result{-1, 0, 0, 0.0};
 }
 
 // Hand-rolled 4x unroll
-int find_and_square_handrolled(const std::vector<int>& data, int target) {
+Result find_and_compute_handrolled(const std::vector<int>& data, int target) {
     int i = 0;
     int size = static_cast<int>(data.size());
     for (; i + 4 <= size; i += 4) {
         if (data[i] == target)
-            return i * i;
+            return Result{i, data[i], data[i] * data[i], static_cast<double>(data[i]) / 100.0};
         if (data[i + 1] == target)
-            return (i + 1) * (i + 1);
+            return Result{i + 1, data[i + 1], data[i + 1] * data[i + 1], static_cast<double>(data[i + 1]) / 100.0};
         if (data[i + 2] == target)
-            return (i + 2) * (i + 2);
+            return Result{i + 2, data[i + 2], data[i + 2] * data[i + 2], static_cast<double>(data[i + 2]) / 100.0};
         if (data[i + 3] == target)
-            return (i + 3) * (i + 3);
+            return Result{i + 3, data[i + 3], data[i + 3] * data[i + 3], static_cast<double>(data[i + 3]) / 100.0};
     }
     for (; i < size; ++i) {
         if (data[i] == target)
-            return i * i;
+            return Result{i, data[i], data[i] * data[i], static_cast<double>(data[i]) / 100.0};
     }
-    return -1;
+    return Result{-1, 0, 0, 0.0};
 }
 
 // Simple loop
-int find_and_square_simple(const std::vector<int>& data, int target) {
+Result find_and_compute_simple(const std::vector<int>& data, int target) {
     for (int i = 0; i < static_cast<int>(data.size()); ++i) {
         if (data[i] == target)
-            return i * i;
+            return Result{i, data[i], data[i] * data[i], static_cast<double>(data[i]) / 100.0};
     }
-    return -1;
+    return Result{-1, 0, 0, 0.0};
 }
 
 int main() {
@@ -218,9 +208,9 @@ int main() {
         data[i] = static_cast<int>(i);
     }
 
-    int r1 = find_and_square_ilp(data, target);
-    int r2 = find_and_square_handrolled(data, target);
-    int r3 = find_and_square_simple(data, target);
+    Result r1 = find_and_compute_ilp(data, target);
+    Result r2 = find_and_compute_handrolled(data, target);
+    Result r3 = find_and_compute_simple(data, target);
 
-    return (r1 == r2 && r2 == r3 && r1 == 42 * 42) ? 0 : 1;
+    return (r1.index == r2.index && r2.index == r3.index && r1.index == 42) ? 0 : 1;
 }

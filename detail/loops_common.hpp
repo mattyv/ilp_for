@@ -83,6 +83,9 @@ namespace ilp {
         template<typename F, typename T>
         concept ForUntypedCtrlBody = std::invocable<F, T, ForCtrl&>;
 
+        template<typename F, typename T, typename R>
+        concept ForTypedCtrlBody = std::invocable<F, T, ForCtrlTyped<R>&>;
+
         template<typename F, typename Ref>
         concept ForRangeBody = std::invocable<F, Ref>;
 
@@ -94,6 +97,9 @@ namespace ilp {
 
         template<typename F, typename Ref>
         concept ForRangeUntypedCtrlBody = std::invocable<F, Ref, ForCtrl&>;
+
+        template<typename F, typename Ref, typename R>
+        concept ForRangeTypedCtrlBody = std::invocable<F, Ref, ForCtrlTyped<R>&>;
 
         template<typename F, typename T>
         concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;

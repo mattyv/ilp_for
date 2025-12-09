@@ -159,6 +159,10 @@ int min_val = ilp::reduce_range<4>(
 | `ILP_FOR_RANGE(var, range, N)` | Range-based loop with explicit N |
 | `ILP_FOR_AUTO(var, start, end, LoopType)` | Index loop with auto-selected N |
 | `ILP_FOR_RANGE_AUTO(var, range, LoopType)` | Range loop with auto-selected N |
+| `ILP_FOR_T(type, var, start, end, N)` | Index loop for large return types (> 8 bytes) |
+| `ILP_FOR_RANGE_T(type, var, range, N)` | Range loop for large return types |
+| `ILP_FOR_T_AUTO(type, var, start, end, LoopType)` | Index loop for large types with auto-selected N |
+| `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType)` | Range loop for large types with auto-selected N |
 
 End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 
@@ -257,6 +261,26 @@ For simple reductions without early exit, just return the value directly:
 int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
     return data[i];
 });
+```
+
+### Large Return Types
+
+`ILP_FOR` stores return values in an 8-byte buffer, which covers `int`, `size_t`, and pointers. For larger types, use `ILP_FOR_T`:
+
+```cpp
+struct Result { int x, y, z; double value; };  // > 8 bytes
+
+Result find_result(const std::vector<int>& data, int target) {
+    ILP_FOR_T(Result, int i, 0, static_cast<int>(data.size()), 4) {
+        if (data[i] == target) ILP_RETURN(Result{i, i*2, i*3, i*1.5});
+    } ILP_END_RETURN;
+    return Result{-1, 0, 0, 0.0};
+}
+```
+
+Using `ILP_FOR` with types > 8 bytes produces a compile error:
+```
+error: static assertion failed: Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.
 ```
 
 ### Associative Operations Only
