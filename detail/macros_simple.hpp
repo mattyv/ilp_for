@@ -15,6 +15,14 @@
 
 #define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type) for (loop_var_decl : (range))
 
+#define ILP_FOR_T(type, loop_var_decl, start, end, N) for (loop_var_decl : ::ilp::iota((start), (end)))
+
+#define ILP_FOR_RANGE_T(type, loop_var_decl, range, N) for (loop_var_decl : (range))
+
+#define ILP_FOR_T_AUTO(type, loop_var_decl, start, end, loop_type) for (loop_var_decl : ::ilp::iota((start), (end)))
+
+#define ILP_FOR_RANGE_T_AUTO(type, loop_var_decl, range, loop_type) for (loop_var_decl : (range))
+
 #define ILP_END
 #define ILP_END_RETURN
 
