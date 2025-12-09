@@ -17,43 +17,52 @@ The library unrolls your loop body N times, allowing the CPU to execute multiple
 
 Imagine you want to write:
 ```cpp
-for (int i = 0; i < n; ++i)
+int sum = 0;
+for (size_t i = 0; i < n; ++i)
 {
-    if (data[i] == target) break;
-    process(data[i]);
+    if (data[i] < 0) break;       // Error: stop
+    if (data[i] == 0) continue;   // Skip zeros
+    sum += data[i];               // Accumulate positives
 }
 ```
-...where process() is an inlineable small operation function.
 
-But you realise your compiler is not unrolling the loop because of the `if ... break` statement, so you write the below knowing that most hardware can execute your process() calculation 4 at a time using ILP.
+Compilers cannot unroll this loop - the mixed `break` and `continue` paths create complex control flow. So you might manually unroll it:
 ```cpp
+int sum = 0;
 size_t i = 0;
 for (; i + 4 <= n; i += 4) {
-    bool b0 = data[i+0] == target;  // Parallel evaluation
-    bool b1 = data[i+1] == target;
-    bool b2 = data[i+2] == target;
-    bool b3 = data[i+3] == target;
-    if (b0) break;                  // Sequential check
-    process(data[i+0]);
-    if (b1) break;
-    process(data[i+1]);
-    if (b2) break;
-    process(data[i+2]);
-    if (b3) break;
-    process(data[i+3]);
+    bool brk0 = data[i+0] < 0;    // Parallel evaluation
+    bool brk1 = data[i+1] < 0;
+    bool brk2 = data[i+2] < 0;
+    bool brk3 = data[i+3] < 0;
+    bool skp0 = data[i+0] == 0;
+    bool skp1 = data[i+1] == 0;
+    bool skp2 = data[i+2] == 0;
+    bool skp3 = data[i+3] == 0;
+    if (brk0) break;              // Sequential check
+    if (!skp0) sum += data[i+0];
+    if (brk1) break;
+    if (!skp1) sum += data[i+1];
+    if (brk2) break;
+    if (!skp2) sum += data[i+2];
+    if (brk3) break;
+    if (!skp3) sum += data[i+3];
 }
-for (; i < n; ++i) {                // Remainder
-    if (data[i] == target) break;
-    process(data[i]);
+for (; i < n; ++i) {              // Remainder
+    if (data[i] < 0) break;
+    if (data[i] == 0) continue;
+    sum += data[i];
 }
 ```
-...but this is tedious!
+...but this is tedious and error-prone!
 
 This is where ILP_FOR macro helps. All you need to write is:
 ```cpp
-ILP_FOR(auto i, 0, n, 4) {
-    if (data[i] == target) ILP_BREAK;
-    process(data[i]);
+int sum = 0;
+ILP_FOR(auto i, 0uz, n, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    if (data[i] == 0) ILP_CONTINUE;
+    sum += data[i];
 } ILP_END;
 ```
 ...which effectively generates the above unrolled code.
