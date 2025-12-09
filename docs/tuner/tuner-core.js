@@ -138,20 +138,25 @@ void analyze_loop(int* __restrict data, size_t n) {
         }
 
         // Parse Instruction Info table to extract per-instruction latency and rthroughput
-        // Format:
-        // [1]    [2]    [3]    Instructions:
-        //  1      4     1.00   vaddss %xmm0, %xmm1, %xmm2
-        const infoMatch = mcaOutput.match(/Instruction Info:[\s\S]*?Instructions:\s*\n([\s\S]*?)(?:\n\n|\nResource|$)/);
+        // Format (6 columns):
+        // [1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+        //  3      7     1.00                  U     ret
+        //  2      8     0.50    *                   vpaddd ...
+        const infoMatch = mcaOutput.match(/Instruction Info:[\s\S]*?Instructions:\s*\n([\s\S]*?)(?:\n\n|\nResources:|$)/);
         if (infoMatch) {
             const lines = infoMatch[1].split('\n').filter(l => l.trim());
             metrics.instructions = [];
             for (const line of lines) {
-                // Match: whitespace, uops, whitespace, latency, whitespace, rthroughput, whitespace, instruction
-                const match = line.match(/^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(.+)$/);
-                if (match) {
-                    const lat = parseInt(match[2], 10);
-                    const rt = parseFloat(match[3]);
-                    const instr = match[4].trim();
+                // Match first 3 numeric columns: uops, latency, rthroughput
+                // Then extract instruction mnemonic from the rest (after optional markers like *, U)
+                const numMatch = line.match(/^\s*(\d+)\s+(\d+)\s+([\d.]+)/);
+                if (numMatch) {
+                    const lat = parseInt(numMatch[2], 10);
+                    const rt = parseFloat(numMatch[3]);
+                    // Extract instruction: find first word starting with a letter after the numbers
+                    const remainder = line.substring(numMatch[0].length);
+                    const instrMatch = remainder.match(/([a-zA-Z_][a-zA-Z0-9_]*)/);
+                    const instr = instrMatch ? instrMatch[0] : 'unknown';
                     if (!isNaN(lat) && !isNaN(rt)) {
                         metrics.instructions.push({
                             latency: lat,
