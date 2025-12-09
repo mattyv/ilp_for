@@ -22,29 +22,8 @@ const TunerCore = (function() {
             throw new TypeError('arch must be a string');
         }
 
-        return `#include <cstddef>
-#include <cstdint>
-
-// Prevent optimization of the result
-template<typename T>
-void escape(T&& val) {
-    asm volatile("" : : "g"(val) : "memory");
-}
-
-// Prevent optimization of reads
-void clobber() {
-    asm volatile("" : : : "memory");
-}
-
-void analyze_loop(int* __restrict data, size_t n) {
-    int sum = 0;
-    int* __restrict ptr = data;
-
-    ${userCode}
-
-    escape(sum);
-}
-`;
+        // No wrapper - user provides complete code
+        return userCode;
     }
 
     /**

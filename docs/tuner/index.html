@@ -208,14 +208,29 @@
             <div class="panel">
                 <h2>Input</h2>
 
-                <label for="code">Loop Code</label>
-                <textarea id="code" placeholder="// Paste your loop body here
-// Example:
-for (size_t i = 0; i < n; ++i) {
-    sum += data[i];
-}">// Example: simple sum
-for (size_t i = 0; i < n; ++i) {
-    sum += data[i];
+                <label for="code">Loop Code (complete - no hidden wrapper)</label>
+                <textarea id="code" placeholder="#include <cstddef>
+
+void test(int* data) {
+    volatile size_t n = 1000;
+    int sum = 0;
+
+    asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot;);
+    for (size_t i = 0; i < n; ++i) {
+        sum += data[i];
+    }
+    asm volatile(&quot;# LLVM-MCA-END&quot;);
+}">#include <cstddef>
+
+void test(int* data) {
+    volatile size_t n = 1000;
+    int sum = 0;
+
+    asm volatile("# LLVM-MCA-BEGIN loop");
+    for (size_t i = 0; i < n; ++i) {
+        sum += data[i];
+    }
+    asm volatile("# LLVM-MCA-END");
 }</textarea>
 
                 <div class="row">
@@ -248,7 +263,8 @@ for (size_t i = 0; i < n; ++i) {
                 <button id="analyze" onclick="analyze()">Analyze</button>
 
                 <p class="help">
-                    Your code is wrapped in a test function and compiled with LLVM-MCA analysis.
+                    <strong>Required:</strong> Wrap your loop with <code>asm volatile("# LLVM-MCA-BEGIN loop");</code> and <code>asm volatile("# LLVM-MCA-END");</code> markers.
+                    Use <code>volatile</code> for loop bounds to prevent aggressive compiler unrolling.
                     <a href="https://llvm.org/docs/CommandGuide/llvm-mca.html" target="_blank">Learn about MCA</a>
                 </p>
             </div>

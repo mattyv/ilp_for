@@ -65,21 +65,27 @@
     // ========================================
     group('wrapCode');
 
-    test('wraps code with includes and harness', function() {
-        const result = T.wrapCode('sum += data[i];', 'skylake');
-        assertContains(result, '#include <cstddef>');
-        assertContains(result, 'void analyze_loop');
-        assertContains(result, 'sum += data[i];');
-        assertContains(result, 'escape(sum)');
+    test('returns user code unchanged (passthrough)', function() {
+        const code = 'sum += data[i];';
+        assertEqual(T.wrapCode(code, 'skylake'), code);
     });
 
-    test('preserves user code exactly', function() {
-        const code = 'for (int i = 0; i < n; ++i) { sum += data[i] * 2; }';
-        assertContains(T.wrapCode(code, 'skylake'), code);
+    test('preserves complete user code', function() {
+        const code = `#include <cstddef>
+void test(int* data) {
+    volatile size_t n = 1000;
+    int sum = 0;
+    asm volatile("# LLVM-MCA-BEGIN loop");
+    for (size_t i = 0; i < n; ++i) {
+        sum += data[i];
+    }
+    asm volatile("# LLVM-MCA-END");
+}`;
+        assertEqual(T.wrapCode(code, 'skylake'), code);
     });
 
     test('handles empty code', function() {
-        assertContains(T.wrapCode('', 'skylake'), 'void analyze_loop');
+        assertEqual(T.wrapCode('', 'skylake'), '');
     });
 
     test('throws on non-string userCode', function() {
