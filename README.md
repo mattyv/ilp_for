@@ -121,9 +121,11 @@ int find_index(const std::vector<int>& data, int target) {
 }
 ```
 
-### Function API (Alternative)
+### Function API 
 
-If you prefer `std::`-style functions, the library also provides `ilp::find` and `ilp::reduce`:
+After implementing the ILP_FOR api I figured there may be some value in implementing early return alternatives to some std functions. So take from it what you will. 
+Some std functions unroll very badly or cannot easily accomodate early return easily.
+The library provides `ilp::find` and `ilp::reduce`:
 
 ```cpp
 // Find - returns index (or end if not found)
@@ -176,7 +178,7 @@ End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 | `-> std::optional<T>` | Reduce body | Return type for early exit support |
 | `return std::nullopt` | Reduce body | Exit early from reduction |
 
-### Function API (Alternative)
+### Function API 
 
 | Function | Description |
 |----------|-------------|
