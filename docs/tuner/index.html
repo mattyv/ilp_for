@@ -209,7 +209,7 @@
                 <h2>Input</h2>
 
                 <label for="code">Loop Code (complete - no hidden wrapper)</label>
-                <textarea id="code" placeholder="#include <cstddef>
+                <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
 
 void test(int* data) {
     volatile size_t n = 1000;
@@ -256,7 +256,7 @@ void test(int* data) {
                 <div class="row">
                     <div>
                         <label for="args">Compiler Arguments</label>
-                        <input type="text" id="args" value="-std=c++2b -O3">
+                        <input type="text" id="args" autocapitalize="off" autocorrect="off" spellcheck="false" value="-std=c++2b -O3">
                     </div>
                 </div>
 
@@ -310,6 +310,17 @@ void test(int* data) {
 
     <script src="tuner-core.js"></script>
     <script>
+        // Allow Tab key to insert tabs in textarea
+        document.getElementById('code').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
         async function analyze() {
             const btn = document.getElementById('analyze');
             const code = document.getElementById('code').value;
