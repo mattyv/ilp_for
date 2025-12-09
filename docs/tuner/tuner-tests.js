@@ -134,6 +134,79 @@ void test(int* data) {
     });
 
     // ========================================
+    // isArmArch tests
+    // ========================================
+    group('isArmArch');
+
+    test('apple-m1 is ARM', function() {
+        assertEqual(T.isArmArch('apple-m1'), true);
+    });
+
+    test('cortex-a72 is ARM', function() {
+        assertEqual(T.isArmArch('cortex-a72'), true);
+    });
+
+    test('skylake is not ARM', function() {
+        assertEqual(T.isArmArch('skylake'), false);
+    });
+
+    test('znver4 is not ARM', function() {
+        assertEqual(T.isArmArch('znver4'), false);
+    });
+
+    // ========================================
+    // getDefaultCompiler tests
+    // ========================================
+    group('getDefaultCompiler');
+
+    test('skylake defaults to clang_trunk', function() {
+        assertEqual(T.getDefaultCompiler('skylake'), 'clang_trunk');
+    });
+
+    test('znver4 defaults to clang_trunk', function() {
+        assertEqual(T.getDefaultCompiler('znver4'), 'clang_trunk');
+    });
+
+    test('apple-m1 defaults to llvmasarm64_trunk', function() {
+        assertEqual(T.getDefaultCompiler('apple-m1'), 'llvmasarm64_trunk');
+    });
+
+    test('cortex-a72 defaults to llvmasarm64_trunk', function() {
+        assertEqual(T.getDefaultCompiler('cortex-a72'), 'llvmasarm64_trunk');
+    });
+
+    // ========================================
+    // getCompilersForArch tests
+    // ========================================
+    group('getCompilersForArch');
+
+    test('skylake returns x86 compilers', function() {
+        const compilers = T.getCompilersForArch('skylake');
+        assert(Array.isArray(compilers));
+        assert(compilers.length > 0);
+        assert(compilers.some(c => c.id === 'clang_trunk'));
+    });
+
+    test('apple-m1 returns ARM64 compilers', function() {
+        const compilers = T.getCompilersForArch('apple-m1');
+        assert(Array.isArray(compilers));
+        assert(compilers.length > 0);
+        assert(compilers.some(c => c.id === 'llvmasarm64_trunk'));
+    });
+
+    test('cortex-a72 returns ARM64 compilers', function() {
+        const compilers = T.getCompilersForArch('cortex-a72');
+        assert(Array.isArray(compilers));
+        assert(compilers.some(c => c.id === 'llvmasarm64_trunk'));
+    });
+
+    test('compiler objects have id and name', function() {
+        const compilers = T.getCompilersForArch('skylake');
+        assert(compilers[0].id !== undefined);
+        assert(compilers[0].name !== undefined);
+    });
+
+    // ========================================
     // parseMetrics tests
     // ========================================
     group('parseMetrics');
@@ -533,6 +606,21 @@ Block RThroughput: 5.0
 
     test('rejects invalid compiler', function() {
         const r = T.validateInput('code', 'skylake', 'invalid');
+        assertEqual(r.valid, false);
+    });
+
+    test('accepts ARM64 compiler for ARM architecture', function() {
+        const r = T.validateInput('code', 'apple-m1', 'llvmasarm64_trunk');
+        assertEqual(r.valid, true);
+    });
+
+    test('rejects x86 compiler for ARM architecture', function() {
+        const r = T.validateInput('code', 'apple-m1', 'clang_trunk');
+        assertEqual(r.valid, false);
+    });
+
+    test('rejects ARM64 compiler for x86 architecture', function() {
+        const r = T.validateInput('code', 'skylake', 'llvmasarm64_trunk');
         assertEqual(r.valid, false);
     });
 

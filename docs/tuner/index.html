@@ -211,26 +211,22 @@
                 <label for="code">Loop Code (complete - no hidden wrapper)</label>
                 <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
 
-void test(int* data) {
-    volatile size_t n = 1000;
-    int sum = 0;
-
+size_t find_threshold(const float* data, size_t n, float threshold) {
     asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot;);
     for (size_t i = 0; i < n; ++i) {
-        sum += data[i];
+        if (data[i] > threshold) return i;
     }
     asm volatile(&quot;# LLVM-MCA-END&quot;);
+    return n;
 }">#include <cstddef>
 
-void test(int* data) {
-    volatile size_t n = 1000;
-    int sum = 0;
-
+size_t find_threshold(const float* data, size_t n, float threshold) {
     asm volatile("# LLVM-MCA-BEGIN loop");
     for (size_t i = 0; i < n; ++i) {
-        sum += data[i];
+        if (data[i] > threshold) return i;
     }
     asm volatile("# LLVM-MCA-END");
+    return n;
 }</textarea>
 
                 <div class="row">
@@ -246,9 +242,7 @@ void test(int* data) {
                     <div>
                         <label for="compiler">Compiler</label>
                         <select id="compiler">
-                            <option value="clang_trunk" selected>Clang (trunk)</option>
-                            <option value="clang1800">Clang 18</option>
-                            <option value="clang1700">Clang 17</option>
+                            <!-- Populated dynamically based on architecture -->
                         </select>
                     </div>
                 </div>
@@ -310,6 +304,27 @@ void test(int* data) {
 
     <script src="tuner-core.js"></script>
     <script>
+        // Populate compiler dropdown based on architecture
+        function updateCompilers() {
+            const arch = document.getElementById('arch').value;
+            const compilerSelect = document.getElementById('compiler');
+            const compilers = TunerCore.getCompilersForArch(arch);
+
+            compilerSelect.innerHTML = '';
+            for (const c of compilers) {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                compilerSelect.appendChild(opt);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', updateCompilers);
+
+        // Update when architecture changes
+        document.getElementById('arch').addEventListener('change', updateCompilers);
+
         // Allow Tab key to insert tabs in textarea
         document.getElementById('code').addEventListener('keydown', function(e) {
             if (e.key === 'Tab') {

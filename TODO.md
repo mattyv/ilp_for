@@ -36,4 +36,4 @@
 
 ## Misc
 - [ ] Optionally compile in and out cpp 23 features
-- [ ] M1 and coretex don't work in ILP N analiser
+- [x] M1 and cortex don't work in ILP N analyser

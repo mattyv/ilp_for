@@ -63,6 +63,48 @@ const TunerCore = (function() {
     }
 
     /**
+     * Check if architecture is ARM-based
+     * @param {string} arch - Architecture identifier
+     * @returns {boolean} True if ARM architecture
+     */
+    function isArmArch(arch) {
+        return arch === 'apple-m1' || arch === 'cortex-a72';
+    }
+
+    /**
+     * Get default compiler for given architecture
+     * @param {string} arch - Architecture identifier
+     * @returns {string} Compiler identifier
+     */
+    function getDefaultCompiler(arch) {
+        if (isArmArch(arch)) {
+            return 'llvmasarm64_trunk';
+        }
+        return 'clang_trunk';
+    }
+
+    /**
+     * Get available compilers for given architecture
+     * @param {string} arch - Architecture identifier
+     * @returns {Array<{id: string, name: string}>} Available compilers
+     */
+    function getCompilersForArch(arch) {
+        if (isArmArch(arch)) {
+            return [
+                { id: 'llvmasarm64_trunk', name: 'AArch64 Clang (trunk)' },
+                { id: 'llvmasarm64_2110', name: 'AArch64 Clang 21.1.0' },
+                { id: 'llvmasarm64_1900', name: 'AArch64 Clang 19.0.0' },
+                { id: 'llvmasarm64_1801', name: 'AArch64 Clang 18.0.1' }
+            ];
+        }
+        return [
+            { id: 'clang_trunk', name: 'Clang (trunk)' },
+            { id: 'clang1800', name: 'Clang 18' },
+            { id: 'clang1700', name: 'Clang 17' }
+        ];
+    }
+
+    /**
      * Parse LLVM-MCA output to extract metrics
      * @param {string} mcaOutput - Raw MCA output text
      * @returns {Object} Parsed metrics
@@ -338,9 +380,9 @@ const TunerCore = (function() {
             return { valid: false, error: 'Invalid architecture selected' };
         }
 
-        const validCompilers = ['clang_trunk', 'clang1800', 'clang1700'];
+        const validCompilers = getCompilersForArch(arch).map(c => c.id);
         if (!validCompilers.includes(compiler)) {
-            return { valid: false, error: 'Invalid compiler selected' };
+            return { valid: false, error: 'Invalid compiler for selected architecture' };
         }
 
         return { valid: true, error: null };
@@ -352,6 +394,9 @@ const TunerCore = (function() {
         wrapCode,
         getArchFlag,
         getMcaCpu,
+        isArmArch,
+        getDefaultCompiler,
+        getCompilersForArch,
         parseMetrics,
         generateRecommendation,
         escapeHtml,
