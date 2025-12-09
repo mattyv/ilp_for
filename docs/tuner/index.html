@@ -319,8 +319,8 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
             }
         }
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', updateCompilers);
+        // Initialize on page load (call immediately since script is at end of body)
+        updateCompilers();
 
         // Update when architecture changes
         document.getElementById('arch').addEventListener('change', updateCompilers);
