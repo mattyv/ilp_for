@@ -1,21 +1,57 @@
 # Assembly Examples
 
-View side-by-side comparisons of ILP_FOR implementations on Compiler Explorer (Godbolt).
+View side-by-side comparisons on Compiler Explorer (Godbolt).
 
 Each example shows three versions:
-- **ILP_FOR**: Multi-accumulator pattern with parallel operations
-- **Hand-rolled**: Manual 4x unroll with sequential dependencies
+- **ILP**: Multi-accumulator pattern with parallel operations
+- **Hand-rolled**: Manual 4x unroll for comparison
 - **Simple**: Baseline single-iteration loop
-
-Compare assembly output across architectures to see the optimization differences.
 
 ---
 
+# ILP_FOR Macro
+
+The primary API for loops with `break`, `continue`, or `return`.
+
+## Loop with Break
+
+ILP_FOR with ILP_BREAK showing early exit from unrolled loop
+
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/r61eMvfd7) | [x86-64 GCC](https://godbolt.org/z/9rc5GoevP) | [ARM64](https://godbolt.org/z/7WM61Ea96)
+
+[Source code](../godbolt_examples/loop_with_break.cpp)
+
+---
+
+## Loop with Return
+
+ILP_FOR with ILP_RETURN to exit enclosing function from loop
+
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/dYs45d5T4) | [x86-64 GCC](https://godbolt.org/z/es9ao7W5c) | [ARM64](https://godbolt.org/z/7Pxj6eMKW)
+
+[Source code](../godbolt_examples/loop_with_return.cpp)
+
+---
+
+## Loop with Large Return Type
+
+ILP_FOR_T for return types > 8 bytes (structs, large objects)
+
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/K6EPf58v5) | [x86-64 GCC](https://godbolt.org/z/3exGvo9Yr) | [ARM64](https://godbolt.org/z/P3vjbTdEG)
+
+[Source code](../godbolt_examples/loop_with_return_typed.cpp)
+
+---
+
+# Function API
+
+Alternative `std::`-style functions with early exit support.
+
 ## Find First Match
 
-Early-exit search comparing ILP multi-accumulator vs sequential checks
+ilp::find for early-exit search (std::find alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/WbqKjcf7Y) | [x86-64 GCC](https://godbolt.org/z/7Txes4Eve) | [ARM64](https://godbolt.org/z/1qxhf6zxP)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/rM16zfvW1) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
 
 [Source code](../godbolt_examples/find_first_match.cpp)
 
@@ -23,9 +59,9 @@ Early-exit search comparing ILP multi-accumulator vs sequential checks
 
 ## Parallel Minimum
 
-Parallel accumulator reduce breaking dependency chains
+ilp::reduce breaking dependency chains (std::min_element alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/MPcsdG8jj) | [x86-64 GCC](https://godbolt.org/z/boavvsrbr) | [ARM64](https://godbolt.org/z/nPMzhddh9)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/ffWb68TYs) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
 
 [Source code](../godbolt_examples/parallel_min.cpp)
 
@@ -33,21 +69,11 @@ Parallel accumulator reduce breaking dependency chains
 
 ## Sum with Early Exit
 
-Reduce with break condition showing control flow handling
+ilp::reduce with early termination (std::accumulate alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/cseKTehno) | [x86-64 GCC](https://godbolt.org/z/745MYGG8o) | [ARM64](https://godbolt.org/z/GnrEzThPx)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/bMhKqf1Kh) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
 
 [Source code](../godbolt_examples/sum_with_break.cpp)
-
----
-
-## Simple Transform
-
-In-place transformation without control flow (SIMPLE variant)
-
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/7zed7GvKe) | [x86-64 GCC](https://godbolt.org/z/h9c6djh5b) | [ARM64](https://godbolt.org/z/38hqboqTW)
-
-[Source code](../godbolt_examples/transform_simple.cpp)
 
 ---
 
@@ -64,6 +90,6 @@ In-place transformation without control flow (SIMPLE variant)
 
 ## Compiler Settings
 
-- **x86-64 Clang**: Clang trunk (latest), `-std=c++2b -O3 -march=skylake`
+- **x86-64 Clang**: Clang 18, `-std=c++2b -O3 -march=skylake`
 - **x86-64 GCC**: GCC 14.1, `-std=c++2b -O3 -march=skylake`
-- **ARM64**: ARM64 GCC 12.2, `-std=c++2b -O3 -mcpu=cortex-a72`
+- **ARM64**: ARM Clang 18, `-std=c++2b -O3 -mcpu=apple-m1`

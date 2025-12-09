@@ -1,1 +1,1 @@
-genhtml /Users/matthew/Documents/Code/CPP/ilp_for/tests/build/coverage.info --output-directory /Users/matthew/Documents/Code/CPP/ilp_for/tests/build/coverage_html
+genhtml coverage.info --output-directory coverage_html

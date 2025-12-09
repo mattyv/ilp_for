@@ -1,8 +1,7 @@
-#include <cstddef>
 #include "../escape.hpp"
+#include <cstddef>
 
-__attribute__((noinline))
-unsigned sum_plain_handrolled(unsigned n) {
+__attribute__((noinline)) unsigned sum_plain_handrolled(unsigned n) {
     escape(n);
     unsigned sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
     unsigned i = 0;

@@ -1,25 +1,37 @@
-#include "catch.hpp"
+// Suppress deprecation warnings for this entire test file
+// (warnings are intentionally triggered to test overflow detection)
+#ifdef _MSC_VER
+#pragma warning(disable : 4996)
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include "../../ilp_for.hpp"
-#include <vector>
+#include "catch.hpp"
 #include <cstdint>
+#include <vector>
+
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // TEST: Overflow Risk Detection
 // =============================================================================
-// These tests verify that the library warns about potential overflow conditions
-// when accumulator types are too small for sum operations.
+// The library warns when accumulator type is STRICTLY SMALLER than element type.
+// Same-size accumulation is allowed - users know their data.
+//
+// Warning condition: sizeof(AccumT) < sizeof(ElemT)
 
 // -----------------------------------------------------------------------------
-// Safe operations - no warnings
+// Safe operations - no warnings (accumulator >= element size)
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Safe: int64_t accumulator for int32_t elements", "[overflow][safe]") {
     std::vector<int32_t> data = {1, 2, 3, 4, 5};
 
-    // This should NOT produce warnings - accumulator is larger
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return static_cast<int64_t>(val);  // Explicit upcast to larger type
-    } ILP_END_REDUCE;
+    // No warning - accumulator (8 bytes) > element (4 bytes)
+    auto result =
+        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 15);
 }
@@ -27,141 +39,140 @@ TEST_CASE("Safe: int64_t accumulator for int32_t elements", "[overflow][safe]") 
 TEST_CASE("Safe: double accumulator for int elements", "[overflow][safe]") {
     std::vector<int> data = {10, 20, 30, 40};
 
-    // This should NOT produce warnings - floating point has better overflow characteristics
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return static_cast<double>(val);
-    } ILP_END_REDUCE;
+    // No warning - floating point (not checked)
+    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>{}, [](auto&& val) { return static_cast<double>(val); });
 
     REQUIRE(result == 100.0);
 }
 
-TEST_CASE("Safe: int64_t accumulator for range-based sum", "[overflow][safe]") {
+TEST_CASE("Safe: int64_t accumulator for int16_t elements", "[overflow][safe]") {
     std::vector<int16_t> data = {100, 200, 300, 400, 500};
 
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return static_cast<int64_t>(val);
-    } ILP_END_REDUCE;
+    // No warning - accumulator (8 bytes) > element (2 bytes)
+    auto result =
+        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 1500);
 }
 
+TEST_CASE("Safe: int32_t accumulator for int8_t elements", "[overflow][safe]") {
+    std::vector<int8_t> data(200, 1);
+
+    // No warning - accumulator (4 bytes) > element (1 byte)
+    auto result =
+        ilp::reduce_range<4>(data, int32_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int32_t>(val); });
+
+    REQUIRE(result == 200);
+}
+
 // -----------------------------------------------------------------------------
-// Potentially unsafe operations - WILL produce deprecation warnings
+// Same-size operations - now allowed (user responsibility)
+// These do NOT warn under the new policy
 // -----------------------------------------------------------------------------
 
-TEST_CASE("Unsafe: int accumulator for int elements", "[overflow][unsafe]") {
+TEST_CASE("Same-size: int accumulator for int elements", "[overflow][same-size]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
 
-    // WARNING: This will produce a deprecation warning at compile time
-    // Accumulator is same size as elements - potential overflow
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return val;  // Returns int, accumulates into int
-    } ILP_END_REDUCE;
+    // No warning - same size is allowed, user knows their data
+    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
 
-TEST_CASE("Unsafe: int8_t accumulator for int8_t elements", "[overflow][unsafe]") {
+TEST_CASE("Same-size: int8_t accumulator for int8_t elements", "[overflow][same-size]") {
     std::vector<int8_t> data = {1, 2, 3, 4, 5};
 
-    // WARNING: This will produce a deprecation warning
-    // Very small accumulator - will overflow quickly
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return val;  // Returns int8_t
-    } ILP_END_REDUCE;
+    // No warning - same size is allowed
+    // (overflow IS possible with more elements, but user is responsible)
+    auto result = ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
 
-TEST_CASE("Unsafe: int16_t accumulator for int16_t elements", "[overflow][unsafe]") {
-    // WARNING: This will produce a deprecation warning
-    auto result = ILP_REDUCE_SUM(auto i, 0, 10, 4) {
-        return static_cast<int16_t>(i);
-    } ILP_END_REDUCE;
-
-    REQUIRE(result == 45);
-}
-
-TEST_CASE("Unsafe: uint32_t accumulator for uint32_t range", "[overflow][unsafe]") {
+TEST_CASE("Same-size: uint32_t accumulator for uint32_t elements", "[overflow][same-size]") {
     std::vector<uint32_t> data = {1000000, 2000000, 3000000};
 
-    // WARNING: This will produce a deprecation warning
-    // Unsigned overflow is well-defined but likely not intended
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return val;
-    } ILP_END_REDUCE;
+    // No warning - same size is allowed
+    auto result = ilp::reduce_range<4>(data, uint32_t{0}, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 6000000);
 }
 
 // -----------------------------------------------------------------------------
-// Edge case: Actual overflow demonstration
+// Unsafe operations - would produce deprecation warnings if not suppressed
+// (accumulator strictly smaller than element/index type)
 // -----------------------------------------------------------------------------
 
-TEST_CASE("Actual overflow: int8_t overflows quickly", "[overflow][demonstration]") {
-    std::vector<int8_t> data(200, 1);  // 200 elements, each = 1
+TEST_CASE("Unsafe: int16_t accumulator with int index", "[overflow][unsafe]") {
+    // WARNING: accumulator (int16_t, 2 bytes) < index type (int, 4 bytes)
+    auto result = ilp::reduce<4>(0, 10, int16_t{0}, std::plus<>{}, [](auto i) { return static_cast<int16_t>(i); });
 
-    // WARNING: This will produce a deprecation warning AND actually overflow
-    // int8_t can only hold -128 to 127, so sum of 200 will overflow
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return val;
-    } ILP_END_REDUCE;
+    REQUIRE(result == 45);
+}
 
-    // Result will be wrong due to overflow (200 % 256 = -56 in signed int8_t)
-    // This test documents the behavior but doesn't REQUIRE correctness
+TEST_CASE("Unsafe: int8_t accumulator with int16_t elements", "[overflow][unsafe]") {
+    std::vector<int16_t> data = {1, 2, 3, 4, 5};
+
+    // WARNING: accumulator (int8_t, 1 byte) < element type (int16_t, 2 bytes)
+    auto result =
+        ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int8_t>(val); });
+
+    REQUIRE(result == 15);
+}
+
+TEST_CASE("Unsafe: int8_t accumulator with int index", "[overflow][unsafe]") {
+    // WARNING: accumulator (int8_t, 1 byte) < index type (int, 4 bytes)
+    auto result = ilp::reduce<4>(0, 10, int8_t{0}, std::plus<>{}, [](auto i) { return static_cast<int8_t>(i); });
+
+    REQUIRE(result == 45);
+}
+
+// -----------------------------------------------------------------------------
+// Demonstration: Overflow still happens with same-size (no warning)
+// -----------------------------------------------------------------------------
+
+TEST_CASE("Demo: int8_t overflow with many elements (no warning)", "[overflow][demo]") {
+    std::vector<int8_t> data(200, 1); // 200 elements, each = 1
+
+    // No warning (same-size allowed), but WILL overflow at runtime!
+    // int8_t can only hold -128 to 127
+    auto result = ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
+
+    // Result is wrong due to overflow
     INFO("Result with overflow: " << static_cast<int>(result));
-    // Actual result will be incorrect due to overflow
-}
-
-TEST_CASE("Correct approach: Use larger accumulator", "[overflow][correct]") {
-    std::vector<int8_t> data(200, 1);  // 200 elements, each = 1
-
-    // No warning - using larger accumulator type
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return static_cast<int32_t>(val);  // Cast to larger type
-    } ILP_END_REDUCE;
-
-    REQUIRE(result == 200);  // Correct result
+    // Don't REQUIRE correctness - this documents overflow behavior
 }
 
 // -----------------------------------------------------------------------------
-// Mixed scenarios
+// Workaround using explicit init type
 // -----------------------------------------------------------------------------
 
-TEST_CASE("Step-based sum with potential overflow", "[overflow][unsafe]") {
-    // WARNING: This will produce a deprecation warning
-    auto result = ILP_REDUCE_STEP_SUM(auto i, 0, 100, 2, 4) {
-        return static_cast<int>(i);  // int accumulating int - same size
-    } ILP_END_REDUCE;
-
-    REQUIRE(result == 2450);  // 0+2+4+...+98
-}
-
-TEST_CASE("Explicit init with sufficient type bypasses issue", "[overflow][workaround]") {
+TEST_CASE("Workaround: Explicit init with larger type", "[overflow][workaround]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
 
-    // Using reduce_simple with explicit int64_t init avoids the warning
-    auto result = ILP_REDUCE_RANGE_SIMPLE(std::plus<>{}, int64_t{0}, auto&& val, data, 4) {
-        return static_cast<int64_t>(val);
-    } ILP_END_REDUCE;
+    // Using reduce with explicit int64_t init
+    auto result =
+        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 15);
 }
 
 // -----------------------------------------------------------------------------
-// Documentation: How to interpret the warnings
+// Documentation
 // -----------------------------------------------------------------------------
+//
+// Warning policy: sizeof(AccumT) < sizeof(ElemT)
+//
+// WARNS:
+//   - Accumulator smaller than element type (e.g., int8_t accumulating int)
+//
+// DOES NOT WARN:
+//   - Same-size accumulation (users know their data)
+//   - Larger accumulator (safe)
+//   - Floating point (different overflow semantics)
+//
+// To avoid overflow issues:
+//   return static_cast<int64_t>(val);  // Use larger accumulator type
+//   return static_cast<double>(val);   // Use floating point
 
-// When you see the deprecation warning:
-//   "Overflow risk: accumulator type may be too small for sum."
-//
-// Solutions:
-//   1. Return a larger type from your lambda (e.g., int64_t instead of int32_t)
-//   2. Use floating point (e.g., double) if appropriate
-//   3. Use ILP_REDUCE_RANGE_SIMPLE with explicit larger init type
-//   4. If your range is small and bounded, you can ignore the warning
-//
-// Example fixes:
-//   BAD:  return val;                           // int -> int
-//   GOOD: return static_cast<int64_t>(val);    // int -> int64_t
-//   GOOD: return static_cast<double>(val);     // int -> double
+#endif // !ILP_MODE_SIMPLE

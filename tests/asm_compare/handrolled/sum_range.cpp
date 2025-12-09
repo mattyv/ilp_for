@@ -1,9 +1,8 @@
+#include "../escape.hpp"
 #include <cstddef>
 #include <span>
-#include "../escape.hpp"
 
-__attribute__((noinline))
-unsigned sum_range_handrolled(std::span<const unsigned> data) {
+__attribute__((noinline)) unsigned sum_range_handrolled(std::span<const unsigned> data) {
     escape(data);
     unsigned sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
     std::size_t n = data.size();

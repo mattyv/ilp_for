@@ -22,6 +22,24 @@ if(ENABLE_COVERAGE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
 endif()
 
+# Sanitizer options (GCC/Clang only)
+option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_UBSAN "Enable Undefined Behavior Sanitizer" OFF)
+
+if(NOT MSVC)
+    if(ENABLE_ASAN)
+        message(STATUS "Address Sanitizer enabled")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+    endif()
+
+    if(ENABLE_UBSAN)
+        message(STATUS "Undefined Behavior Sanitizer enabled")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined -fno-omit-frame-pointer")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined")
+    endif()
+endif()
+
 # Include parent directory for ilp_for.hpp
 include_directories(..)
 
@@ -62,7 +80,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/handrolled/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for handrolled/${name}"
         )
@@ -74,7 +92,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/ilp/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for ilp/${name}"
         )
@@ -86,7 +104,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/simple/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for simple/${name}"
         )
@@ -98,7 +116,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/std/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native ${CMAKE_CXX_FLAGS} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for std/${name}"
         )
@@ -162,8 +180,8 @@ if(ENABLE_COVERAGE)
     # Generate lcov report
     add_custom_target(coverage-report
         COMMAND lcov --capture --directory ${CMAKE_CURRENT_BINARY_DIR} --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors inconsistent,unused,mismatch,negative,format --rc branch_coverage=0
-        COMMAND lcov --remove ${CMAKE_CURRENT_BINARY_DIR}/coverage.info '/usr/*' '*/catch.hpp' '*/tests/*' '*/asm_compare/*' --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors unused
-        COMMAND lcov --list ${CMAKE_CURRENT_BINARY_DIR}/coverage.info
+        COMMAND lcov --remove ${CMAKE_CURRENT_BINARY_DIR}/coverage.info '/usr/*' '/Library/*' '*/catch.hpp' '*/tests/*' '*/asm_compare/*' --output-file ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors unused,inconsistent,empty
+        COMMAND lcov --list ${CMAKE_CURRENT_BINARY_DIR}/coverage.info --ignore-errors inconsistent
         DEPENDS coverage-run
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating lcov coverage report"

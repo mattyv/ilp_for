@@ -1,21 +1,19 @@
-// Example: Find first element matching a predicate
-// Demonstrates early-exit search with ILP
+// find first match
 
 #include "../ilp_for.hpp"
-#include <vector>
-#include <optional>
 #include <iostream>
+#include <optional>
+#include <vector>
 
 // Find first value greater than threshold
 std::optional<size_t> find_first_above(const std::vector<int>& data, int threshold) {
-    return ILP_FOR_RET_SIMPLE_AUTO(auto i, 0uz, data.size()) {
-        return data[i] > threshold;
-    } ILP_END;
+    size_t idx = ilp::find<4>(0uz, data.size(), [&](auto i, auto) { return data[i] > threshold; });
+    return (idx != data.size()) ? std::optional(idx) : std::nullopt;
 }
 
 int main() {
     std::vector<int> data(10'000'000, 42);
-    data[7'500'000] = 100;  // Target near end
+    data[7'500'000] = 100; // Target near end
 
     auto idx = find_first_above(data, 50);
 

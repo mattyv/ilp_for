@@ -1,16 +1,17 @@
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE)
+#if !defined(ILP_MODE_SIMPLE)
+#include "ilp_for.hpp"
 #include <cstddef>
 #include <functional>
-#include "ilp_for.hpp"
+#include <optional>
 
-__attribute__((noinline))
-unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
-    return ILP_REDUCE(std::plus<>{}, 0u, auto i, 0u, n, 4) {
-        if (i >= stop_at) {
-            _ilp_ctrl.break_loop();
-            return 0u;  // Return neutral element when breaking
-        }
+__attribute__((noinline)) unsigned sum_with_break_ilp(unsigned n, unsigned stop_at) {
+    return ilp::reduce<4>(0u, n, 0u, std::plus<>{}, [&](auto i) -> std::optional<unsigned> {
+        if (i >= stop_at)
+            return std::nullopt;
         return i;
-    } ILP_END_REDUCE;
+    });
 }
 #endif
+
+#endif // !ILP_MODE_SIMPLE

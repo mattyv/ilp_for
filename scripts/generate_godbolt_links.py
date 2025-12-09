@@ -12,10 +12,14 @@ from typing import Dict, List
 
 # Compiler configurations - using stable IDs
 COMPILERS = {
-    'x86-64 Clang': {
+    'x86-64 Clang (MCA)': {
         'compiler': 'clang_trunk',  # Clang trunk (latest)
         'options': '-std=c++2b -O3 -march=skylake',
-        'lang': 'c++'
+        'lang': 'c++',
+        'tools': [{
+            'id': 'llvm-mcatrunk',
+            'args': '-timeline -bottleneck-analysis'
+        }]
     },
     'x86-64 GCC': {
         'compiler': 'g141',  # GCC 14.1
@@ -30,25 +34,37 @@ COMPILERS = {
 }
 
 EXAMPLES = [
+    # ILP_FOR macro examples (primary)
+    {
+        'file': 'loop_with_break.cpp',
+        'title': 'Loop with Break',
+        'description': 'ILP_FOR with ILP_BREAK showing early exit from unrolled loop'
+    },
+    {
+        'file': 'loop_with_return.cpp',
+        'title': 'Loop with Return',
+        'description': 'ILP_FOR with ILP_RETURN to exit enclosing function from loop'
+    },
+    {
+        'file': 'loop_with_return_typed.cpp',
+        'title': 'Loop with Large Return Type',
+        'description': 'ILP_FOR_T for return types > 8 bytes (structs, large objects)'
+    },
+    # ilp::find and ilp::reduce function examples (auxiliary)
     {
         'file': 'find_first_match.cpp',
         'title': 'Find First Match',
-        'description': 'Early-exit search comparing ILP multi-accumulator vs sequential checks'
+        'description': 'ilp::find for early-exit search (std::find alternative)'
     },
     {
         'file': 'parallel_min.cpp',
         'title': 'Parallel Minimum',
-        'description': 'Parallel accumulator reduce breaking dependency chains'
+        'description': 'ilp::reduce breaking dependency chains (std::min_element alternative)'
     },
     {
         'file': 'sum_with_break.cpp',
         'title': 'Sum with Early Exit',
-        'description': 'Reduce with break condition showing control flow handling'
-    },
-    {
-        'file': 'transform_simple.cpp',
-        'title': 'Simple Transform',
-        'description': 'In-place transformation without control flow (SIMPLE variant)'
+        'description': 'ilp::reduce with early termination (std::accumulate alternative)'
     }
 ]
 
@@ -191,14 +207,14 @@ def get_needed_items(example_name: str) -> Dict[str, List[str]]:
 
     needs = {
         'transform_simple.cpp': {
-            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['for_loop_simple_impl'],
-            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_simple', 'ILP_FOR_SIMPLE', 'ILP_END']
+            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor', 'ForBody', 'ForCtrlBody'],
+            'detail/loops_ilp.hpp': ['for_loop_impl'],
+            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop', 'ILP_FOR', 'ILP_END']
         },
         'parallel_min.cpp': {
-            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['reduce_simple_impl'],
-            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce_simple', 'ILP_REDUCE_SIMPLE', 'ILP_END_REDUCE']
+            'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor', 'ReduceBody'],
+            'detail/loops_ilp.hpp': ['reduce_impl'],
+            'ilp_for.hpp': ['Reduce_Context_USE_ILP_END_REDUCE', 'reduce', 'ILP_REDUCE', 'ILP_END_REDUCE']
         },
         'sum_with_break.cpp': {
             'detail/loops_common.hpp': ['warn_large_unroll_factor', 'validate_unroll_factor'],
@@ -208,8 +224,8 @@ def get_needed_items(example_name: str) -> Dict[str, List[str]]:
         },
         'find_first_match.cpp': {
             'detail/loops_common.hpp': ['is_optional', 'is_optional_v', 'warn_large_unroll_factor', 'validate_unroll_factor'],
-            'detail/loops_ilp.hpp': ['for_loop_ret_simple_impl'],
-            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'for_loop_ret_simple', 'ILP_FOR_RET_SIMPLE', 'ILP_END']
+            'detail/loops_ilp.hpp': ['find_impl'],
+            'ilp_for.hpp': ['For_Context_USE_ILP_END', 'find', 'ILP_FIND', 'ILP_END']
         }
     }
 
@@ -298,16 +314,23 @@ def create_godbolt_config(source_code: str, arch: str, example_name: str) -> Dic
     """Create Godbolt API configuration."""
     compiler_config = COMPILERS[arch]
 
+    # Build compiler entry
+    compiler_entry = {
+        'id': compiler_config['compiler'],
+        'options': compiler_config['options']
+    }
+
+    # Add tools if configured (e.g., llvm-mca for Clang)
+    if 'tools' in compiler_config:
+        compiler_entry['tools'] = compiler_config['tools']
+
     # Use the example source code directly (it now contains all needed code)
     return {
         'sessions': [{
             'id': 1,
             'language': compiler_config['lang'],
             'source': source_code,
-            'compilers': [{
-                'id': compiler_config['compiler'],
-                'options': compiler_config['options']
-            }]
+            'compilers': [compiler_entry]
         }]
     }
 
@@ -375,20 +398,47 @@ def generate_markdown(links: Dict[str, Dict[str, str]]) -> str:
     """Generate EXAMPLES.md content with links."""
     md = """# Assembly Examples
 
-View side-by-side comparisons of ILP_FOR implementations on Compiler Explorer (Godbolt).
+View side-by-side comparisons on Compiler Explorer (Godbolt).
 
 Each example shows three versions:
-- **ILP_FOR**: Multi-accumulator pattern with parallel operations
-- **Hand-rolled**: Manual 4x unroll with sequential dependencies
+- **ILP**: Multi-accumulator pattern with parallel operations
+- **Hand-rolled**: Manual 4x unroll for comparison
 - **Simple**: Baseline single-iteration loop
-
-Compare assembly output across architectures to see the optimization differences.
 
 ---
 
+# ILP_FOR Macro
+
+The primary API for loops with `break`, `continue`, or `return`.
+
 """
 
-    for example in EXAMPLES:
+    # ILP_FOR examples (first three)
+    for example in EXAMPLES[:3]:
+        file_name = example['file']
+        if file_name not in links or not links[file_name]:
+            continue
+
+        md += f"## {example['title']}\n\n"
+        md += f"{example['description']}\n\n"
+
+        arch_links = links[file_name]
+        link_parts = []
+        for arch, link in arch_links.items():
+            link_parts.append(f"[{arch}]({link})")
+
+        md += f"**View on Godbolt:** {' | '.join(link_parts)}\n\n"
+        md += f"[Source code](../godbolt_examples/{file_name})\n\n"
+        md += "---\n\n"
+
+    md += """# Function API
+
+Alternative `std::`-style functions with early exit support.
+
+"""
+
+    # Function API examples (remaining)
+    for example in EXAMPLES[3:]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue

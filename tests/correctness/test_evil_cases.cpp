@@ -1,9 +1,11 @@
-#include "catch.hpp"
 #include "../../ilp_for.hpp"
-#include <vector>
-#include <limits>
+#include "catch.hpp"
 #include <cstdint>
+#include <limits>
 #include <numeric>
+#include <vector>
+
+#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // EVIL TEST CASES: Really trying to break things
@@ -19,13 +21,15 @@ TEST_CASE("Near max integer range", "[evil][limits]") {
     int start = std::numeric_limits<int>::max() - 10;
     int end = std::numeric_limits<int>::max() - 5;
 
-    ILP_FOR_SIMPLE(auto i, start, end, 4) {
+    ILP_FOR(auto i, start, end, 4) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
     // Sum of 5 values starting from max-10
     int64_t expected = 0;
-    for (int i = start; i < end; ++i) expected += i;
+    for (int i = start; i < end; ++i)
+        expected += i;
     REQUIRE(sum == expected);
 }
 
@@ -34,12 +38,14 @@ TEST_CASE("Near min integer range", "[evil][limits]") {
     int start = std::numeric_limits<int>::min() + 5;
     int end = std::numeric_limits<int>::min() + 10;
 
-    ILP_FOR_SIMPLE(auto i, start, end, 4) {
+    ILP_FOR(auto i, start, end, 4) {
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
 
     int64_t expected = 0;
-    for (int i = start; i < end; ++i) expected += i;
+    for (int i = start; i < end; ++i)
+        expected += i;
     REQUIRE(sum == expected);
 }
 
@@ -48,10 +54,11 @@ TEST_CASE("Size_t near max", "[evil][limits]") {
     size_t end = std::numeric_limits<size_t>::max() - 10;
 
     int count = 0;
-    ILP_FOR_SIMPLE(auto i, start, end, 4) {
+    ILP_FOR(auto i, start, end, 4) {
         count++;
         (void)i;
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(count == 10);
 }
@@ -63,84 +70,51 @@ TEST_CASE("Size_t near max", "[evil][limits]") {
 TEST_CASE("Inverted unsigned range", "[evil][inverted]") {
     // This is undefined territory - what happens?
     unsigned count = 0;
-    ILP_FOR_SIMPLE(auto i, 10u, 0u, 4) {  // Inverted!
+    ILP_FOR(auto i, 10u, 0u, 4) { // Inverted!
         count++;
-    } ILP_END;
+    }
+    ILP_END;
     // Should be 0 iterations for safety
     REQUIRE(count == 0);
 }
 
 TEST_CASE("Inverted signed range", "[evil][inverted]") {
     int count = 0;
-    ILP_FOR_SIMPLE(auto i, 100, -100, 4) {  // Inverted!
+    ILP_FOR(auto i, 100, -100, 4) { // Inverted!
         count++;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(count == 0);
 }
 
 // -----------------------------------------------------------------------------
-// Evil 3: Step edge cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Step that causes no iterations", "[evil][step]") {
-    // Range 0-10, but step of 100 means only 0 is visited
-    int count = 0;
-    int visited = -1;
-    ILP_FOR_STEP_SIMPLE(auto i, 0, 10, 100, 4) {
-        count++;
-        visited = i;
-    } ILP_END;
-    REQUIRE(count == 1);
-    REQUIRE(visited == 0);
-}
-
-TEST_CASE("Negative step with exact boundary", "[evil][step]") {
-    // Step from 10 to 0 with step -2
-    std::vector<int> values;
-    ILP_FOR_STEP_SIMPLE(auto i, 10, 0, -2, 4) {
-        values.push_back(i);
-    } ILP_END;
-
-    REQUIRE(values.size() == 5);
-    REQUIRE(values[0] == 10);
-    REQUIRE(values[4] == 2);
-}
-
-TEST_CASE("Step that misses end exactly", "[evil][step]") {
-    // Range 0-10, step 3: 0, 3, 6, 9 (10 is NOT included since 9+3=12>10)
-    std::vector<int> values;
-    ILP_FOR_STEP_SIMPLE(auto i, 0, 10, 3, 4) {
-        values.push_back(i);
-    } ILP_END;
-
-    REQUIRE(values == std::vector<int>{0, 3, 6, 9});
-}
-
-// -----------------------------------------------------------------------------
-// Evil 4: N vs Range size mismatches
+// Evil 3: N vs Range size mismatches
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Exactly 2N elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0, 8, 4) {  // 8 = 2*4
+    ILP_FOR(auto i, 0, 8, 4) { // 8 = 2*4
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 28);  // 0+1+2+3+4+5+6+7
+    }
+    ILP_END;
+    REQUIRE(sum == 28); // 0+1+2+3+4+5+6+7
 }
 
 TEST_CASE("Exactly 2N-1 elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0, 7, 4) {  // 7 = 2*4-1
+    ILP_FOR(auto i, 0, 7, 4) { // 7 = 2*4-1
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 21);
 }
 
 TEST_CASE("Exactly 2N+1 elements", "[evil][boundary]") {
     int sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0, 9, 4) {  // 9 = 2*4+1
+    ILP_FOR(auto i, 0, 9, 4) { // 9 = 2*4+1
         sum += i;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 36);
 }
 
@@ -150,30 +124,20 @@ TEST_CASE("Exactly 2N+1 elements", "[evil][boundary]") {
 
 TEST_CASE("Reduce with zero init for product", "[evil][reduce]") {
     // Product with 0 init - always 0
-    auto result = ILP_REDUCE_SIMPLE(
-        std::multiplies<>(), 0, auto i, 1, 10, 4
-    ) {
-        return i;
-    } ILP_END_REDUCE;
-    REQUIRE(result == 0);  // 0 * anything = 0
+    auto result = ilp::reduce<4>(1, 10, 0, std::multiplies<>(), [&](auto i) { return i; });
+    REQUIRE(result == 0); // 0 * anything = 0
 }
 
 TEST_CASE("Reduce with negative init", "[evil][reduce]") {
-    auto result = ILP_REDUCE_SUM(auto i, 0, 10, 4) {
-        return i;
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) { return i; });
     // Wait, reduce_sum doesn't take init... default is 0
     REQUIRE(result == 45);
 }
 
 TEST_CASE("Reduce with max int init", "[evil][reduce]") {
-    auto result = ILP_REDUCE_SIMPLE(
-        [](int a, int b) { return std::min(a, b); },
-        std::numeric_limits<int>::max(),
-        auto i, 0, 100, 4
-    ) {
-        return i;
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce<4>(
+        0, 100, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
+        [&](auto i) { return i; });
     REQUIRE(result == 0);
 }
 
@@ -181,43 +145,51 @@ TEST_CASE("Reduce with max int init", "[evil][reduce]") {
 // Evil 6: Control flow in every position
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Break at N boundary", "[evil][control]") {
     // N=4, break exactly at position 4
     int sum = 0;
     ILP_FOR(auto i, 0, 100, 4) {
-        if (i == 4) ILP_BREAK;
+        if (i == 4)
+            ILP_BREAK;
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 6);  // 0+1+2+3
+    }
+    ILP_END;
+    REQUIRE(sum == 6); // 0+1+2+3
 }
 
 TEST_CASE("Break at N-1", "[evil][control]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 100, 4) {
-        if (i == 3) ILP_BREAK;
+        if (i == 3)
+            ILP_BREAK;
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 3);  // 0+1+2
+    }
+    ILP_END;
+    REQUIRE(sum == 3); // 0+1+2
 }
 
 TEST_CASE("Break at N+1", "[evil][control]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 100, 4) {
-        if (i == 5) ILP_BREAK;
+        if (i == 5)
+            ILP_BREAK;
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 10);  // 0+1+2+3+4
+    }
+    ILP_END;
+    REQUIRE(sum == 10); // 0+1+2+3+4
 }
 
 TEST_CASE("Break at 2N", "[evil][control]") {
     int sum = 0;
     ILP_FOR(auto i, 0, 100, 4) {
-        if (i == 8) ILP_BREAK;
+        if (i == 8)
+            ILP_BREAK;
         sum += i;
-    } ILP_END;
-    REQUIRE(sum == 28);  // 0+1+...+7
+    }
+    ILP_END;
+    REQUIRE(sum == 28); // 0+1+...+7
 }
 
 #endif
@@ -228,17 +200,19 @@ TEST_CASE("Break at 2N", "[evil][control]") {
 
 TEST_CASE("Mixing int and size_t", "[evil][types]") {
     size_t sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0, 10, 4) {
+    ILP_FOR(auto i, 0, 10, 4) {
         sum += static_cast<size_t>(i);
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 45);
 }
 
 TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
     int16_t sum = 0;
-    ILP_FOR_SIMPLE(auto i, 0, 100, 4) {
+    ILP_FOR(auto i, 0, 100, 4) {
         sum += static_cast<int16_t>(i);
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 4950);
 }
 
@@ -246,14 +220,15 @@ TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
 // Evil 8: Reduce with early break returns
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE) && !defined(ILP_MODE_PRAGMA)
+#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
-    // Breaking returns 0 from body, but what about accumulated values?
-    auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 100, 4) {
-        if (i == 10) ILP_BREAK_RET(0);
+    // Breaking returns nullopt from body, but what about accumulated values?
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
+        if (i == 10)
+            return std::nullopt;
         return i;
-    } ILP_END_REDUCE;
+    });
 
     // Expected: 0+1+2+3+4+5+6+7+8+9 = 45
     REQUIRE(result == 45);
@@ -261,10 +236,11 @@ TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
 
 TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
     // Break at position 0, 4, 8 (first of each unroll block)
-    auto result = ILP_REDUCE(std::plus<>(), 0, auto i, 0, 12, 4) {
-        if (i % 4 == 0) ILP_BREAK_RET(0);
+    auto result = ilp::reduce<4>(0, 12, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
+        if (i % 4 == 0)
+            return std::nullopt;
         return i;
-    } ILP_END_REDUCE;
+    });
 
     // Breaks on first iteration
     REQUIRE(result == 0);
@@ -277,20 +253,22 @@ TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Vector with one element less than N", "[evil][vector]") {
-    std::vector<int> data = {1, 2, 3};  // 3 < N=4
+    std::vector<int> data = {1, 2, 3}; // 3 < N=4
     int sum = 0;
-    ILP_FOR_RANGE_SIMPLE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(auto&& val, data, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 6);
 }
 
 TEST_CASE("Vector exactly N elements", "[evil][vector]") {
-    std::vector<int> data = {1, 2, 3, 4};  // 4 = N
+    std::vector<int> data = {1, 2, 3, 4}; // 4 = N
     int sum = 0;
-    ILP_FOR_RANGE_SIMPLE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(auto&& val, data, 4) {
         sum += val;
-    } ILP_END;
+    }
+    ILP_END;
     REQUIRE(sum == 10);
 }
 
@@ -298,30 +276,28 @@ TEST_CASE("Vector exactly N elements", "[evil][vector]") {
 // Evil 10: For-until with multiple matches
 // -----------------------------------------------------------------------------
 
-TEST_CASE("For-until with multiple potential matches", "[evil][until]") {
+TEST_CASE("Find with multiple potential matches", "[evil][find]") {
     // All elements match - should return first
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return true;  // All match
-    } ILP_END_UNTIL;
+    auto result = ilp::find<4>(0, 100, [&](auto, auto) {
+        return true; // All match
+    });
 
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0);  // First match
+    REQUIRE(result != 100); // Found (not sentinel)
+    REQUIRE(result == 0);   // First match
 }
 
-TEST_CASE("For-until matches in every unroll position", "[evil][until]") {
+TEST_CASE("Find matches in every unroll position", "[evil][find]") {
     // Match at positions 0, 1, 2, 3 (all within first block)
-    std::vector<std::optional<int>> results;
+    std::vector<int> results;
 
     for (int target = 0; target < 4; ++target) {
-        auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-            return i == target;
-        } ILP_END_UNTIL;
+        auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == target; });
         results.push_back(result);
     }
 
     for (int j = 0; j < 4; ++j) {
-        REQUIRE(results[j].has_value());
-        REQUIRE(*results[j] == j);
+        REQUIRE(results[j] != 100); // Found
+        REQUIRE(results[j] == j);
     }
 }
 
@@ -333,9 +309,10 @@ TEST_CASE("Strict iteration order for side effects", "[evil][order]") {
     std::vector<int> order;
     order.reserve(20);
 
-    ILP_FOR_SIMPLE(auto i, 0, 20, 4) {
+    ILP_FOR(auto i, 0, 20, 4) {
         order.push_back(i);
-    } ILP_END;
+    }
+    ILP_END;
 
     // MUST be strictly sequential
     for (int i = 0; i < 20; ++i) {
@@ -350,9 +327,10 @@ TEST_CASE("Range iteration order verification", "[evil][order]") {
     std::vector<int> order;
     order.reserve(20);
 
-    ILP_FOR_RANGE_SIMPLE(auto&& val, data, 4) {
+    ILP_FOR_RANGE(auto&& val, data, 4) {
         order.push_back(val);
-    } ILP_END;
+    }
+    ILP_END;
 
     REQUIRE(order == data);
 }
@@ -363,22 +341,16 @@ TEST_CASE("Range iteration order verification", "[evil][order]") {
 
 TEST_CASE("Reduce accumulator order - associative", "[evil][accumulator]") {
     // For associative ops, order shouldn't matter
-    auto result = ILP_REDUCE_SUM(auto i, 0, 20, 4) {
-        return i;
-    } ILP_END_REDUCE;
-    REQUIRE(result == 190);  // Always correct for sum
+    auto result = ilp::reduce<4>(0, 20, 0, std::plus<>{}, [&](auto i) { return i; });
+    REQUIRE(result == 190); // Always correct for sum
 }
 
 TEST_CASE("Reduce accumulator - max operation", "[evil][accumulator]") {
     std::vector<int> data = {5, 3, 9, 1, 8, 2, 7, 4, 6, 0};
 
-    auto result = ILP_REDUCE_RANGE_SIMPLE(
-        [](int a, int b) { return std::max(a, b); },
-        std::numeric_limits<int>::min(),
-        auto&& val, data, 4
-    ) {
-        return val;
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_range<4>(
+        data, std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
+        [&](auto&& val) { return val; });
 
     REQUIRE(result == 9);
 }
@@ -391,17 +363,11 @@ TEST_CASE("Reduce of empty with identity ops", "[evil][empty]") {
     std::vector<int> empty;
 
     // Sum of empty = 0
-    auto sum = ILP_REDUCE_RANGE_SUM(auto&& val, empty, 4) {
-        return val;
-    } ILP_END_REDUCE;
+    auto sum = ilp::reduce_range<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
     REQUIRE(sum == 0);
 
     // Product of empty with init 1 = 1
-    auto product = ILP_REDUCE_RANGE_SIMPLE(
-        std::multiplies<>(), 1, auto&& val, empty, 4
-    ) {
-        return val;
-    } ILP_END_REDUCE;
+    auto product = ilp::reduce_range<4>(empty, 1, std::multiplies<>(), [&](auto&& val) { return val; });
     REQUIRE(product == 1);
 }
 
@@ -410,9 +376,7 @@ TEST_CASE("Reduce of empty with identity ops", "[evil][empty]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("100000 iterations", "[evil][stress]") {
-    int64_t result = ILP_REDUCE_SUM(auto i, (int64_t)0, (int64_t)100000, 4) {
-        return i;
-    } ILP_END_REDUCE;
+    int64_t result = ilp::reduce<4>((int64_t)0, (int64_t)100000, 0LL, std::plus<>{}, [&](auto i) { return i; });
 
     REQUIRE(result == 4999950000LL);
 }
@@ -424,86 +388,54 @@ TEST_CASE("100000 iterations", "[evil][stress]") {
 TEST_CASE("No double evaluation of body", "[evil][evaluation]") {
     int eval_count = 0;
 
-    auto result = ILP_REDUCE_SUM(auto i, 0, 100, 4) {
+    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
         eval_count++;
         return i;
-    } ILP_END_REDUCE;
+    });
 
     REQUIRE(result == 4950);
-    REQUIRE(eval_count == 100);  // Each i evaluated exactly once
+    REQUIRE(eval_count == 100); // Each i evaluated exactly once
 }
 
 // -----------------------------------------------------------------------------
-// Evil 16: Step reduce edge cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Step reduce with N > range/step", "[evil][step]") {
-    // Range 0-10, step 5 means only 0, 5 (2 iterations), N=4
-    auto result = ILP_REDUCE_STEP_SUM(auto i, 0, 10, 5, 4) {
-        return i;
-    } ILP_END_REDUCE;
-    REQUIRE(result == 5);  // 0 + 5
-}
-
-TEST_CASE("Step reduce exactly N iterations", "[evil][step]") {
-    // Range 0-20, step 5 means 0, 5, 10, 15 (4 iterations = N)
-    auto result = ILP_REDUCE_STEP_SUM(auto i, 0, 20, 5, 4) {
-        return i;
-    } ILP_END_REDUCE;
-    REQUIRE(result == 30);  // 0+5+10+15
-}
-
-// -----------------------------------------------------------------------------
-// Evil 17: Const correctness
+// Evil 16: Const correctness
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Const vector reduce", "[evil][const]") {
     const std::vector<int> data = {1, 2, 3, 4, 5};
 
-    auto result = ILP_REDUCE_RANGE_SUM(auto&& val, data, 4) {
-        return val;
-    } ILP_END_REDUCE;
+    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
 
 // -----------------------------------------------------------------------------
-// Evil 18: For-until at exact boundaries
+// Evil 17: Find at exact boundaries
 // -----------------------------------------------------------------------------
 
-TEST_CASE("For-until finds at N-1", "[evil][until]") {
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return i == 3;
-    } ILP_END_UNTIL;
-    REQUIRE(*result == 3);
+TEST_CASE("Find at N-1", "[evil][find]") {
+    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 3; });
+    REQUIRE(result == 3);
 }
 
-TEST_CASE("For-until finds at N", "[evil][until]") {
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return i == 4;
-    } ILP_END_UNTIL;
-    REQUIRE(*result == 4);
+TEST_CASE("Find at N", "[evil][find]") {
+    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 4; });
+    REQUIRE(result == 4);
 }
 
-TEST_CASE("For-until finds at N+1", "[evil][until]") {
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return i == 5;
-    } ILP_END_UNTIL;
-    REQUIRE(*result == 5);
+TEST_CASE("Find at N+1", "[evil][find]") {
+    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 5; });
+    REQUIRE(result == 5);
 }
 
-TEST_CASE("For-until finds at 2N-1", "[evil][until]") {
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return i == 7;
-    } ILP_END_UNTIL;
-    REQUIRE(*result == 7);
+TEST_CASE("Find at 2N-1", "[evil][find]") {
+    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 7; });
+    REQUIRE(result == 7);
 }
 
-TEST_CASE("For-until finds at 2N", "[evil][until]") {
-    auto result = ILP_FOR_UNTIL(auto i, 0, 100, 4) {
-        return i == 8;
-    } ILP_END_UNTIL;
-    REQUIRE(*result == 8);
+TEST_CASE("Find at 2N", "[evil][find]") {
+    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 8; });
+    REQUIRE(result == 8);
 }
 
 // -----------------------------------------------------------------------------
@@ -512,21 +444,23 @@ TEST_CASE("For-until finds at 2N", "[evil][until]") {
 
 TEST_CASE("Ret-simple returns valid sentinel", "[evil][ret]") {
     // When not found, should return exactly end
-    auto result = ILP_FOR_RET_SIMPLE(auto i, 0, 42, 4) {
-        if (i == 999) return i;  // Never found
-        return _ilp_end_;
-    } ILP_END;
+    auto result = ilp::find<4>(0, 42, [&](auto i, auto end) {
+        if (i == 999)
+            return i; // Never found
+        return end;
+    });
 
-    REQUIRE(result == 42);  // End sentinel
+    REQUIRE(result == 42); // End sentinel
 }
 
 TEST_CASE("Range-ret returns valid end iterator", "[evil][ret]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
 
-    auto it = ILP_FOR_RANGE_IDX_RET_SIMPLE(auto&& val, auto idx, data, 4) {
-        if (val == 999) return std::ranges::begin(data) + idx;
-        return _ilp_end_;
-    } ILP_END;
+    auto it = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
+        if (val == 999)
+            return std::ranges::begin(data) + idx;
+        return end;
+    });
 
     REQUIRE(it == data.end());
 }
@@ -539,13 +473,14 @@ TEST_CASE("Nested reduce", "[evil][nested]") {
     // Sum of sums
     int total = 0;
 
-    ILP_FOR_SIMPLE(auto i, 0, 5, 4) {
-        auto inner_sum = ILP_REDUCE_SUM(auto j, 0, 5, 4) {
-            return j;
-        } ILP_END_REDUCE;
+    ILP_FOR(auto i, 0, 5, 4) {
+        auto inner_sum = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto j) { return j; });
         total += inner_sum;
-    } ILP_END;
+    }
+    ILP_END;
 
     // Each inner sum is 0+1+2+3+4 = 10, done 5 times = 50
     REQUIRE(total == 50);
 }
+
+#endif // !ILP_MODE_SIMPLE

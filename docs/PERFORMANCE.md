@@ -2,79 +2,68 @@
 
 This library's goal is not to be a performance library, but to ensure performance doesn't stop you from using it. The patterns here generate efficient code comparable to hand-written unrolled loops.
 
-## Benchmarks
+## ILP_FOR Benchmarks
 
-Clang 17 on Apple M2
+Apple M2, Clang 19, 10M elements, `-O3 -march=native`
+
+| Loop Type | Simple | ILP | Speedup |
+|-----------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.49ms | 1.15ms | **1.29x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.66ms | 0.94ms | **1.77x** |
+
+### Why ILP_RETURN is Faster
+
+`ILP_RETURN` allows the compiler to hoist comparisons before the conditional return logic:
+
+```cpp
+// ILP pattern - comparisons run in parallel
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] == target) ILP_RETURN(i);
+} ILP_END_RETURN;
+
+// Conceptually:
+bool b0 = data[i+0] == target;  // parallel
+bool b1 = data[i+1] == target;  // parallel
+bool b2 = data[i+2] == target;  // parallel
+bool b3 = data[i+3] == target;  // parallel
+// then sequential check and return
+```
+
+## Function API Benchmarks
+
+For `ilp::find` and `ilp::reduce` (alternative API):
 
 | Operation | std | ILP | Speedup |
 |-----------|-----|-----|---------|
-| Min | 3.4ms | 0.58ms | **5.9x** |
-| Any-of | 4.0ms | 0.75ms | **5.3x** |
-| Find | 1.9ms | 1.6ms | **1.2x** |
-| Sum with break | 1.8ms | 1.1ms | **1.6x** |
+| Min (`ilp::reduce`) | 3.47ms | 0.60ms | **5.8x** |
+| Sum with break | 1.81ms | 1.11ms | **1.6x** |
+| Any-of | 1.99ms | 0.93ms | **2.1x** |
+| Find | 0.93ms | 0.93ms | ~1.0x |
 
-### Simple Reductions
+The 5.8x speedup on min comes from breaking the dependency chain - `std::min_element` must compare sequentially, while `ilp::reduce` maintains N independent accumulators.
 
-| Operation | std/simple | ILP | Result |
-|-----------|------------|-----|--------|
-| Sum | 0.54ms | 0.58ms | **ILP ~7% slower** |
+## When ILP Helps
 
-Modern compilers auto-vectorize simple sums effectively. Use `ILP_REDUCE_SUM` only when you need break/return support.
+**Good candidates:**
+- Loops with early exit (`ILP_BREAK`, `ILP_RETURN`)
+- Operations with dependency chains (min, max)
+- Search operations where comparisons can run in parallel
 
-## Early Return Performance
-
-The `*_RET_SIMPLE` functions auto-detect the optimal mode based on return type.
-
-### Bool Mode (Fastest)
-
-Return `bool` to get the index of the first match. This avoids `csel` (conditional select) dependencies:
+**Skip ILP for:**
+- Simple sums without early exit - compilers auto-vectorize better
+- Operations where the compiler already optimizes well
 
 ```cpp
-// Matches std::find performance - use ILP_FOR_UNTIL for find operations
-auto idx = ILP_FOR_UNTIL_RANGE_AUTO(val, data) {
-    return val == target;  // returns bool
-} ILP_END_UNTIL;
-// Returns: std::optional<size_t> - index if found, nullopt if not
+// Use ILP - early exit benefits from parallel evaluation
+ILP_FOR(auto i, 0, n, 4) {
+    if (expensive_check(data[i])) ILP_RETURN(result);
+} ILP_END_RETURN;
+
+// Skip ILP - compiler auto-vectorizes better
+int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
 
-### Optional Mode (General Purpose)
-
-Return `std::optional<T>` for computed values:
-
-```cpp
-auto result = ILP_FOR_RET_SIMPLE(i, 0uz, data.size(), 4) {
-    if (expensive_check(data[i])) {
-        return std::optional(compute(data[i]));
-    }
-    return std::nullopt;
-} ILP_END;
-// Returns: std::optional<T>
-```
-
-### Why Bool Mode is Faster
-
-When your lambda does `if (cond) return value; return sentinel;`, the compiler generates `csel` instructions:
-
-```cpp
-// Slower - generates csel dependency chain
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
-    if (data[i] == target) return i;
-    return _ilp_end_;
-} ILP_END;
-```
-
-Each iteration must conditionally select between two values, creating dependencies that prevent parallel execution.
-
-With bool mode, comparisons run in parallel without dependencies:
-
-```cpp
-// Fast - parallel comparisons, no csel
-return ILP_FOR_RET_SIMPLE(i, 0uz, n, 4) {
-    return data[i] == target;
-} ILP_END;
-```
-
-## Why Not Just Use `#pragma unroll`?
+## Why Not `#pragma unroll`?
 
 Pragma unroll duplicates loop bodies but doesn't parallelize conditional checks:
 

@@ -1,14 +1,12 @@
-// Example: Count occurrences of a value
-// Demonstrates simple reduction without early exit
+// counting with reduce
 
 #include "../ilp_for.hpp"
-#include <vector>
 #include <iostream>
+#include <vector>
 
 size_t count_value(const std::vector<int>& data, int target) {
-    return ILP_REDUCE_RANGE_SUM_AUTO(auto&& val, data) {
-        return val == target ? 1uz : 0uz;
-    } ILP_END_REDUCE;
+    return ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0uz, std::plus<>{},
+                                                      [&](auto&& val) { return val == target ? 1uz : 0uz; });
 }
 
 int main() {
