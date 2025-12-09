@@ -324,62 +324,24 @@ void analyze_loop(int* __restrict data, size_t n) {
             return metrics;
         }
 
-        function generateRecommendation(metrics, code) {
-            let loopType = 'Search'; // Safe default
-            let suggestedN = 4;
+        function generateRecommendation(metrics) {
             let reasoning = [];
 
-            // Analyze code patterns
-            const hasBreak = /\bbreak\b/.test(code);
-            const hasReturn = /\breturn\b/.test(code);
-            const hasFMA = /\*.*\+|\+.*\*/.test(code) || /fma|FMA/.test(code);
-            const hasMin = /\bmin\b|<.*\?/.test(code);
-            const hasMax = /\bmax\b|>.*\?/.test(code);
-            const hasMul = /\*=/.test(code);
-            const hasAdd = /\+=/.test(code);
-            const hasBitwise = /[&|^]=/.test(code);
-
-            if (hasBreak || hasReturn) {
-                loopType = 'Search';
-                suggestedN = 4;
-                reasoning.push('Early exit detected (break/return) - branch prediction is bottleneck');
-            } else if (hasFMA) {
-                loopType = 'DotProduct';
-                suggestedN = 8;
-                reasoning.push('FMA pattern detected (multiply + add)');
-            } else if (hasMin || hasMax) {
-                loopType = 'MinMax';
-                suggestedN = 8;
-                reasoning.push('Min/max comparison detected');
-            } else if (hasMul && !hasAdd) {
-                loopType = 'Multiply';
-                suggestedN = 8;
-                reasoning.push('Product reduction detected');
-            } else if (hasAdd) {
-                loopType = 'Sum';
-                suggestedN = 8;
-                reasoning.push('Summation pattern detected');
-            } else if (hasBitwise) {
-                loopType = 'Bitwise';
-                suggestedN = 4;
-                reasoning.push('Bitwise operations detected');
-            }
-
-            // Adjust based on MCA metrics
+            // Use RThroughput directly: N = ceil(RThroughput) clamped to [2, 16]
+            let suggestedN = 4; // sensible default
             if (metrics.rthroughput) {
-                if (metrics.rthroughput < 2) {
-                    reasoning.push(`Low RThroughput (${metrics.rthroughput}) - already efficient`);
-                } else if (metrics.rthroughput > 8) {
-                    reasoning.push(`High RThroughput (${metrics.rthroughput}) - consider higher N`);
-                    suggestedN = Math.min(16, suggestedN * 2);
-                }
+                const rt = metrics.rthroughput;
+                suggestedN = Math.max(2, Math.min(16, Math.ceil(rt)));
+                reasoning.push(`RThroughput ${rt.toFixed(2)} → N = ${suggestedN}`);
+            } else {
+                reasoning.push('⚠ RThroughput not found in MCA output - using default N=4');
             }
 
             if (metrics.bottleneck) {
                 reasoning.push(`Bottleneck: ${metrics.bottleneck}`);
             }
 
-            return { loopType, suggestedN, reasoning };
+            return { suggestedN, reasoning };
         }
 
         async function analyze() {
@@ -479,12 +441,11 @@ void analyze_loop(int* __restrict data, size_t n) {
                     }
 
                     // Generate recommendation
-                    const rec = generateRecommendation(metrics, code);
+                    const rec = generateRecommendation(metrics);
                     document.getElementById('rec-content').innerHTML = `
-                        <p><strong>Suggested LoopType:</strong> <code>${rec.loopType}</code></p>
                         <p><strong>Suggested N:</strong> <code>${rec.suggestedN}</code></p>
                         <p><strong>Usage:</strong></p>
-                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR_AUTO(auto i, 0, n, ${rec.loopType}) {
+                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${rec.suggestedN}) {
     // your loop body
 } ILP_END;</pre>
                         <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">
