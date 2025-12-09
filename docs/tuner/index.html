@@ -158,12 +158,51 @@
             color: var(--text-dim);
             margin-top: 10px;
         }
+        .formula-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        .formula-box h4 {
+            margin: 0 0 8px;
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+        .formula-box code {
+            background: var(--surface);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .calc-step {
+            color: var(--text-dim);
+            margin: 4px 0;
+        }
+        .calc-result {
+            color: var(--success);
+            font-weight: bold;
+        }
+        .info-note {
+            background: #2d3a4a;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+        }
+        .info-note h4 {
+            margin: 0 0 8px;
+            color: var(--accent);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>ILP Tuner</h1>
-        <p class="subtitle">Analyze your loop with LLVM-MCA to find the optimal unroll factor (N) and LoopType</p>
+        <h1>ILP Tuner - (Extremely Beta)</h1>
+        <p class="subtitle">Analyze your loop with LLVM-MCA to find the optimal unroll factor (N)</p>
 
         <div class="grid">
             <div class="panel">
@@ -222,15 +261,9 @@ for (size_t i = 0; i < n; ++i) {
                     <div id="rec-content"></div>
                 </div>
 
-                <div id="metrics" class="hidden" style="margin-bottom: 15px;">
-                    <span class="metric">
-                        <span class="metric-label">Block RThroughput:</span>
-                        <span class="metric-value" id="rthroughput">-</span>
-                    </span>
-                    <span class="metric">
-                        <span class="metric-label">Total Cycles:</span>
-                        <span class="metric-value" id="cycles">-</span>
-                    </span>
+                <div id="calculation" class="formula-box hidden">
+                    <h4>Calculation</h4>
+                    <div id="calc-content"></div>
                 </div>
 
                 <label>Compiler Output</label>
@@ -242,108 +275,26 @@ for (size_t i = 0; i < n; ++i) {
                 <div id="mca-output" class="output">
                     <span class="text-dim">MCA analysis will appear here...</span>
                 </div>
+
+                <div class="info-note">
+                    <h4>How N is Calculated</h4>
+                    <p style="margin: 0 0 8px;">
+                        <strong>Formula:</strong> <code>N = ceil(Latency / RThroughput)</code> clamped to [2, 16]
+                    </p>
+                    <p style="margin: 0; color: var(--text-dim);">
+                        <strong>Latency</strong> = max instruction latency (cycles from input to output)<br>
+                        <strong>RThroughput</strong> = reciprocal throughput (cycles per iteration at steady state)<br>
+                        N independent chains are needed to hide latency and keep the pipeline saturated.
+                        <a href="https://www.agner.org/optimize/" target="_blank">Agner Fog</a> |
+                        <a href="https://uops.info/" target="_blank">uops.info</a>
+                    </p>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="tuner-core.js"></script>
     <script>
-        const GODBOLT_API = 'https://godbolt.org/api';
-
-        function wrapCode(userCode, arch) {
-            // Detect if user code uses specific types/patterns
-            const isARM = arch.includes('apple') || arch.includes('cortex');
-
-            return `#include <cstddef>
-#include <cstdint>
-
-// Prevent optimization of the result
-template<typename T>
-void escape(T&& val) {
-    asm volatile("" : : "g"(val) : "memory");
-}
-
-// Prevent optimization of reads
-void clobber() {
-    asm volatile("" : : : "memory");
-}
-
-void analyze_loop(int* __restrict data, size_t n) {
-    int sum = 0;
-    int* __restrict ptr = data;
-
-    ${userCode}
-
-    escape(sum);
-}
-`;
-        }
-
-        function getArchFlag(arch) {
-            switch(arch) {
-                case 'skylake': return '-march=skylake';
-                case 'znver4': return '-march=znver4';
-                case 'apple-m1': return '-mcpu=apple-m1';
-                case 'cortex-a72': return '-mcpu=cortex-a72';
-                default: return '-march=skylake';
-            }
-        }
-
-        function getMcaCpu(arch) {
-            switch(arch) {
-                case 'skylake': return '-mcpu=skylake';
-                case 'znver4': return '-mcpu=znver4';
-                case 'apple-m1': return '-mcpu=apple-m1';
-                case 'cortex-a72': return '-mcpu=cortex-a72';
-                default: return '-mcpu=skylake';
-            }
-        }
-
-        function parseMetrics(mcaOutput) {
-            const metrics = {};
-
-            // Block RThroughput
-            const rtMatch = mcaOutput.match(/Block RThroughput:\s*([\d.]+)/);
-            if (rtMatch) metrics.rthroughput = parseFloat(rtMatch[1]);
-
-            // Total Cycles
-            const cyclesMatch = mcaOutput.match(/Total Cycles:\s*(\d+)/);
-            if (cyclesMatch) metrics.cycles = parseInt(cyclesMatch[1]);
-
-            // Bottleneck
-            const bottleneckMatch = mcaOutput.match(/Bottleneck:\s*([^\n]+)/);
-            if (bottleneckMatch) metrics.bottleneck = bottleneckMatch[1].trim();
-
-            // Resource pressure - find most used ports
-            const portPressure = [];
-            const pressureMatch = mcaOutput.match(/Resource pressure per iteration:[\s\S]*?\n([\s\S]*?)(?:\n\n|\nTimeline)/);
-            if (pressureMatch) {
-                const lines = pressureMatch[1].split('\n').filter(l => l.trim());
-                // Parse port usage from header and values
-            }
-
-            return metrics;
-        }
-
-        function generateRecommendation(metrics) {
-            let reasoning = [];
-
-            // Use RThroughput directly: N = ceil(RThroughput) clamped to [2, 16]
-            let suggestedN = 4; // sensible default
-            if (metrics.rthroughput) {
-                const rt = metrics.rthroughput;
-                suggestedN = Math.max(2, Math.min(16, Math.ceil(rt)));
-                reasoning.push(`RThroughput ${rt.toFixed(2)} → N = ${suggestedN}`);
-            } else {
-                reasoning.push('⚠ RThroughput not found in MCA output - using default N=4');
-            }
-
-            if (metrics.bottleneck) {
-                reasoning.push(`Bottleneck: ${metrics.bottleneck}`);
-            }
-
-            return { suggestedN, reasoning };
-        }
-
         async function analyze() {
             const btn = document.getElementById('analyze');
             const code = document.getElementById('code').value;
@@ -351,48 +302,36 @@ void analyze_loop(int* __restrict data, size_t n) {
             const compiler = document.getElementById('compiler').value;
             const args = document.getElementById('args').value;
 
+            // Validate input
+            const validation = TunerCore.validateInput(code, arch, compiler);
+            if (!validation.valid) {
+                document.getElementById('compiler-output').innerHTML =
+                    `<span class="error">${TunerCore.escapeHtml(validation.error)}</span>`;
+                return;
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span>Analyzing...';
 
             document.getElementById('recommendation').classList.add('hidden');
-            document.getElementById('metrics').classList.add('hidden');
+            document.getElementById('calculation').classList.add('hidden');
             document.getElementById('compiler-output').innerHTML = 'Compiling...';
             document.getElementById('mca-output').innerHTML = 'Waiting for compilation...';
 
             try {
-                const wrappedCode = wrapCode(code, arch);
-                const archFlag = getArchFlag(arch);
-                const mcaCpu = getMcaCpu(arch);
-                const fullArgs = `${args} ${archFlag}`;
+                const wrappedCode = TunerCore.wrapCode(code, arch);
+                const archFlag = TunerCore.getArchFlag(arch);
+                const mcaCpu = TunerCore.getMcaCpu(arch);
+                const request = TunerCore.buildApiRequest(wrappedCode, args, archFlag, mcaCpu);
 
                 // Compile with Godbolt API
-                const response = await fetch(`${GODBOLT_API}/compiler/${compiler}/compile`, {
+                const response = await fetch(`${TunerCore.GODBOLT_API}/compiler/${compiler}/compile`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({
-                        source: wrappedCode,
-                        options: {
-                            userArguments: fullArgs,
-                            filters: {
-                                binary: false,
-                                execute: false,
-                                intel: true,
-                                demangle: true,
-                                labels: true,
-                                libraryCode: false,
-                                directives: true,
-                                commentOnly: true,
-                                trim: false
-                            },
-                            tools: [{
-                                id: 'llvm-mcatrunk',
-                                args: `-timeline -bottleneck-analysis ${mcaCpu}`
-                            }]
-                        }
-                    })
+                    body: JSON.stringify(request)
                 });
 
                 if (!response.ok) {
@@ -402,55 +341,55 @@ void analyze_loop(int* __restrict data, size_t n) {
                 const result = await response.json();
 
                 // Show compiler output
-                let compilerOut = '';
-                if (result.stderr && result.stderr.length > 0) {
-                    compilerOut = result.stderr.map(s => s.text).join('\n');
+                const compilerOut = TunerCore.extractCompilerOutput(result);
+                if (compilerOut.hasError) {
                     document.getElementById('compiler-output').innerHTML =
-                        `<span class="error">${escapeHtml(compilerOut)}</span>`;
-                } else if (result.stdout && result.stdout.length > 0) {
-                    compilerOut = result.stdout.map(s => s.text).join('\n');
-                    document.getElementById('compiler-output').innerHTML = escapeHtml(compilerOut);
+                        `<span class="error">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
                 } else {
                     document.getElementById('compiler-output').innerHTML =
-                        '<span class="success">Compilation successful (no warnings)</span>';
+                        `<span class="success">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
                 }
 
                 // Show MCA output
-                let mcaOutput = '';
-                if (result.tools && result.tools.length > 0) {
-                    const mcaTool = result.tools.find(t => t.id === 'llvm-mcatrunk');
-                    if (mcaTool) {
-                        if (mcaTool.stderr && mcaTool.stderr.length > 0) {
-                            mcaOutput = mcaTool.stderr.map(s => s.text).join('\n');
-                        }
-                        if (mcaTool.stdout && mcaTool.stdout.length > 0) {
-                            mcaOutput += mcaTool.stdout.map(s => s.text).join('\n');
-                        }
-                    }
-                }
+                const mcaOutput = TunerCore.extractMcaOutput(result);
 
                 if (mcaOutput) {
-                    document.getElementById('mca-output').innerHTML = escapeHtml(mcaOutput);
+                    document.getElementById('mca-output').innerHTML = TunerCore.escapeHtml(mcaOutput);
 
                     // Parse and display metrics
-                    const metrics = parseMetrics(mcaOutput);
-                    if (metrics.rthroughput !== undefined) {
-                        document.getElementById('rthroughput').textContent = metrics.rthroughput.toFixed(2);
-                        document.getElementById('cycles').textContent = metrics.cycles || '-';
-                        document.getElementById('metrics').classList.remove('hidden');
-                    }
+                    const metrics = TunerCore.parseMetrics(mcaOutput);
 
                     // Generate recommendation
-                    const rec = generateRecommendation(metrics);
+                    const rec = TunerCore.generateRecommendation(metrics);
+
+                    // Build calculation debug output
+                    let calcHtml = '';
+                    calcHtml += `<div class="calc-step">Block RThroughput: <code>${metrics.rthroughput !== undefined ? metrics.rthroughput.toFixed(2) : 'not found'}</code></div>`;
+                    calcHtml += `<div class="calc-step">Max Latency: <code>${metrics.maxLatency !== undefined ? metrics.maxLatency : 'not found'}</code></div>`;
+                    if (metrics.bottleneck) {
+                        calcHtml += `<div class="calc-step">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
+                    }
+                    calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
+                    if (metrics.rthroughput !== undefined && metrics.maxLatency !== undefined) {
+                        const rawN = metrics.maxLatency / metrics.rthroughput;
+                        calcHtml += `<div class="calc-step">N = ceil(${metrics.maxLatency} / ${metrics.rthroughput.toFixed(2)}) = ceil(${rawN.toFixed(2)}) = ${Math.ceil(rawN)}</div>`;
+                        calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                    } else if (metrics.rthroughput !== undefined) {
+                        calcHtml += `<div class="calc-step">Fallback: N = ceil(RThroughput) = ceil(${metrics.rthroughput.toFixed(2)}) = ${Math.ceil(metrics.rthroughput)}</div>`;
+                        calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                    } else {
+                        calcHtml += `<div class="calc-step">No metrics found, using default: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                    }
+                    document.getElementById('calc-content').innerHTML = calcHtml;
+                    document.getElementById('calculation').classList.remove('hidden');
+
+                    // Show recommendation
                     document.getElementById('rec-content').innerHTML = `
                         <p><strong>Suggested N:</strong> <code>${rec.suggestedN}</code></p>
                         <p><strong>Usage:</strong></p>
                         <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${rec.suggestedN}) {
     // your loop body
 } ILP_END;</pre>
-                        <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">
-                            ${rec.reasoning.map(r => '• ' + r).join('<br>')}
-                        </p>
                     `;
                     document.getElementById('recommendation').classList.remove('hidden');
                 } else {
@@ -460,18 +399,12 @@ void analyze_loop(int* __restrict data, size_t n) {
 
             } catch (err) {
                 document.getElementById('compiler-output').innerHTML =
-                    `<span class="error">Error: ${escapeHtml(err.message)}</span>`;
+                    `<span class="error">Error: ${TunerCore.escapeHtml(err.message)}</span>`;
                 document.getElementById('mca-output').innerHTML = '';
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Analyze';
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
     </script>
 </body>

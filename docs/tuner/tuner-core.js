@@ -137,30 +137,66 @@ void analyze_loop(int* __restrict data, size_t n) {
             }
         }
 
+        // Parse Instruction Info table to extract max latency
+        // Format:
+        // [1]    [2]    [3]    Instructions:
+        //  1      4     1.00   vaddss %xmm0, %xmm1, %xmm2
+        const infoMatch = mcaOutput.match(/Instruction Info:[\s\S]*?Instructions:\s*\n([\s\S]*?)(?:\n\n|\nResource|$)/);
+        if (infoMatch) {
+            const lines = infoMatch[1].split('\n').filter(l => l.trim());
+            const latencies = [];
+            for (const line of lines) {
+                // Match: whitespace, uops, whitespace, latency, whitespace, rthroughput
+                const match = line.match(/^\s*(\d+)\s+(\d+)\s+([\d.]+)/);
+                if (match) {
+                    const lat = parseInt(match[2], 10);
+                    if (!isNaN(lat)) {
+                        latencies.push(lat);
+                    }
+                }
+            }
+            if (latencies.length > 0) {
+                metrics.maxLatency = Math.max(...latencies);
+            }
+        }
+
         return metrics;
     }
 
     /**
      * Generate N recommendation based on MCA metrics
+     * Formula: N = Latency / RThroughput (clamped to [2, 16])
      * @param {Object} metrics - Parsed MCA metrics
      * @returns {Object} Recommendation with suggestedN and reasoning
      */
     function generateRecommendation(metrics) {
         const reasoning = [];
-
-        // Use RThroughput directly: N = ceil(RThroughput) clamped to [2, 16]
         let suggestedN = 4; // sensible default
 
-        if (metrics && typeof metrics === 'object' &&
-            typeof metrics.rthroughput === 'number' && isFinite(metrics.rthroughput)) {
+        if (!metrics || typeof metrics !== 'object') {
+            reasoning.push('No metrics available - using default N=4');
+            return { suggestedN, reasoning };
+        }
+
+        const hasRt = typeof metrics.rthroughput === 'number' && isFinite(metrics.rthroughput) && metrics.rthroughput > 0;
+        const hasLat = typeof metrics.maxLatency === 'number' && isFinite(metrics.maxLatency);
+
+        if (hasRt && hasLat) {
+            // N = Latency / RThroughput
+            const rt = metrics.rthroughput;
+            const lat = metrics.maxLatency;
+            suggestedN = Math.max(2, Math.min(16, Math.ceil(lat / rt)));
+            reasoning.push(`N = ceil(Latency / RThroughput) = ceil(${lat} / ${rt.toFixed(2)}) = ${suggestedN}`);
+        } else if (hasRt) {
+            // Fallback: just RThroughput (old behavior)
             const rt = metrics.rthroughput;
             suggestedN = Math.max(2, Math.min(16, Math.ceil(rt)));
-            reasoning.push(`RThroughput ${rt.toFixed(2)} → N = ${suggestedN}`);
+            reasoning.push(`Latency not found - using RThroughput ${rt.toFixed(2)} → N = ${suggestedN}`);
         } else {
             reasoning.push('RThroughput not found in MCA output - using default N=4');
         }
 
-        if (metrics && metrics.bottleneck) {
+        if (metrics.bottleneck) {
             reasoning.push(`Bottleneck: ${metrics.bottleneck}`);
         }
 

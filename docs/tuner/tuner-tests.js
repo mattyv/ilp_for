@@ -182,45 +182,137 @@ Bottleneck: Backend pressure on SKLPort0.
     });
 
     // ========================================
+    // parseMetrics - maxLatency tests
+    // ========================================
+    group('parseMetrics - maxLatency');
+
+    const SAMPLE_WITH_LATENCY = `
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+
+[1]    [2]    [3]    Instructions:
+ 1      4     1.00   vaddss	%xmm0, %xmm1, %xmm2
+ 1      4     0.50   vmulss	%xmm2, %xmm3, %xmm4
+ 1      1     0.33   addl	$1, %eax
+
+Block RThroughput: 1.0
+`;
+
+    test('parses maxLatency from Instruction Info', function() {
+        const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
+        assertEqual(m.maxLatency, 4);
+    });
+
+    test('parses RThroughput alongside maxLatency', function() {
+        const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
+        assertEqual(m.rthroughput, 1.0);
+    });
+
+    test('handles single instruction', function() {
+        const mca = `
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+
+[1]    [2]    [3]    Instructions:
+ 1      3     0.50   vaddps	%xmm0, %xmm1, %xmm2
+
+Block RThroughput: 0.5
+`;
+        const m = T.parseMetrics(mca);
+        assertEqual(m.maxLatency, 3);
+    });
+
+    test('handles high latency instructions', function() {
+        const mca = `
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+
+[1]    [2]    [3]    Instructions:
+ 1      4     1.00   vaddss	%xmm0, %xmm1, %xmm2
+ 1      11    5.00   vdivss	%xmm2, %xmm3, %xmm4
+
+Block RThroughput: 5.0
+`;
+        const m = T.parseMetrics(mca);
+        assertEqual(m.maxLatency, 11);
+    });
+
+    test('no latency when Instruction Info missing', function() {
+        const m = T.parseMetrics('Block RThroughput: 1.0');
+        assert(m.maxLatency === undefined);
+    });
+
+    // ========================================
     // generateRecommendation tests
     // ========================================
     group('generateRecommendation');
 
-    test('N = ceil(RThroughput) for rt=1.0', function() {
-        const rec = T.generateRecommendation({ rthroughput: 1.0 });
-        assertEqual(rec.suggestedN, 2); // ceil(1.0) = 1, but min is 2
+    // Tests with both Latency and RThroughput (correct formula)
+    test('N = ceil(4 / 1.0) = 4', function() {
+        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4 });
+        assertEqual(rec.suggestedN, 4);
     });
 
-    test('N = ceil(RThroughput) for rt=3.5', function() {
-        const rec = T.generateRecommendation({ rthroughput: 3.5 });
-        assertEqual(rec.suggestedN, 4); // ceil(3.5) = 4
-    });
-
-    test('N = ceil(RThroughput) for rt=8.0', function() {
-        const rec = T.generateRecommendation({ rthroughput: 8.0 });
+    test('N = ceil(4 / 0.5) = 8', function() {
+        const rec = T.generateRecommendation({ rthroughput: 0.5, maxLatency: 4 });
         assertEqual(rec.suggestedN, 8);
     });
 
-    test('N clamped to max 16', function() {
+    test('N = ceil(1 / 0.33) = 4', function() {
+        const rec = T.generateRecommendation({ rthroughput: 0.33, maxLatency: 1 });
+        assertEqual(rec.suggestedN, 4); // ceil(3.03) = 4
+    });
+
+    test('N = ceil(11 / 5.0) = 3 (div)', function() {
+        const rec = T.generateRecommendation({ rthroughput: 5.0, maxLatency: 11 });
+        assertEqual(rec.suggestedN, 3); // ceil(2.2) = 3
+    });
+
+    test('N clamped to max 16 with latency', function() {
+        const rec = T.generateRecommendation({ rthroughput: 0.1, maxLatency: 10 });
+        assertEqual(rec.suggestedN, 16); // ceil(100) clamped to 16
+    });
+
+    test('N clamped to min 2 with latency', function() {
+        const rec = T.generateRecommendation({ rthroughput: 5.0, maxLatency: 1 });
+        assertEqual(rec.suggestedN, 2); // ceil(0.2) = 1, clamped to 2
+    });
+
+    // Fallback tests (only RThroughput, no latency)
+    test('fallback: N = ceil(RThroughput) when no latency', function() {
+        const rec = T.generateRecommendation({ rthroughput: 3.5 });
+        assertEqual(rec.suggestedN, 4); // ceil(3.5) = 4
+        assert(rec.reasoning.some(r => r.includes('Latency not found')));
+    });
+
+    test('fallback: N clamped to max 16', function() {
         const rec = T.generateRecommendation({ rthroughput: 25.0 });
         assertEqual(rec.suggestedN, 16);
     });
 
-    test('N clamped to min 2', function() {
+    test('fallback: N clamped to min 2', function() {
         const rec = T.generateRecommendation({ rthroughput: 0.5 });
         assertEqual(rec.suggestedN, 2);
     });
 
-    test('includes RThroughput in reasoning', function() {
-        const rec = T.generateRecommendation({ rthroughput: 4.0 });
-        assert(rec.reasoning.some(r => r.includes('RThroughput')));
+    // Reasoning tests
+    test('includes formula in reasoning', function() {
+        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4 });
+        assert(rec.reasoning.some(r => r.includes('Latency / RThroughput')));
     });
 
     test('includes bottleneck in reasoning', function() {
-        const rec = T.generateRecommendation({ rthroughput: 4.0, bottleneck: 'Backend' });
+        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4, bottleneck: 'Backend' });
         assert(rec.reasoning.some(r => r.includes('Backend')));
     });
 
+    // Edge cases
     test('warns when RThroughput missing', function() {
         const rec = T.generateRecommendation({});
         assertEqual(rec.suggestedN, 4);
@@ -230,7 +322,7 @@ Bottleneck: Backend pressure on SKLPort0.
     test('handles null metrics', function() {
         const rec = T.generateRecommendation(null);
         assertEqual(rec.suggestedN, 4);
-        assert(rec.reasoning.some(r => r.includes('not found')));
+        assert(rec.reasoning.some(r => r.includes('No metrics')));
     });
 
     test('handles NaN rthroughput', function() {
@@ -241,6 +333,11 @@ Bottleneck: Backend pressure on SKLPort0.
     test('handles Infinity rthroughput', function() {
         const rec = T.generateRecommendation({ rthroughput: Infinity });
         assertEqual(rec.suggestedN, 4);
+    });
+
+    test('handles zero rthroughput (avoid div by zero)', function() {
+        const rec = T.generateRecommendation({ rthroughput: 0, maxLatency: 4 });
+        assertEqual(rec.suggestedN, 4); // fallback
     });
 
     // ========================================
@@ -386,16 +483,37 @@ Bottleneck: Backend pressure on SKLPort0.
     // ========================================
     group('Integration');
 
-    test('full pipeline', function() {
+    test('full pipeline with latency', function() {
         const code = 'sum += data[i];';
         const wrapped = T.wrapCode(code, 'skylake');
         assertContains(wrapped, code);
 
-        const metrics = T.parseMetrics('Block RThroughput: 4.0');
-        assertEqual(metrics.rthroughput, 4.0);
+        const mcaOutput = `
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+
+[1]    [2]    [3]    Instructions:
+ 1      4     0.50   vaddps	%xmm0, %xmm1, %xmm2
+
+Block RThroughput: 0.5
+`;
+        const metrics = T.parseMetrics(mcaOutput);
+        assertEqual(metrics.rthroughput, 0.5);
+        assertEqual(metrics.maxLatency, 4);
 
         const rec = T.generateRecommendation(metrics);
-        assertEqual(rec.suggestedN, 4);
+        assertEqual(rec.suggestedN, 8); // ceil(4 / 0.5) = 8
+    });
+
+    test('full pipeline without latency (fallback)', function() {
+        const metrics = T.parseMetrics('Block RThroughput: 4.0');
+        assertEqual(metrics.rthroughput, 4.0);
+        assert(metrics.maxLatency === undefined);
+
+        const rec = T.generateRecommendation(metrics);
+        assertEqual(rec.suggestedN, 4); // fallback: ceil(4.0)
     });
 
     // ========================================
