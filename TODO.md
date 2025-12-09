@@ -7,7 +7,7 @@
 - [x] Remove ILP_FIND* and ILP_REDUCE* macros (use ilp::find, ilp::reduce functions instead)
 - [x] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
 - [x] Remove old SIMPLE/PRAGMA modes, rename SUPER_SIMPLE -> SIMPLE
-- [ ] Probably need a ILP_WHILE and ILP_DO ... WHILE
+- [ ] ~~ILP_WHILE/ILP_DO_WHILE~~ More research needed
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
