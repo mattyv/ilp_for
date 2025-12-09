@@ -12,10 +12,14 @@ from typing import Dict, List
 
 # Compiler configurations - using stable IDs
 COMPILERS = {
-    'x86-64 Clang': {
+    'x86-64 Clang (MCA)': {
         'compiler': 'clang_trunk',  # Clang trunk (latest)
         'options': '-std=c++2b -O3 -march=skylake',
-        'lang': 'c++'
+        'lang': 'c++',
+        'tools': [{
+            'id': 'llvm-mcatrunk',
+            'args': '-timeline -bottleneck-analysis'
+        }]
     },
     'x86-64 GCC': {
         'compiler': 'g141',  # GCC 14.1
@@ -310,16 +314,23 @@ def create_godbolt_config(source_code: str, arch: str, example_name: str) -> Dic
     """Create Godbolt API configuration."""
     compiler_config = COMPILERS[arch]
 
+    # Build compiler entry
+    compiler_entry = {
+        'id': compiler_config['compiler'],
+        'options': compiler_config['options']
+    }
+
+    # Add tools if configured (e.g., llvm-mca for Clang)
+    if 'tools' in compiler_config:
+        compiler_entry['tools'] = compiler_config['tools']
+
     # Use the example source code directly (it now contains all needed code)
     return {
         'sessions': [{
             'id': 1,
             'language': compiler_config['lang'],
             'source': source_code,
-            'compilers': [{
-                'id': compiler_config['compiler'],
-                'options': compiler_config['options']
-            }]
+            'compilers': [compiler_entry]
         }]
     }
 

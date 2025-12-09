@@ -17,7 +17,7 @@ The primary API for loops with `break`, `continue`, or `return`.
 
 ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/sqn6cbd5G) | [x86-64 GCC](https://godbolt.org/z/r7x5qnTzs) | [ARM64](https://godbolt.org/z/K8r9rnETn)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/r61eMvfd7) | [x86-64 GCC](https://godbolt.org/z/9rc5GoevP) | [ARM64](https://godbolt.org/z/7WM61Ea96)
 
 [Source code](../godbolt_examples/loop_with_break.cpp)
 
@@ -27,7 +27,7 @@ ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
 ILP_FOR with ILP_RETURN to exit enclosing function from loop
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/ffx3h6Yqh) | [x86-64 GCC](https://godbolt.org/z/1ajchdz61) | [ARM64](https://godbolt.org/z/9xf4Kxrrd)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/dYs45d5T4) | [x86-64 GCC](https://godbolt.org/z/es9ao7W5c) | [ARM64](https://godbolt.org/z/7Pxj6eMKW)
 
 [Source code](../godbolt_examples/loop_with_return.cpp)
 
@@ -37,7 +37,7 @@ ILP_FOR with ILP_RETURN to exit enclosing function from loop
 
 ILP_FOR_T for return types > 8 bytes (structs, large objects)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/a1zdWWh89) | [x86-64 GCC](https://godbolt.org/z/Mc8fb4eTv) | [ARM64](https://godbolt.org/z/ePGEYhqnc)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/K6EPf58v5) | [x86-64 GCC](https://godbolt.org/z/3exGvo9Yr) | [ARM64](https://godbolt.org/z/P3vjbTdEG)
 
 [Source code](../godbolt_examples/loop_with_return_typed.cpp)
 
@@ -51,7 +51,7 @@ Alternative `std::`-style functions with early exit support.
 
 ilp::find for early-exit search (std::find alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/9GeTbxPhh) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/rM16zfvW1) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
 
 [Source code](../godbolt_examples/find_first_match.cpp)
 
@@ -61,7 +61,7 @@ ilp::find for early-exit search (std::find alternative)
 
 ilp::reduce breaking dependency chains (std::min_element alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/s3cY9qaEo) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/ffWb68TYs) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
 
 [Source code](../godbolt_examples/parallel_min.cpp)
 
@@ -71,7 +71,7 @@ ilp::reduce breaking dependency chains (std::min_element alternative)
 
 ilp::reduce with early termination (std::accumulate alternative)
 
-**View on Godbolt:** [x86-64 Clang](https://godbolt.org/z/Webz8EfPf) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/bMhKqf1Kh) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
 
 [Source code](../godbolt_examples/sum_with_break.cpp)
 

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`), where compilers typically cannot unroll.
+Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Basically if the compiler cannot unroll, ilp_for probably can.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -58,13 +58,14 @@ ILP_FOR(auto i, 0, n, 4) {
 ```
 ...which effectively generates the above unrolled code.
 
-The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below).
+The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below) and probably saving you a few cycles if you want to make sure you're tuning to your hardware properly.
 
 ---
 
 ## Contents
 
 - [Quick Start](#quick-start)
+- [Large Return Types](#large-return-types)
 - [API Reference](#api-reference)
 - [Important Notes](#important-notes)
 - [When to Use ILP](#when-to-use-ilp)
@@ -88,7 +89,7 @@ ILP_FOR(auto i, 0, n, 4) {
 } ILP_END;
 ```
 
-...or if you don't want to think about the unroll factor, use `ILP_FOR_AUTO`:
+...or if you don't want to think about the unroll factor, use `ILP_FOR_AUTO` with a [LoopType](#looptype-reference):
 
 ```cpp
 ILP_FOR_AUTO(auto i, 0, n, Search) {
@@ -121,10 +122,25 @@ int find_index(const std::vector<int>& data, int target) {
 }
 ```
 
+### Large Return Types
+
+To save you typing the return type each time `ILP_FOR` &  `ILP_FOR_AUTO` store return values in an 8-byte buffer, which covers you for `int`, `size_t`, and pointers. But for larger types, you'll need to use `ILP_FOR_T` to specify the return type:
+
+```cpp
+struct Result { int x, y, z; double value; };  // > 8 bytes
+
+Result find_result(const std::vector<int>& data, int target) {
+    ILP_FOR_T(Result, int i, 0, static_cast<int>(data.size()), 4) {
+        if (data[i] == target) ILP_RETURN(Result{i, i*2, i*3, i*1.5});
+    } ILP_END_RETURN;
+    return Result{-1, 0, 0, 0.0};
+}
+```
+
 ### Function API 
 
-After implementing the ILP_FOR api I figured there may be some value in implementing early return alternatives to some std functions. So take from it what you will. 
-Some std functions unroll very badly or cannot easily accomodate early return easily.
+After implementing the ILP_FOR api I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
+Some std functions unroll very badly or cannot easily accomodate early return easily and still retain any unrolling.
 The library provides `ilp::find` and `ilp::reduce`:
 
 ```cpp
@@ -166,6 +182,8 @@ int min_val = ilp::reduce_range<4>(
 | `ILP_FOR_T_AUTO(type, var, start, end, LoopType)` | Index loop for large types with auto-selected N |
 | `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType)` | Range loop for large types with auto-selected N |
 
+See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
+
 End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 
 ### Control Flow
@@ -187,7 +205,7 @@ End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
 | `ilp::reduce<N>(start, end, init, op, body)` | Reduce with optional early exit |
 | `ilp::reduce_range<N>(range, init, op, body)` | Range reduce |
 
-Auto variants select optimal N based on operation type:
+Auto variants select optimal N based on [LoopType](#looptype-reference):
 - `ilp::find_auto`, `ilp::find_range_auto` - defaults to `Search`
 - `ilp::reduce_auto<LoopType>`, `ilp::reduce_range_auto<LoopType>` - requires LoopType (e.g., `Sum`, `MinMax`)
 
@@ -265,31 +283,11 @@ int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
 });
 ```
 
-### Large Return Types
+### Associativity and Evaluation Order
 
-`ILP_FOR` stores return values in an 8-byte buffer, which covers `int`, `size_t`, and pointers. For larger types, use `ILP_FOR_T`:
+For consistent results matching sequential evaluation, use associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
 
-```cpp
-struct Result { int x, y, z; double value; };  // > 8 bytes
-
-Result find_result(const std::vector<int>& data, int target) {
-    ILP_FOR_T(Result, int i, 0, static_cast<int>(data.size()), 4) {
-        if (data[i] == target) ILP_RETURN(Result{i, i*2, i*3, i*1.5});
-    } ILP_END_RETURN;
-    return Result{-1, 0, 0, 0.0};
-}
-```
-
-Using `ILP_FOR` with types > 8 bytes produces a compile error:
-```
-error: static assertion failed: Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.
-```
-
-### Associative Operations Only
-
-The reduce operation only works correctly with associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
-
-**Note:** IEEE floating-point is not strictly associative due to rounding. Parallel reduction may yield results differing by a few ULPs from sequential evaluation.
+Non-associative operations will still execute, but results may differ due to parallel evaluation order. IEEE floating-point is technically non-associative due to rounding - parallel reduction may differ by a few ULPs from sequential. With `-ffast-math` you probably don't care. 
 
 ### Init Values
 
@@ -315,7 +313,9 @@ ILP helps most when your loop has early exit (`break`, `return`) or dependency c
 - Parallel comparisons (min, max)
 - Loops with `break`/`return` that compilers refuse to unroll
 
-You probably don't need ILP for simple sums without early exit - compilers auto-vectorize these better:
+You probably don't need ILP for simple sums without early exit, especially if the compiler can unroll the entire loop - compilers auto-vectorize these better.
+
+However... ilp will rarely be slower than the standard for loop mechanism or equivalent std function so feel free to reach for it. In some simple cases ilp will fall back to std functions.  
 
 ```cpp
 // Use ILP - early exit benefits from parallel evaluation
@@ -335,13 +335,16 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
 
 ### CPU Architecture
 
-You can target specific CPU architectures for optimal unroll factors:
+You can target specific CPU architectures for optimal unroll factors. This is highly advisable if you plan to be portable or highly optimised:
 
 ```bash
 clang++ -std=c++23 -DILP_CPU=skylake    # Intel Skylake
 clang++ -std=c++23 -DILP_CPU=apple_m1   # Apple M1
 clang++ -std=c++23 -DILP_CPU=zen5       # AMD Zen 5
 ```
+
+I source the locations where I have gathered data on the each architecture so I believe this to be accurate.
+If you do add a new architecture please let me know and I'll get it added.
 
 ### Debugging
 
@@ -353,6 +356,77 @@ clang++ -std=c++23 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 
 ...all macros then expand to simple `for` loops with the same semantics.
 
+### LoopType Reference
+
+When using `_AUTO` variants, you need to specify a 'LoopType' to auto-select the optimal unroll factor:
+
+| LoopType | Operation | Use Case |
+|----------|-----------|----------|
+| `Sum` | `acc += val` | Summation, accumulation |
+| `DotProduct` | `acc += a * b` | Dot products, FMA |
+| `Search` | Early exit | find, any_of, all_of |
+| `Copy` | `dst = src` | Memory copy |
+| `Transform` | `dst = f(src)` | Element-wise transforms |
+| `Multiply` | `acc *= val` | Product reduction |
+| `Divide` | `val / const` | Division |
+| `Sqrt` | `sqrt(val)` | Square root |
+| `MinMax` | `min/max(acc, val)` | Min/max reduction |
+| `Bitwise` | `&`, `\|`, `^` | Bitwise AND/OR/XOR |
+| `Shift` | `<<`, `>>` | Bit shifting |
+
+### Selecting LoopType
+
+**The principle:** Pick the LoopType for your loop's **bottleneck operation** - the slowest or most congested one.
+
+**Why?** The optimal unroll factor N follows `N ≈ Latency × Throughput` to keep enough operations in flight to saturate the execution unit and hide latency.
+
+**For mixed operations (e.g., adds AND multiplies):**
+
+1. **Identify the critical path** - operations with dependencies form a chain; independent operations can overlap
+2. **Pick the slowest operation on that path:**
+   - `acc += data[i] * weight[i]` → This is FMA, use `DotProduct`
+   - `acc += data[i]; acc *= factor;` → Multiply is slower, use `Multiply`
+   - Mostly adds with occasional multiply → `Sum`
+   - Mostly multiplies with occasional add → `Multiply`
+
+3. **Early exit dominates everything:**
+   - If your loop has `ILP_BREAK` or `ILP_RETURN`, branch prediction is usually the bottleneck
+   - Use `Search` regardless of what computation happens inside
+
+**Quick decision tree:**
+```
+Has early exit (break/return)?     → Search
+Doing acc += a * b (FMA)?          → DotProduct
+Doing acc += val?                  → Sum
+Doing acc *= val?                  → Multiply
+Doing min/max?                     → MinMax
+Doing bitwise ops?                 → Bitwise
+Unsure?                            → Search (safe default)
+```
+
+### Reading CPU Profiles
+
+The CPU profile headers in `cpu_profiles/` contain instruction timing data used to compute optimal N values. Each profile includes a reference table:
+
+```
+| Instruction    | Use Case | Latency | RThr | L×TPC |
+| VFMADD231PS/PD | FMA      |    4    | 0.50 |   8   |
+| VADDPS/VADDPD  | FP Add   |    4    | 0.50 |   8   |
+| VPMULLD        | Int Mul  |   10    | 1.00 |  10   |
+```
+
+**Column definitions:**
+- **Latency (L)**: Cycles from input ready to output ready
+- **RThr**: Reciprocal throughput - cycles between starting new operations
+- **TPC**: Throughput per cycle = 1/RThr
+- **L×TPC**: The optimal unroll factor N
+
+**The formula:** `optimal_N = Latency × TPC`
+
+If FP add has L=4 and TPC=2, then N = 8 independent adds are needed to keep the pipeline saturated and hide the 4-cycle latency.
+
+**Creating custom profiles:** Look up your CPU's instruction timings at [uops.info](https://uops.info) or [Agner Fog's tables](https://www.agner.org/optimize/instruction_tables.pdf), then create a header following the existing format in `cpu_profiles/`.
+
 ### optimal_N
 
 If you want to query the optimal unroll factor directly:
@@ -361,15 +435,21 @@ If you want to query the optimal unroll factor directly:
 constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, double>;
 ```
 
-Default values by type:
+Default Header values by type:
 
 | LoopType | int32 | int64 | float | double |
 |----------|-------|-------|-------|--------|
 | Sum | 4 | 4 | 8 | 8 |
 | DotProduct | - | - | 8 | 8 |
 | Search | 4 | 4 | 4 | 4 |
-| Multiply | 8 | 8 | 8 | 8 |
 | MinMax | 4 | 4 | 8 | 8 |
+| Multiply | 8 | 8 | 8 | 8 |
+| Bitwise | 8 | 8 | - | - |
+| Shift | 8 | 8 | - | - |
+| Copy | 4 | 4 | 4 | 4 |
+| Transform | 4 | 4 | 4 | 4 |
+| Divide | - | - | 8 | 8 |
+| Sqrt | - | - | 8 | 8 |
 
 ---
 
