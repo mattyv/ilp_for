@@ -279,12 +279,11 @@ for (size_t i = 0; i < n; ++i) {
                 <div class="info-note">
                     <h4>How N is Calculated</h4>
                     <p style="margin: 0 0 8px;">
-                        <strong>Formula:</strong> <code>N = ceil(Latency / RThroughput)</code> clamped to [2, 16]
+                        <strong>Formula:</strong> <code>N = max(ceil(L/RThr) per instruction)</code> clamped to [2, 16]
                     </p>
                     <p style="margin: 0; color: var(--text-dim);">
-                        <strong>Latency</strong> = max instruction latency (cycles from input to output)<br>
-                        <strong>RThroughput</strong> = reciprocal throughput (cycles per iteration at steady state)<br>
-                        N independent chains are needed to hide latency and keep the pipeline saturated.
+                        For each instruction, compute <code>ceil(Latency / RThroughput)</code>, then take the maximum.
+                        This ensures all instruction types have sufficient parallelism.
                         <a href="https://www.agner.org/optimize/" target="_blank">Agner Fog</a> |
                         <a href="https://uops.info/" target="_blank">uops.info</a>
                     </p>
@@ -362,23 +361,24 @@ for (size_t i = 0; i < n; ++i) {
                     // Generate recommendation
                     const rec = TunerCore.generateRecommendation(metrics);
 
-                    // Build calculation debug output
+                    // Build calculation debug output with per-instruction breakdown
                     let calcHtml = '';
-                    calcHtml += `<div class="calc-step">Block RThroughput: <code>${metrics.rthroughput !== undefined ? metrics.rthroughput.toFixed(2) : 'not found'}</code></div>`;
-                    calcHtml += `<div class="calc-step">Max Latency: <code>${metrics.maxLatency !== undefined ? metrics.maxLatency : 'not found'}</code></div>`;
-                    if (metrics.bottleneck) {
-                        calcHtml += `<div class="calc-step">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
-                    }
-                    calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
-                    if (metrics.rthroughput !== undefined && metrics.maxLatency !== undefined) {
-                        const rawN = metrics.maxLatency / metrics.rthroughput;
-                        calcHtml += `<div class="calc-step">N = ceil(${metrics.maxLatency} / ${metrics.rthroughput.toFixed(2)}) = ceil(${rawN.toFixed(2)}) = ${Math.ceil(rawN)}</div>`;
-                        calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${rec.suggestedN}</span></div>`;
-                    } else if (metrics.rthroughput !== undefined) {
-                        calcHtml += `<div class="calc-step">Fallback: N = ceil(RThroughput) = ceil(${metrics.rthroughput.toFixed(2)}) = ${Math.ceil(metrics.rthroughput)}</div>`;
+                    if (rec.perInstruction && rec.perInstruction.length > 0) {
+                        calcHtml += '<div style="font-size: 12px; margin-bottom: 8px;">';
+                        for (const inst of rec.perInstruction) {
+                            const instrShort = inst.instruction.split(/\s+/)[0]; // just the mnemonic
+                            calcHtml += `<div class="calc-step">${TunerCore.escapeHtml(instrShort)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code></div>`;
+                        }
+                        calcHtml += '</div>';
+                        calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
+                        const nValues = rec.perInstruction.map(i => i.n);
+                        calcHtml += `<div class="calc-step">N = max(${nValues.join(', ')}) = ${Math.max(...nValues)}</div>`;
                         calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${rec.suggestedN}</span></div>`;
                     } else {
-                        calcHtml += `<div class="calc-step">No metrics found, using default: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                        calcHtml += `<div class="calc-step">No instruction info found, using default: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                    }
+                    if (metrics.bottleneck) {
+                        calcHtml += `<div class="calc-step" style="margin-top: 8px;">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
                     }
                     document.getElementById('calc-content').innerHTML = calcHtml;
                     document.getElementById('calculation').classList.remove('hidden');

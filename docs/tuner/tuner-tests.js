@@ -182,9 +182,9 @@ Bottleneck: Backend pressure on SKLPort0.
     });
 
     // ========================================
-    // parseMetrics - maxLatency tests
+    // parseMetrics - instructions array tests
     // ========================================
-    group('parseMetrics - maxLatency');
+    group('parseMetrics - instructions');
 
     const SAMPLE_WITH_LATENCY = `
 Instruction Info:
@@ -200,12 +200,29 @@ Instruction Info:
 Block RThroughput: 1.0
 `;
 
-    test('parses maxLatency from Instruction Info', function() {
+    test('parses instructions array from Instruction Info', function() {
         const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
-        assertEqual(m.maxLatency, 4);
+        assert(Array.isArray(m.instructions));
+        assertEqual(m.instructions.length, 3);
     });
 
-    test('parses RThroughput alongside maxLatency', function() {
+    test('extracts latency and rthroughput per instruction', function() {
+        const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
+        assertEqual(m.instructions[0].latency, 4);
+        assertEqual(m.instructions[0].rthroughput, 1.0);
+        assertEqual(m.instructions[1].latency, 4);
+        assertEqual(m.instructions[1].rthroughput, 0.5);
+        assertEqual(m.instructions[2].latency, 1);
+        assertEqual(m.instructions[2].rthroughput, 0.33);
+    });
+
+    test('extracts instruction mnemonic', function() {
+        const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
+        assertContains(m.instructions[0].instruction, 'vaddss');
+        assertContains(m.instructions[1].instruction, 'vmulss');
+    });
+
+    test('parses RThroughput alongside instructions', function() {
         const m = T.parseMetrics(SAMPLE_WITH_LATENCY);
         assertEqual(m.rthroughput, 1.0);
     });
@@ -223,7 +240,9 @@ Instruction Info:
 Block RThroughput: 0.5
 `;
         const m = T.parseMetrics(mca);
-        assertEqual(m.maxLatency, 3);
+        assertEqual(m.instructions.length, 1);
+        assertEqual(m.instructions[0].latency, 3);
+        assertEqual(m.instructions[0].rthroughput, 0.5);
     });
 
     test('handles high latency instructions', function() {
@@ -240,83 +259,117 @@ Instruction Info:
 Block RThroughput: 5.0
 `;
         const m = T.parseMetrics(mca);
-        assertEqual(m.maxLatency, 11);
+        assertEqual(m.instructions.length, 2);
+        assertEqual(m.instructions[1].latency, 11);
+        assertEqual(m.instructions[1].rthroughput, 5.0);
     });
 
-    test('no latency when Instruction Info missing', function() {
+    test('no instructions when Instruction Info missing', function() {
         const m = T.parseMetrics('Block RThroughput: 1.0');
-        assert(m.maxLatency === undefined);
+        assert(m.instructions === undefined);
     });
 
     // ========================================
-    // generateRecommendation tests
+    // generateRecommendation tests (per-instruction formula)
     // ========================================
     group('generateRecommendation');
 
-    // Tests with both Latency and RThroughput (correct formula)
-    test('N = ceil(4 / 1.0) = 4', function() {
-        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4 });
+    // Helper to create instruction metrics
+    function makeInstr(lat, rt) {
+        return { latency: lat, rthroughput: rt, instruction: 'test' };
+    }
+
+    // Single instruction tests
+    test('single instruction: N = ceil(4 / 1.0) = 4', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(4, 1.0)] });
         assertEqual(rec.suggestedN, 4);
     });
 
-    test('N = ceil(4 / 0.5) = 8', function() {
-        const rec = T.generateRecommendation({ rthroughput: 0.5, maxLatency: 4 });
+    test('single instruction: N = ceil(4 / 0.5) = 8', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(4, 0.5)] });
         assertEqual(rec.suggestedN, 8);
     });
 
-    test('N = ceil(1 / 0.33) = 4', function() {
-        const rec = T.generateRecommendation({ rthroughput: 0.33, maxLatency: 1 });
+    test('single instruction: N = ceil(1 / 0.33) = 4', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(1, 0.33)] });
         assertEqual(rec.suggestedN, 4); // ceil(3.03) = 4
     });
 
-    test('N = ceil(11 / 5.0) = 3 (div)', function() {
-        const rec = T.generateRecommendation({ rthroughput: 5.0, maxLatency: 11 });
+    test('single instruction: N = ceil(11 / 5.0) = 3 (div)', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(11, 5.0)] });
         assertEqual(rec.suggestedN, 3); // ceil(2.2) = 3
     });
 
-    test('N clamped to max 16 with latency', function() {
-        const rec = T.generateRecommendation({ rthroughput: 0.1, maxLatency: 10 });
+    // Mixed instruction tests - key correctness test
+    test('mixed: takes max of per-instruction N (add+div)', function() {
+        // vaddps: L=4, RT=0.5 → N=8
+        // vdivps: L=11, RT=5.0 → N=3
+        // Should pick max = 8
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 0.5), makeInstr(11, 5.0)]
+        });
+        assertEqual(rec.suggestedN, 8);
+    });
+
+    test('mixed: three instructions with different N values', function() {
+        // N=4, N=8, N=3 → max = 8
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 1.0), makeInstr(4, 0.5), makeInstr(11, 5.0)]
+        });
+        assertEqual(rec.suggestedN, 8);
+    });
+
+    test('mixed: integer add (low N) should not limit FP add (high N)', function() {
+        // int add: L=1, RT=0.33 → N=4
+        // FP add: L=4, RT=0.5 → N=8
+        // Should be 8, not 4
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(1, 0.33), makeInstr(4, 0.5)]
+        });
+        assertEqual(rec.suggestedN, 8);
+    });
+
+    // Clamping tests
+    test('N clamped to max 16', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(10, 0.1)] });
         assertEqual(rec.suggestedN, 16); // ceil(100) clamped to 16
     });
 
-    test('N clamped to min 2 with latency', function() {
-        const rec = T.generateRecommendation({ rthroughput: 5.0, maxLatency: 1 });
+    test('N clamped to min 2', function() {
+        const rec = T.generateRecommendation({ instructions: [makeInstr(1, 5.0)] });
         assertEqual(rec.suggestedN, 2); // ceil(0.2) = 1, clamped to 2
     });
 
-    // Fallback tests (only RThroughput, no latency)
-    test('fallback: N = ceil(RThroughput) when no latency', function() {
-        const rec = T.generateRecommendation({ rthroughput: 3.5 });
-        assertEqual(rec.suggestedN, 4); // ceil(3.5) = 4
-        assert(rec.reasoning.some(r => r.includes('Latency not found')));
+    // perInstruction output tests
+    test('returns perInstruction breakdown', function() {
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 0.5), makeInstr(11, 5.0)]
+        });
+        assert(Array.isArray(rec.perInstruction));
+        assertEqual(rec.perInstruction.length, 2);
+        assertEqual(rec.perInstruction[0].n, 8);
+        assertEqual(rec.perInstruction[1].n, 3);
     });
 
-    test('fallback: N clamped to max 16', function() {
-        const rec = T.generateRecommendation({ rthroughput: 25.0 });
-        assertEqual(rec.suggestedN, 16);
-    });
-
-    test('fallback: N clamped to min 2', function() {
-        const rec = T.generateRecommendation({ rthroughput: 0.5 });
-        assertEqual(rec.suggestedN, 2);
-    });
-
-    // Reasoning tests
-    test('includes formula in reasoning', function() {
-        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4 });
-        assert(rec.reasoning.some(r => r.includes('Latency / RThroughput')));
-    });
-
+    // Bottleneck inclusion
     test('includes bottleneck in reasoning', function() {
-        const rec = T.generateRecommendation({ rthroughput: 1.0, maxLatency: 4, bottleneck: 'Backend' });
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 0.5)],
+            bottleneck: 'Backend'
+        });
         assert(rec.reasoning.some(r => r.includes('Backend')));
     });
 
-    // Edge cases
-    test('warns when RThroughput missing', function() {
+    // Edge cases / fallbacks
+    test('fallback when no instructions', function() {
         const rec = T.generateRecommendation({});
         assertEqual(rec.suggestedN, 4);
-        assert(rec.reasoning.some(r => r.includes('not found')));
+        assert(rec.reasoning.some(r => r.includes('No instruction info')));
+    });
+
+    test('fallback when empty instructions array', function() {
+        const rec = T.generateRecommendation({ instructions: [] });
+        assertEqual(rec.suggestedN, 4);
     });
 
     test('handles null metrics', function() {
@@ -325,19 +378,18 @@ Block RThroughput: 5.0
         assert(rec.reasoning.some(r => r.includes('No metrics')));
     });
 
-    test('handles NaN rthroughput', function() {
-        const rec = T.generateRecommendation({ rthroughput: NaN });
-        assertEqual(rec.suggestedN, 4);
+    test('skips instruction with zero rthroughput (avoid div by zero)', function() {
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 0), makeInstr(4, 0.5)]
+        });
+        assertEqual(rec.suggestedN, 8); // ignores the zero, uses 8
     });
 
-    test('handles Infinity rthroughput', function() {
-        const rec = T.generateRecommendation({ rthroughput: Infinity });
-        assertEqual(rec.suggestedN, 4);
-    });
-
-    test('handles zero rthroughput (avoid div by zero)', function() {
-        const rec = T.generateRecommendation({ rthroughput: 0, maxLatency: 4 });
-        assertEqual(rec.suggestedN, 4); // fallback
+    test('all instructions zero rthroughput uses min N', function() {
+        const rec = T.generateRecommendation({
+            instructions: [makeInstr(4, 0), makeInstr(4, 0)]
+        });
+        assertEqual(rec.suggestedN, 2); // min clamp
     });
 
     // ========================================
@@ -483,7 +535,7 @@ Block RThroughput: 5.0
     // ========================================
     group('Integration');
 
-    test('full pipeline with latency', function() {
+    test('full pipeline: single instruction', function() {
         const code = 'sum += data[i];';
         const wrapped = T.wrapCode(code, 'skylake');
         assertContains(wrapped, code);
@@ -501,19 +553,47 @@ Block RThroughput: 0.5
 `;
         const metrics = T.parseMetrics(mcaOutput);
         assertEqual(metrics.rthroughput, 0.5);
-        assertEqual(metrics.maxLatency, 4);
+        assertEqual(metrics.instructions.length, 1);
+        assertEqual(metrics.instructions[0].latency, 4);
+        assertEqual(metrics.instructions[0].rthroughput, 0.5);
 
         const rec = T.generateRecommendation(metrics);
         assertEqual(rec.suggestedN, 8); // ceil(4 / 0.5) = 8
     });
 
-    test('full pipeline without latency (fallback)', function() {
-        const metrics = T.parseMetrics('Block RThroughput: 4.0');
-        assertEqual(metrics.rthroughput, 4.0);
-        assert(metrics.maxLatency === undefined);
+    test('full pipeline: mixed instructions (correctness test)', function() {
+        // This is the key test showing the bug fix
+        // Old formula: maxLatency/blockRThr = 11/5 = 3 (WRONG)
+        // New formula: max(4/0.5, 11/5) = max(8, 3) = 8 (CORRECT)
+        const mcaOutput = `
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+
+[1]    [2]    [3]    Instructions:
+ 1      4     0.50   vaddps	%xmm0, %xmm1, %xmm2
+ 1      11    5.00   vdivps	%xmm2, %xmm3, %xmm4
+
+Block RThroughput: 5.0
+`;
+        const metrics = T.parseMetrics(mcaOutput);
+        assertEqual(metrics.instructions.length, 2);
 
         const rec = T.generateRecommendation(metrics);
-        assertEqual(rec.suggestedN, 4); // fallback: ceil(4.0)
+        // Must be 8, not 3!
+        assertEqual(rec.suggestedN, 8);
+        assertEqual(rec.perInstruction[0].n, 8); // vaddps
+        assertEqual(rec.perInstruction[1].n, 3); // vdivps
+    });
+
+    test('full pipeline without instruction info (fallback)', function() {
+        const metrics = T.parseMetrics('Block RThroughput: 4.0');
+        assertEqual(metrics.rthroughput, 4.0);
+        assert(metrics.instructions === undefined);
+
+        const rec = T.generateRecommendation(metrics);
+        assertEqual(rec.suggestedN, 4); // fallback default
     });
 
     // ========================================

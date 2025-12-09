@@ -137,26 +137,29 @@ void analyze_loop(int* __restrict data, size_t n) {
             }
         }
 
-        // Parse Instruction Info table to extract max latency
+        // Parse Instruction Info table to extract per-instruction latency and rthroughput
         // Format:
         // [1]    [2]    [3]    Instructions:
         //  1      4     1.00   vaddss %xmm0, %xmm1, %xmm2
         const infoMatch = mcaOutput.match(/Instruction Info:[\s\S]*?Instructions:\s*\n([\s\S]*?)(?:\n\n|\nResource|$)/);
         if (infoMatch) {
             const lines = infoMatch[1].split('\n').filter(l => l.trim());
-            const latencies = [];
+            metrics.instructions = [];
             for (const line of lines) {
-                // Match: whitespace, uops, whitespace, latency, whitespace, rthroughput
-                const match = line.match(/^\s*(\d+)\s+(\d+)\s+([\d.]+)/);
+                // Match: whitespace, uops, whitespace, latency, whitespace, rthroughput, whitespace, instruction
+                const match = line.match(/^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(.+)$/);
                 if (match) {
                     const lat = parseInt(match[2], 10);
-                    if (!isNaN(lat)) {
-                        latencies.push(lat);
+                    const rt = parseFloat(match[3]);
+                    const instr = match[4].trim();
+                    if (!isNaN(lat) && !isNaN(rt)) {
+                        metrics.instructions.push({
+                            latency: lat,
+                            rthroughput: rt,
+                            instruction: instr
+                        });
                     }
                 }
-            }
-            if (latencies.length > 0) {
-                metrics.maxLatency = Math.max(...latencies);
             }
         }
 
@@ -165,42 +168,47 @@ void analyze_loop(int* __restrict data, size_t n) {
 
     /**
      * Generate N recommendation based on MCA metrics
-     * Formula: N = Latency / RThroughput (clamped to [2, 16])
+     * Formula: N = max(ceil(Li / RThr_i)) for each instruction i (clamped to [2, 16])
      * @param {Object} metrics - Parsed MCA metrics
-     * @returns {Object} Recommendation with suggestedN and reasoning
+     * @returns {Object} Recommendation with suggestedN, reasoning, and perInstruction breakdown
      */
     function generateRecommendation(metrics) {
         const reasoning = [];
+        const perInstruction = [];
         let suggestedN = 4; // sensible default
 
         if (!metrics || typeof metrics !== 'object') {
             reasoning.push('No metrics available - using default N=4');
-            return { suggestedN, reasoning };
+            return { suggestedN, reasoning, perInstruction };
         }
 
-        const hasRt = typeof metrics.rthroughput === 'number' && isFinite(metrics.rthroughput) && metrics.rthroughput > 0;
-        const hasLat = typeof metrics.maxLatency === 'number' && isFinite(metrics.maxLatency);
-
-        if (hasRt && hasLat) {
-            // N = Latency / RThroughput
-            const rt = metrics.rthroughput;
-            const lat = metrics.maxLatency;
-            suggestedN = Math.max(2, Math.min(16, Math.ceil(lat / rt)));
-            reasoning.push(`N = ceil(Latency / RThroughput) = ceil(${lat} / ${rt.toFixed(2)}) = ${suggestedN}`);
-        } else if (hasRt) {
-            // Fallback: just RThroughput (old behavior)
-            const rt = metrics.rthroughput;
-            suggestedN = Math.max(2, Math.min(16, Math.ceil(rt)));
-            reasoning.push(`Latency not found - using RThroughput ${rt.toFixed(2)} → N = ${suggestedN}`);
+        // Use per-instruction formula: N = max(ceil(Li / RThr_i))
+        if (metrics.instructions && Array.isArray(metrics.instructions) && metrics.instructions.length > 0) {
+            let maxN = 2;
+            for (const inst of metrics.instructions) {
+                if (inst.rthroughput > 0) {
+                    const n = Math.ceil(inst.latency / inst.rthroughput);
+                    perInstruction.push({
+                        instruction: inst.instruction,
+                        latency: inst.latency,
+                        rthroughput: inst.rthroughput,
+                        n: n
+                    });
+                    maxN = Math.max(maxN, n);
+                }
+            }
+            suggestedN = Math.max(2, Math.min(16, maxN));
+            reasoning.push(`N = max(ceil(L/RThr) per instruction) = ${suggestedN}`);
         } else {
-            reasoning.push('RThroughput not found in MCA output - using default N=4');
+            // Fallback if no instruction info available
+            reasoning.push('No instruction info found - using default N=4');
         }
 
         if (metrics.bottleneck) {
             reasoning.push(`Bottleneck: ${metrics.bottleneck}`);
         }
 
-        return { suggestedN, reasoning };
+        return { suggestedN, reasoning, perInstruction };
     }
 
     /**
