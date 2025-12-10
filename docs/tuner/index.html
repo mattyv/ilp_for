@@ -226,20 +226,24 @@
                 <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
 
 size_t find_threshold(const float* data, size_t n, float threshold) {
-    asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot;);
-    for (size_t i = 0; i < n; ++i) {
-        if (data[i] > threshold) return i;
+    asm volatile(&quot;&quot; ::: &quot;memory&quot;);
+    asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot; ::: &quot;memory&quot;);
+    for (size_t i = 0; i &lt; n; ++i) {
+        if (data[i] &gt; threshold) return i;
     }
-    asm volatile(&quot;# LLVM-MCA-END&quot;);
+    asm volatile(&quot;# LLVM-MCA-END&quot; ::: &quot;memory&quot;);
+    asm volatile(&quot;&quot; ::: &quot;memory&quot;);
     return n;
 }">#include <cstddef>
 
 size_t find_threshold(const float* data, size_t n, float threshold) {
-    asm volatile("# LLVM-MCA-BEGIN loop");
+    asm volatile("" ::: "memory");
+    asm volatile("# LLVM-MCA-BEGIN loop" ::: "memory");
     for (size_t i = 0; i < n; ++i) {
         if (data[i] > threshold) return i;
     }
-    asm volatile("# LLVM-MCA-END");
+    asm volatile("# LLVM-MCA-END" ::: "memory");
+    asm volatile("" ::: "memory");
     return n;
 }</textarea>
 
@@ -284,8 +288,8 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                 <button id="analyze" onclick="analyze()">Analyze</button>
 
                 <p class="help">
-                    <strong>Required:</strong> Wrap your loop with <code>asm volatile("# LLVM-MCA-BEGIN loop");</code> and <code>asm volatile("# LLVM-MCA-END");</code> markers.
-                    Use <code>volatile</code> for loop bounds to prevent aggressive compiler unrolling.
+                    <strong>Required:</strong> Wrap your loop with MCA markers. Use <code>::: "memory"</code> clobbers and
+                    empty barriers to prevent code movement into the analyzed region.
                     <a href="https://llvm.org/docs/CommandGuide/llvm-mca.html" target="_blank">Learn about MCA</a>
                 </p>
             </div>
