@@ -70,17 +70,17 @@ if (found3) return i+3;
 
 ## The Nuance
 
-Modern compilers are smart. In our tests, GCC sometimes produced identical assembly for both patterns - it saw through the "parallel evaluation" and merged loads with compares anyway.
+Modern compilers are smart. In my tests, GCC sometimes produced identical assembly for both patterns - it saw through the "parallel evaluation" and merged loads with compares anyway.
 
 So why bother with ilp_for?
 
 **1. Guaranteed unrolling**
 
-`#pragma unroll` is a hint. Compilers may ignore it. They may unroll sequentially. ilp_for generates the unrolled code directly.
+`#pragma unroll` is a hint. Compilers may ignore it. They may unroll sequentially which may not be what you want. It an be a bit of a stab in the dark. ilp_for generates the unrolled code directly.
 
 **2. Multi-accumulator reductions**
 
-This is where ilp_for really shines. For min/max:
+This is where ilp_for works nicely. For min/max:
 
 ```cpp
 // #pragma unroll keeps one accumulator (serial dependency):
