@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Basically if the compiler cannot unroll, ilp_for probably can.
+Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Generates unrolled code with parallel condition evaluation, enabling better instruction-level parallelism than `#pragma unroll`.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -26,7 +26,7 @@ for (size_t i = 0; i < n; ++i)
 }
 ```
 
-Compilers cannot unroll this loop - the mixed `break` and `continue` paths create complex control flow. So you might manually unroll it:
+While compilers *can* unroll this with `#pragma unroll`, they generate sequential condition checks. For better ILP, you want parallel evaluation of conditions before sequential checking:
 ```cpp
 int sum = 0;
 size_t i = 0;
