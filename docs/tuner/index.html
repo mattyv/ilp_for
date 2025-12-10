@@ -197,6 +197,20 @@
             margin: 0 0 8px;
             color: var(--accent);
         }
+        .advanced-config {
+            margin: 10px 0;
+            font-size: 0.85rem;
+        }
+        .advanced-config summary {
+            cursor: pointer;
+            color: var(--text-dim);
+        }
+        .advanced-config summary:hover {
+            color: var(--text);
+        }
+        .non-compute {
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
@@ -253,6 +267,19 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                         <input type="text" id="args" autocapitalize="off" autocorrect="off" spellcheck="false" value="-std=c++2b -O3">
                     </div>
                 </div>
+
+                <details class="advanced-config">
+                    <summary>Advanced</summary>
+                    <div style="margin-top: 8px;">
+                        <label for="compute-pattern">Compute Instruction Pattern (regex)</label>
+                        <input type="text" id="compute-pattern" autocapitalize="off" autocorrect="off" spellcheck="false"
+                            style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px;">
+                        <p class="help" style="margin-top: 4px; font-size: 11px;">
+                            Only instructions matching this pattern count toward suggested N.
+                            Memory loads and control flow don't benefit from ILP.
+                        </p>
+                    </div>
+                </details>
 
                 <button id="analyze" onclick="analyze()">Analyze</button>
 
@@ -321,6 +348,13 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
 
         // Initialize on page load (call immediately since script is at end of body)
         updateCompilers();
+
+        // Initialize compute pattern from localStorage or default
+        const computePatternInput = document.getElementById('compute-pattern');
+        computePatternInput.value = localStorage.getItem('ilp-tuner-compute-pattern') || TunerCore.DEFAULT_COMPUTE_PATTERN;
+        computePatternInput.addEventListener('change', function() {
+            localStorage.setItem('ilp-tuner-compute-pattern', this.value);
+        });
 
         // Update when architecture changes
         document.getElementById('arch').addEventListener('change', updateCompilers);
@@ -403,29 +437,56 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                     // Generate recommendation
                     const rec = TunerCore.generateRecommendation(metrics);
 
+                    // Get compute pattern from config
+                    const computePattern = document.getElementById('compute-pattern').value || TunerCore.DEFAULT_COMPUTE_PATTERN;
+
                     // Build calculation debug output with per-instruction breakdown
                     let calcHtml = '';
                     let bottleneckInstr = null;
+                    let suggestedN = 4; // default
+
                     if (rec.perInstruction && rec.perInstruction.length > 0) {
-                        // Find the bottleneck instruction (highest N)
-                        const maxN = Math.max(...rec.perInstruction.map(i => i.n));
-                        bottleneckInstr = rec.perInstruction.find(i => i.n === maxN);
+                        // Classify instructions
+                        const classified = rec.perInstruction.map(inst => {
+                            const opcode = inst.instruction.split(/\s+/)[0];
+                            return {
+                                ...inst,
+                                opcode,
+                                isCompute: TunerCore.isComputeInstruction(opcode, computePattern)
+                            };
+                        });
+
+                        // Filter to compute-only for N calculation
+                        const computeInstructions = classified.filter(i => i.isCompute);
+
+                        // Find the bottleneck among compute instructions
+                        if (computeInstructions.length > 0) {
+                            const maxN = Math.max(...computeInstructions.map(i => i.n));
+                            bottleneckInstr = computeInstructions.find(i => i.n === maxN);
+                            suggestedN = Math.max(2, Math.min(16, maxN));
+                        }
 
                         calcHtml += '<div style="font-size: 12px; margin-bottom: 8px;">';
-                        for (const inst of rec.perInstruction) {
-                            const instrShort = inst.instruction.split(/\s+/)[0]; // just the mnemonic
+                        for (const inst of classified) {
                             const isBottleneck = inst === bottleneckInstr;
                             const marker = isBottleneck ? ' <span style="color: var(--accent);">← bottleneck</span>' : '';
+                            const dimClass = inst.isCompute ? '' : ' class="non-compute"';
+                            const typeLabel = inst.isCompute ? '' : ' <span style="color: var(--text-dim);">(non-compute)</span>';
                             const style = isBottleneck ? 'font-weight: bold;' : '';
-                            calcHtml += `<div class="calc-step" style="${style}">${TunerCore.escapeHtml(instrShort)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code>${marker}</div>`;
+                            calcHtml += `<div${dimClass} style="${style}">${TunerCore.escapeHtml(inst.opcode)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code>${marker}${typeLabel}</div>`;
                         }
                         calcHtml += '</div>';
                         calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
-                        const nValues = rec.perInstruction.map(i => i.n);
-                        calcHtml += `<div class="calc-step">N = max(${nValues.join(', ')}) = ${Math.max(...nValues)}</div>`;
-                        calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${rec.suggestedN}</span></div>`;
+
+                        if (computeInstructions.length > 0) {
+                            const nValues = computeInstructions.map(i => i.n);
+                            calcHtml += `<div class="calc-step">N = max(${nValues.join(', ')}) = ${Math.max(...nValues)}</div>`;
+                            calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${suggestedN}</span></div>`;
+                        } else {
+                            calcHtml += `<div class="calc-step" style="color: var(--warning);">No compute instructions found matching pattern. Using default N=4.</div>`;
+                        }
                     } else {
-                        calcHtml += `<div class="calc-step">No instruction info found, using default: <span class="calc-result">${rec.suggestedN}</span></div>`;
+                        calcHtml += `<div class="calc-step">No instruction info found, using default: <span class="calc-result">${suggestedN}</span></div>`;
                     }
                     if (metrics.bottleneck) {
                         calcHtml += `<div class="calc-step" style="margin-top: 8px;">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
@@ -437,20 +498,19 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
 
                     // Fetch and display bottleneck instruction description
                     if (bottleneckInstr) {
-                        const opcode = bottleneckInstr.instruction.split(/\s+/)[0];
-                        TunerCore.fetchInstructionDoc(arch, opcode).then(tooltip => {
+                        TunerCore.fetchInstructionDoc(arch, bottleneckInstr.opcode).then(tooltip => {
                             if (tooltip) {
                                 document.getElementById('bottleneck-desc').innerHTML =
-                                    `<strong>${TunerCore.escapeHtml(opcode)}:</strong> ${TunerCore.escapeHtml(tooltip)}`;
+                                    `<strong>${TunerCore.escapeHtml(bottleneckInstr.opcode)}:</strong> ${TunerCore.escapeHtml(tooltip)}`;
                             }
                         });
                     }
 
                     // Show recommendation
                     document.getElementById('rec-content').innerHTML = `
-                        <p><strong>Suggested N:</strong> <code>${rec.suggestedN}</code></p>
+                        <p><strong>Suggested N:</strong> <code>${suggestedN}</code></p>
                         <p><strong>Usage:</strong></p>
-                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${rec.suggestedN}) {
+                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${suggestedN}) {
     // your loop body
 } ILP_END;</pre>
                     `;

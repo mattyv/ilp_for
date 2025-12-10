@@ -430,6 +430,26 @@ const TunerCore = (function() {
         }
     }
 
+    /**
+     * Default regex pattern for compute (ILP-able) instructions
+     * Covers common arithmetic/FP ops for x86 and ARM
+     */
+    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor)|f(add|sub|mul|div|madd|msub|nmadd|nmsub|sqrt|min|max)|imul|idiv)';
+
+    /**
+     * Check if an instruction is a compute (ILP-able) instruction
+     * @param {string} opcode - Instruction mnemonic
+     * @param {string} pattern - Regex pattern for compute instructions
+     * @returns {boolean} True if instruction is ILP-able
+     */
+    function isComputeInstruction(opcode, pattern) {
+        if (typeof opcode !== 'string' || opcode.length === 0) {
+            return false;
+        }
+        const regex = new RegExp(pattern || DEFAULT_COMPUTE_PATTERN, 'i');
+        return regex.test(opcode);
+    }
+
     // Public API
     return {
         GODBOLT_API,
@@ -447,7 +467,9 @@ const TunerCore = (function() {
         extractCompilerOutput,
         validateInput,
         getInstructionSet,
-        fetchInstructionDoc
+        fetchInstructionDoc,
+        DEFAULT_COMPUTE_PATTERN,
+        isComputeInstruction
     };
 })();
 
