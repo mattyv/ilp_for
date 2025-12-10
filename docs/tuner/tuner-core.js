@@ -434,7 +434,7 @@ const TunerCore = (function() {
      * Default regex pattern for compute (ILP-able) instructions
      * Covers common arithmetic/FP ops for x86 and ARM
      */
-    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor)|f(add|sub|mul|div|madd|msub|nmadd|nmsub|sqrt|min|max)|imul|idiv)';
+    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor)|f(add|sub|mul|div|ma|ms|nma|nms|sqrt|min|max|mla|mls)|madd|msub|[su]mul|mla|mls|imul|idiv)';
 
     /**
      * Check if an instruction is a compute (ILP-able) instruction
