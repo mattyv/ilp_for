@@ -510,25 +510,37 @@ Block RThroughput: 5.0
     // ========================================
     group('buildApiRequest');
 
-    test('builds valid request', function() {
-        const req = T.buildApiRequest('code', '-O3', '-march=skylake', '-mcpu=skylake');
+    test('builds valid request for x86', function() {
+        const req = T.buildApiRequest('code', '-O3', '-march=skylake', '-mcpu=skylake', 'skylake');
         assertEqual(req.source, 'code');
         assertEqual(req.options.userArguments, '-O3 -march=skylake');
         assertEqual(req.options.tools[0].id, 'llvm-mcatrunk');
     });
 
-    test('includes MCA args', function() {
-        const req = T.buildApiRequest('code', '-O3', '-march=skylake', '-mcpu=skylake');
+    test('includes MCA args for x86', function() {
+        const req = T.buildApiRequest('code', '-O3', '-march=skylake', '-mcpu=skylake', 'skylake');
         assertContains(req.options.tools[0].args, '-timeline');
         assertContains(req.options.tools[0].args, '-bottleneck-analysis');
     });
 
+    test('no MCA tools for ARM64', function() {
+        const req = T.buildApiRequest('code', '-O3', '-mcpu=apple-m1', '-mcpu=apple-m1', 'apple-m1');
+        assert(req.options.tools === undefined, 'tools should not be set for ARM64');
+    });
+
+    test('uses Intel syntax for x86, not for ARM64', function() {
+        const reqX86 = T.buildApiRequest('code', '-O3', '-march=skylake', '-mcpu=skylake', 'skylake');
+        const reqArm = T.buildApiRequest('code', '-O3', '-mcpu=apple-m1', '-mcpu=apple-m1', 'apple-m1');
+        assertEqual(reqX86.options.filters.intel, true);
+        assertEqual(reqArm.options.filters.intel, false);
+    });
+
     test('throws on empty source', function() {
-        assertThrows(function() { T.buildApiRequest('', '-O3', '-march=skylake', '-mcpu=skylake'); });
+        assertThrows(function() { T.buildApiRequest('', '-O3', '-march=skylake', '-mcpu=skylake', 'skylake'); });
     });
 
     test('throws on null source', function() {
-        assertThrows(function() { T.buildApiRequest(null, '-O3', '-march=skylake', '-mcpu=skylake'); });
+        assertThrows(function() { T.buildApiRequest(null, '-O3', '-march=skylake', '-mcpu=skylake', 'skylake'); });
     });
 
     // ========================================

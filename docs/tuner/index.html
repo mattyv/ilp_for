@@ -363,7 +363,7 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                 const wrappedCode = TunerCore.wrapCode(code, arch);
                 const archFlag = TunerCore.getArchFlag(arch);
                 const mcaCpu = TunerCore.getMcaCpu(arch);
-                const request = TunerCore.buildApiRequest(wrappedCode, args, archFlag, mcaCpu);
+                const request = TunerCore.buildApiRequest(wrappedCode, args, archFlag, mcaCpu, arch);
 
                 // Compile with Godbolt API
                 const response = await fetch(`${TunerCore.GODBOLT_API}/compiler/${compiler}/compile`, {
@@ -434,6 +434,12 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
 } ILP_END;</pre>
                     `;
                     document.getElementById('recommendation').classList.remove('hidden');
+                } else if (TunerCore.isArmArch(arch)) {
+                    // ARM64 doesn't support MCA on Godbolt
+                    document.getElementById('mca-output').innerHTML =
+                        '<span class="warning">LLVM-MCA is not available for ARM64 on Godbolt. ' +
+                        'Use x86 architecture for MCA analysis, or consult ' +
+                        '<a href="https://developer.arm.com/documentation/102107/latest" target="_blank">Arm optimization guides</a>.</span>';
                 } else {
                     document.getElementById('mca-output').innerHTML =
                         '<span class="warning">No MCA output available. Check for compilation errors.</span>';

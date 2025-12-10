@@ -264,36 +264,40 @@ const TunerCore = (function() {
      * @param {string} userArgs - User-specified compiler arguments
      * @param {string} archFlag - Architecture-specific flag
      * @param {string} mcaCpu - MCA CPU flag
+     * @param {string} arch - Architecture identifier (for tool selection)
      * @returns {Object} Request body for fetch
      */
-    function buildApiRequest(source, userArgs, archFlag, mcaCpu) {
+    function buildApiRequest(source, userArgs, archFlag, mcaCpu, arch) {
         if (typeof source !== 'string' || source.length === 0) {
             throw new Error('source code is required');
         }
 
         const fullArgs = `${userArgs || ''} ${archFlag || ''}`.trim();
 
-        return {
-            source: source,
-            options: {
-                userArguments: fullArgs,
-                filters: {
-                    binary: false,
-                    execute: false,
-                    intel: true,
-                    demangle: true,
-                    labels: true,
-                    libraryCode: false,
-                    directives: true,
-                    commentOnly: true,
-                    trim: false
-                },
-                tools: [{
-                    id: 'llvm-mcatrunk',
-                    args: `-timeline -bottleneck-analysis ${mcaCpu || '-mcpu=skylake'}`
-                }]
+        const options = {
+            userArguments: fullArgs,
+            filters: {
+                binary: false,
+                execute: false,
+                intel: !isArmArch(arch), // Use Intel syntax for x86 only
+                demangle: true,
+                labels: true,
+                libraryCode: false,
+                directives: true,
+                commentOnly: true,
+                trim: false
             }
         };
+
+        // MCA only works with x86 compilers on Godbolt
+        if (!isArmArch(arch)) {
+            options.tools = [{
+                id: 'llvm-mcatrunk',
+                args: `-timeline -bottleneck-analysis ${mcaCpu || '-mcpu=skylake'}`
+            }];
+        }
+
+        return { source: source, options: options };
     }
 
     /**
