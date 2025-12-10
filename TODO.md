@@ -37,3 +37,4 @@
 ## Misc
 - [ ] Optionally compile in and out cpp 23 features
 - [x] M1 and cortex don't work in ILP N analyser
+- [ ] ARM64 MCA on Godbolt still showing llvm-mc errors (may be Godbolt infra issue)
