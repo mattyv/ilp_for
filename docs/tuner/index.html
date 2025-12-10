@@ -235,7 +235,7 @@ float weighted_sum_until(const float* values, const float* weights,
         sum += values[i] * weights[i];  // FMA candidate
         if (sum &gt; limit) break;         // early exit
     }
-    asm volatile(&quot;# LLVM-MCA-END&quot; ::: &quot;memory&quot;);
+    asm volatile(&quot;# LLVM-MCA-END loop&quot; ::: &quot;memory&quot;);
     asm volatile(&quot;&quot; ::: &quot;memory&quot;);
     return sum;
 }">#include <cstddef>
@@ -250,7 +250,7 @@ float weighted_sum_until(const float* values, const float* weights,
         sum += values[i] * weights[i];  // FMA candidate
         if (sum > limit) break;         // early exit
     }
-    asm volatile("# LLVM-MCA-END" ::: "memory");
+    asm volatile("# LLVM-MCA-END loop" ::: "memory");
     asm volatile("" ::: "memory");
     return sum;
 }</textarea>
@@ -408,26 +408,26 @@ float weighted_sum_until(const float* values, const float* weights,
                 const wrappedCode = TunerCore.wrapCode(code, arch);
                 const archFlag = TunerCore.getArchFlag(arch);
                 const mcaCpu = TunerCore.getMcaCpu(arch);
-                const request = TunerCore.buildApiRequest(wrappedCode, args, archFlag, mcaCpu, arch);
 
-                // Compile with Godbolt API
-                const response = await fetch(`${TunerCore.GODBOLT_API}/compiler/${compiler}/compile`, {
+                // Step 1: Compile to assembly (without MCA tool)
+                const compileRequest = TunerCore.buildCompileOnlyRequest(wrappedCode, args, archFlag, arch);
+                const compileResponse = await fetch(`${TunerCore.GODBOLT_API}/compiler/${compiler}/compile`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify(request)
+                    body: JSON.stringify(compileRequest)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
+                if (!compileResponse.ok) {
+                    throw new Error(`Compile API error: ${compileResponse.status}`);
                 }
 
-                const result = await response.json();
+                const compileResult = await compileResponse.json();
 
                 // Show compiler output
-                const compilerOut = TunerCore.extractCompilerOutput(result);
+                const compilerOut = TunerCore.extractCompilerOutput(compileResult);
                 if (compilerOut.hasError) {
                     document.getElementById('compiler-output').innerHTML =
                         `<span class="error">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
@@ -436,8 +436,37 @@ float weighted_sum_until(const float* values, const float* weights,
                         `<span class="success">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
                 }
 
-                // Show MCA output
-                const mcaOutput = TunerCore.extractMcaOutput(result);
+                // Step 2: Extract and clean assembly (remove duplicate MCA-END markers)
+                let asm = TunerCore.extractAssembly(compileResult);
+                asm = TunerCore.cleanMcaMarkers(asm);
+
+                // Step 3: Run MCA on cleaned assembly (for x86 only)
+                let mcaOutput = '';
+                if (!TunerCore.isArmArch(arch) && asm) {
+                    document.getElementById('mca-output').innerHTML = 'Running MCA analysis...';
+                    const mcaRequest = TunerCore.buildMcaRequest(asm, mcaCpu, arch);
+                    const mcaResponse = await fetch(`${TunerCore.GODBOLT_API}/compiler/llvm-mcatrunk/compile`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(mcaRequest)
+                    });
+
+                    if (mcaResponse.ok) {
+                        const mcaResult = await mcaResponse.json();
+                        // MCA output comes from asm array when used as compiler
+                        if (mcaResult.asm && Array.isArray(mcaResult.asm)) {
+                            mcaOutput = mcaResult.asm.map(a => a.text || '').join('\n');
+                        }
+                        // Also check stderr for errors/output
+                        if (mcaResult.stderr && Array.isArray(mcaResult.stderr)) {
+                            const stderr = mcaResult.stderr.map(s => s.text || '').join('\n');
+                            if (stderr) mcaOutput = stderr + '\n' + mcaOutput;
+                        }
+                    }
+                }
 
                 if (mcaOutput) {
                     document.getElementById('mca-output').innerHTML = TunerCore.escapeHtml(mcaOutput);

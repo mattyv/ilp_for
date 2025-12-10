@@ -703,6 +703,109 @@ Block RThroughput: 5.0
     });
 
     // ========================================
+    // cleanMcaMarkers tests
+    // ========================================
+    group('cleanMcaMarkers');
+
+    test('removes duplicate MCA-END markers', function() {
+        const asm = `# LLVM-MCA-BEGIN loop
+vmovss xmm1, [rdi]
+# LLVM-MCA-END loop
+some other code
+# LLVM-MCA-END loop`;
+        const cleaned = T.cleanMcaMarkers(asm);
+        const endCount = (cleaned.match(/# LLVM-MCA-END/g) || []).length;
+        assertEqual(endCount, 1);
+    });
+
+    test('keeps single BEGIN/END pair', function() {
+        const asm = `# LLVM-MCA-BEGIN loop
+vmovss xmm1, [rdi]
+# LLVM-MCA-END loop`;
+        const cleaned = T.cleanMcaMarkers(asm);
+        assertContains(cleaned, '# LLVM-MCA-BEGIN loop');
+        assertContains(cleaned, '# LLVM-MCA-END loop');
+    });
+
+    test('handles anonymous regions', function() {
+        const asm = `# LLVM-MCA-BEGIN
+vmovss xmm1, [rdi]
+# LLVM-MCA-END
+more code
+# LLVM-MCA-END`;
+        const cleaned = T.cleanMcaMarkers(asm);
+        const endCount = (cleaned.match(/# LLVM-MCA-END/g) || []).length;
+        assertEqual(endCount, 1);
+    });
+
+    test('handles empty input', function() {
+        assertEqual(T.cleanMcaMarkers(''), '');
+        assertEqual(T.cleanMcaMarkers(null), '');
+    });
+
+    test('preserves non-MCA lines', function() {
+        const asm = `vmovss xmm1, [rdi]
+vaddss xmm1, xmm2, xmm3`;
+        assertEqual(T.cleanMcaMarkers(asm), asm);
+    });
+
+    // ========================================
+    // extractAssembly tests
+    // ========================================
+    group('extractAssembly');
+
+    test('extracts asm array from result', function() {
+        const result = {
+            asm: [{ text: 'mov eax, 1' }, { text: 'ret' }]
+        };
+        const asm = T.extractAssembly(result);
+        assertContains(asm, 'mov eax, 1');
+        assertContains(asm, 'ret');
+    });
+
+    test('returns empty for missing asm', function() {
+        assertEqual(T.extractAssembly({}), '');
+        assertEqual(T.extractAssembly(null), '');
+    });
+
+    // ========================================
+    // buildCompileOnlyRequest tests
+    // ========================================
+    group('buildCompileOnlyRequest');
+
+    test('builds request without tools', function() {
+        const req = T.buildCompileOnlyRequest('code', '-O3', '-march=skylake', 'skylake');
+        assertEqual(req.source, 'code');
+        assertEqual(req.options.userArguments, '-O3 -march=skylake');
+        assert(req.options.tools === undefined);
+    });
+
+    test('throws on empty source', function() {
+        assertThrows(function() { T.buildCompileOnlyRequest('', '-O3', '-march=skylake', 'skylake'); });
+    });
+
+    // ========================================
+    // buildMcaRequest tests
+    // ========================================
+    group('buildMcaRequest');
+
+    test('builds MCA request for x86', function() {
+        const req = T.buildMcaRequest('vmovss xmm1, [rdi]', '-mcpu=skylake', 'skylake');
+        assertEqual(req.source, 'vmovss xmm1, [rdi]');
+        assertContains(req.options.userArguments, '-mcpu=skylake');
+        assertContains(req.options.userArguments, '-mtriple=x86_64');
+    });
+
+    test('builds MCA request for ARM', function() {
+        const req = T.buildMcaRequest('fmla v0.4s, v1.4s, v2.4s', '-mcpu=apple-m1', 'apple-m1');
+        assertContains(req.options.userArguments, '-mtriple=aarch64');
+    });
+
+    test('throws on empty assembly', function() {
+        assertThrows(function() { T.buildMcaRequest('', '-mcpu=skylake', 'skylake'); });
+    });
+
+    // ========================================
     // Summary
     // ========================================
     log('\n========================================');

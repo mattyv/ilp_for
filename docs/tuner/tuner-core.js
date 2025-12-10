@@ -431,6 +431,109 @@ const TunerCore = (function() {
     }
 
     /**
+     * Clean assembly by removing duplicate MCA-END markers
+     * Keeps only the first MCA-END for each MCA-BEGIN region
+     * @param {string} asm - Assembly code
+     * @returns {string} Cleaned assembly
+     */
+    function cleanMcaMarkers(asm) {
+        if (typeof asm !== 'string') {
+            return '';
+        }
+        const lines = asm.split('\n');
+        const result = [];
+        let activeRegion = null; // null or region name ('' for anonymous)
+
+        for (const line of lines) {
+            const beginMatch = line.match(/# LLVM-MCA-BEGIN\s*(.*)/);
+            const endMatch = line.match(/# LLVM-MCA-END\s*(.*)/);
+
+            if (beginMatch) {
+                activeRegion = beginMatch[1].trim();
+                result.push(line);
+            } else if (endMatch) {
+                const endName = endMatch[1].trim();
+                // Only keep END if it matches active region
+                if (activeRegion !== null && (endName === activeRegion || endName === '')) {
+                    result.push(line);
+                    activeRegion = null;
+                }
+                // Skip duplicate ENDs
+            } else {
+                result.push(line);
+            }
+        }
+        return result.join('\n');
+    }
+
+    /**
+     * Extract assembly text from compiler result
+     * @param {Object} result - Godbolt API response
+     * @returns {string} Assembly text
+     */
+    function extractAssembly(result) {
+        if (!result || !result.asm || !Array.isArray(result.asm)) {
+            return '';
+        }
+        return result.asm
+            .filter(a => a && typeof a.text === 'string')
+            .map(a => a.text)
+            .join('\n');
+    }
+
+    /**
+     * Build request for compilation only (no MCA tool)
+     * @param {string} source - Source code
+     * @param {string} userArgs - User compiler arguments
+     * @param {string} archFlag - Architecture flag
+     * @param {string} arch - Architecture identifier
+     * @returns {Object} Request body
+     */
+    function buildCompileOnlyRequest(source, userArgs, archFlag, arch) {
+        if (typeof source !== 'string' || source.length === 0) {
+            throw new Error('source code is required');
+        }
+        const fullArgs = `${userArgs || ''} ${archFlag || ''}`.trim();
+        return {
+            source: source,
+            options: {
+                userArguments: fullArgs,
+                filters: {
+                    binary: false,
+                    execute: false,
+                    intel: !isArmArch(arch),
+                    demangle: true,
+                    labels: true,
+                    libraryCode: false,
+                    directives: false,
+                    commentOnly: false,
+                    trim: false
+                }
+            }
+        };
+    }
+
+    /**
+     * Build request for MCA analysis on raw assembly
+     * @param {string} asm - Assembly code
+     * @param {string} mcaCpu - MCA CPU flag
+     * @param {string} arch - Architecture identifier
+     * @returns {Object} Request body
+     */
+    function buildMcaRequest(asm, mcaCpu, arch) {
+        if (typeof asm !== 'string' || asm.length === 0) {
+            throw new Error('assembly code is required');
+        }
+        const triple = isArmArch(arch) ? '-mtriple=aarch64' : '-mtriple=x86_64';
+        return {
+            source: asm,
+            options: {
+                userArguments: `-timeline -bottleneck-analysis ${mcaCpu || '-mcpu=skylake'} ${triple}`
+            }
+        };
+    }
+
+    /**
      * Default regex pattern for compute (ILP-able) instructions
      * Covers arithmetic/FP/shift/compare ops for x86 and ARM matching ilp::LoopType
      * Sum(add), DotProduct(fma), Multiply(mul), Divide(div), Sqrt(sqrt),
@@ -471,7 +574,11 @@ const TunerCore = (function() {
         getInstructionSet,
         fetchInstructionDoc,
         DEFAULT_COMPUTE_PATTERN,
-        isComputeInstruction
+        isComputeInstruction,
+        cleanMcaMarkers,
+        extractAssembly,
+        buildCompileOnlyRequest,
+        buildMcaRequest
     };
 })();
 
