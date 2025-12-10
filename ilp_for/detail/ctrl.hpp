@@ -52,6 +52,8 @@ namespace ilp {
     };
 
     // Small storage for integral types (8 bytes max - covers int, size_t, pointers)
+    // Only supports trivially destructible types to avoid lifetime management complexity.
+    // Use ILP_FOR_T for non-trivial return types.
     struct SmallStorage {
         alignas(8) char buffer[8];
 
@@ -60,6 +62,9 @@ namespace ilp {
             using U = std::decay_t<T>;
             static_assert(sizeof(U) <= 8, "Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.");
             static_assert(alignof(U) <= 8, "Return type alignment exceeds 8. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(std::is_trivially_destructible_v<U>,
+                          "SmallStorage only supports trivially-destructible types. "
+                          "Use ILP_FOR_T(type, ...) for non-trivial return types.");
             new (buffer) U(static_cast<T&&>(val));
         }
 
@@ -70,6 +75,7 @@ namespace ilp {
     };
 
     // Typed storage for user-specified types (exact size)
+    // Properly destructs stored object after extraction to avoid leaks.
     template<typename R>
     struct TypedStorage {
         alignas(R) char buffer[sizeof(R)];
@@ -79,7 +85,12 @@ namespace ilp {
             new (buffer) R(static_cast<T&&>(val));
         }
 
-        ILP_ALWAYS_INLINE R extract() { return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer))); }
+        ILP_ALWAYS_INLINE R extract() {
+            R* ptr = std::launder(reinterpret_cast<R*>(buffer));
+            R tmp = static_cast<R&&>(*ptr);
+            ptr->~R();
+            return tmp;
+        }
     };
 
     // ok=false means early exit (simple version - 8-byte storage)

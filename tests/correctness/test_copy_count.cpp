@@ -369,4 +369,72 @@ TEST_CASE("Move-only type works with std::plus<> reduce", "[copy_count][reduce][
     CHECK(result.value == 6);
 }
 
+// =============================================================================
+// Non-trivially destructible type tests (must use ILP_FOR_T)
+// =============================================================================
+
+namespace {
+    // Type with non-trivial destructor that tracks destruction
+    struct DestructorTracker {
+        static inline int destructor_calls = 0;
+        int value = 0;
+
+        DestructorTracker() = default;
+        explicit DestructorTracker(int v) : value(v) {}
+        DestructorTracker(const DestructorTracker& o) : value(o.value) {}
+        DestructorTracker(DestructorTracker&& o) noexcept : value(o.value) { o.value = -1; }
+        DestructorTracker& operator=(const DestructorTracker&) = default;
+        DestructorTracker& operator=(DestructorTracker&&) noexcept = default;
+        ~DestructorTracker() { ++destructor_calls; }
+
+        static void reset() { destructor_calls = 0; }
+    };
+
+    static_assert(!std::is_trivially_destructible_v<DestructorTracker>,
+                  "DestructorTracker must be non-trivially destructible for this test");
+
+    std::optional<DestructorTracker> test_ilp_for_t_nontrivial_helper() {
+        ILP_FOR_T(DestructorTracker, auto i, 0, 10, 4) {
+            if (i == 5) {
+                ILP_RETURN(DestructorTracker(i * 10));
+            }
+        }
+        ILP_END_RETURN;
+        return std::nullopt;
+    }
+} // namespace
+
+TEST_CASE("ILP_FOR_T properly destructs non-trivially destructible return types", "[copy_count][destructor]") {
+    DestructorTracker::reset();
+
+    {
+        auto result = test_ilp_for_t_nontrivial_helper();
+        REQUIRE(result.has_value());
+        CHECK(result->value == 50);
+    }
+
+    // Destructor should have been called at least once (for the stored object)
+    // The exact count depends on move elision, but it must be > 0
+    INFO("Destructor calls: " << DestructorTracker::destructor_calls);
+    CHECK(DestructorTracker::destructor_calls > 0);
+}
+
+TEST_CASE("TypedStorage properly destructs stored object", "[copy_count][destructor]") {
+    DestructorTracker::reset();
+
+    {
+        ilp::TypedStorage<DestructorTracker> storage;
+        storage.set(DestructorTracker(42));
+        // At this point, object is constructed in storage
+
+        DestructorTracker extracted = storage.extract();
+        // extract() should have called destructor on the stored object
+        CHECK(extracted.value == 42);
+    }
+
+    // Destructor called: once in extract(), once for 'extracted' going out of scope
+    INFO("Destructor calls: " << DestructorTracker::destructor_calls);
+    CHECK(DestructorTracker::destructor_calls >= 2);
+}
+
 #endif // !ILP_MODE_SIMPLE
