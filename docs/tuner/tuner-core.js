@@ -502,7 +502,7 @@ const TunerCore = (function() {
                     binary: false,
                     execute: false,
                     intel: !isArmArch(arch),
-                    demangle: true,
+                    demangle: false, // Keep mangled names for MCA compatibility
                     labels: true,
                     libraryCode: false,
                     directives: false,
@@ -528,7 +528,7 @@ const TunerCore = (function() {
         return {
             source: asm,
             options: {
-                userArguments: `-timeline -bottleneck-analysis ${mcaCpu || '-mcpu=skylake'} ${triple}`
+                userArguments: `-timeline -bottleneck-analysis ${mcaCpu || '-mcpu=skylake'} ${triple} -skip-unsupported-instructions=parse-failure`
             }
         };
     }
