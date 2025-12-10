@@ -283,8 +283,8 @@ const TunerCore = (function() {
                 demangle: true,
                 labels: true,
                 libraryCode: false,
-                directives: true,
-                commentOnly: true,
+                directives: false, // Keep directives - MCA markers are comments
+                commentOnly: false, // Keep comments - MCA markers need them
                 trim: false
             }
         };
