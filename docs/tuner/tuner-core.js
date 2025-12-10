@@ -392,6 +392,44 @@ const TunerCore = (function() {
         return { valid: true, error: null };
     }
 
+    /**
+     * Get instruction set identifier for Godbolt asm-doc API
+     * @param {string} arch - Architecture identifier
+     * @returns {string} Instruction set for API
+     */
+    function getInstructionSet(arch) {
+        if (isArmArch(arch)) {
+            return 'aarch64';
+        }
+        return 'amd64';
+    }
+
+    /**
+     * Fetch instruction documentation from Godbolt API
+     * @param {string} arch - Architecture identifier
+     * @param {string} opcode - Instruction mnemonic
+     * @returns {Promise<string>} Tooltip text or empty string on failure
+     */
+    async function fetchInstructionDoc(arch, opcode) {
+        if (typeof opcode !== 'string' || opcode.length === 0) {
+            return '';
+        }
+        const instructionSet = getInstructionSet(arch);
+        const url = `${GODBOLT_API}/asm/${instructionSet}/${encodeURIComponent(opcode.toLowerCase())}`;
+        try {
+            const response = await fetch(url, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!response.ok) {
+                return '';
+            }
+            const data = await response.json();
+            return data.tooltip || '';
+        } catch {
+            return '';
+        }
+    }
+
     // Public API
     return {
         GODBOLT_API,
@@ -407,7 +445,9 @@ const TunerCore = (function() {
         buildApiRequest,
         extractMcaOutput,
         extractCompilerOutput,
-        validateInput
+        validateInput,
+        getInstructionSet,
+        fetchInstructionDoc
     };
 })();
 

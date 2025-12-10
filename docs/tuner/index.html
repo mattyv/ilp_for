@@ -208,7 +208,7 @@
             <div class="panel">
                 <h2>Input</h2>
 
-                <label for="code">Loop Code (complete - no hidden wrapper)</label>
+                <label for="code">Loop Code</label>
                 <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
 
 size_t find_threshold(const float* data, size_t n, float threshold) {
@@ -405,11 +405,19 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
 
                     // Build calculation debug output with per-instruction breakdown
                     let calcHtml = '';
+                    let bottleneckInstr = null;
                     if (rec.perInstruction && rec.perInstruction.length > 0) {
+                        // Find the bottleneck instruction (highest N)
+                        const maxN = Math.max(...rec.perInstruction.map(i => i.n));
+                        bottleneckInstr = rec.perInstruction.find(i => i.n === maxN);
+
                         calcHtml += '<div style="font-size: 12px; margin-bottom: 8px;">';
                         for (const inst of rec.perInstruction) {
                             const instrShort = inst.instruction.split(/\s+/)[0]; // just the mnemonic
-                            calcHtml += `<div class="calc-step">${TunerCore.escapeHtml(instrShort)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code></div>`;
+                            const isBottleneck = inst === bottleneckInstr;
+                            const marker = isBottleneck ? ' <span style="color: var(--accent);">← bottleneck</span>' : '';
+                            const style = isBottleneck ? 'font-weight: bold;' : '';
+                            calcHtml += `<div class="calc-step" style="${style}">${TunerCore.escapeHtml(instrShort)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code>${marker}</div>`;
                         }
                         calcHtml += '</div>';
                         calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
@@ -422,8 +430,21 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                     if (metrics.bottleneck) {
                         calcHtml += `<div class="calc-step" style="margin-top: 8px;">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
                     }
+                    // Add bottleneck instruction description placeholder
+                    calcHtml += '<div id="bottleneck-desc" style="margin-top: 8px; font-style: italic; color: var(--text-muted);"></div>';
                     document.getElementById('calc-content').innerHTML = calcHtml;
                     document.getElementById('calculation').classList.remove('hidden');
+
+                    // Fetch and display bottleneck instruction description
+                    if (bottleneckInstr) {
+                        const opcode = bottleneckInstr.instruction.split(/\s+/)[0];
+                        TunerCore.fetchInstructionDoc(arch, opcode).then(tooltip => {
+                            if (tooltip) {
+                                document.getElementById('bottleneck-desc').innerHTML =
+                                    `<strong>${TunerCore.escapeHtml(opcode)}:</strong> ${TunerCore.escapeHtml(tooltip)}`;
+                            }
+                        });
+                    }
 
                     // Show recommendation
                     document.getElementById('rec-content').innerHTML = `
