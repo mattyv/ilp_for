@@ -225,26 +225,34 @@
                 <label for="code">Loop Code</label>
                 <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
 
-size_t find_threshold(const float* data, size_t n, float threshold) {
+// Mixed loop: accumulate with early exit and FMA
+float weighted_sum_until(const float* values, const float* weights,
+                         size_t n, float limit) {
+    float sum = 0.0f;
     asm volatile(&quot;&quot; ::: &quot;memory&quot;);
     asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot; ::: &quot;memory&quot;);
     for (size_t i = 0; i &lt; n; ++i) {
-        if (data[i] &gt; threshold) return i;
+        sum += values[i] * weights[i];  // FMA candidate
+        if (sum &gt; limit) break;         // early exit
     }
     asm volatile(&quot;# LLVM-MCA-END&quot; ::: &quot;memory&quot;);
     asm volatile(&quot;&quot; ::: &quot;memory&quot;);
-    return n;
+    return sum;
 }">#include <cstddef>
 
-size_t find_threshold(const float* data, size_t n, float threshold) {
+// Mixed loop: accumulate with early exit and FMA
+float weighted_sum_until(const float* values, const float* weights,
+                         size_t n, float limit) {
+    float sum = 0.0f;
     asm volatile("" ::: "memory");
     asm volatile("# LLVM-MCA-BEGIN loop" ::: "memory");
     for (size_t i = 0; i < n; ++i) {
-        if (data[i] > threshold) return i;
+        sum += values[i] * weights[i];  // FMA candidate
+        if (sum > limit) break;         // early exit
     }
     asm volatile("# LLVM-MCA-END" ::: "memory");
     asm volatile("" ::: "memory");
-    return n;
+    return sum;
 }</textarea>
 
                 <div class="row">
@@ -280,7 +288,6 @@ size_t find_threshold(const float* data, size_t n, float threshold) {
                             style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px;">
                         <p class="help" style="margin-top: 4px; font-size: 11px;">
                             Only instructions matching this pattern count toward suggested N.
-                            Memory loads and branches don't benefit from ILP.
                         </p>
                     </div>
                 </details>

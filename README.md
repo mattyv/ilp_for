@@ -26,7 +26,7 @@ for (size_t i = 0; i < n; ++i)
 }
 ```
 
-While compilers *can* unroll this with `#pragma unroll`, they generate sequential condition checks. For better ILP, you want parallel evaluation of conditions before sequential checking:
+While compilers *can* unroll this with `#pragma unroll`, they generate sequential condition checks ([why not just pragma unroll?](docs/PRAGMA_UNROLL.md)). For better ILP, you want parallel evaluation of conditions before sequential checking:
 ```cpp
 int sum = 0;
 size_t i = 0;
