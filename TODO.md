@@ -34,6 +34,10 @@
 ## Guts
 - [x] AnyStorage with fixed buffer seems odd.
 
+## CPU Profiles
+- [ ] Add compare/branch instruction info to cpu profile headers (FCMP, VUCOMISS latency/throughput)
+- [ ] Document Search loop N derivation from compare instruction characteristics
+
 ## Misc
 - [ ] Optionally compile in and out cpp 23 features
 - [x] M1 and cortex don't work in ILP N analyser
