@@ -16,7 +16,7 @@ TEST_CASE("ILP_FOR basic accumulation", "[for][basic]") {
 
     SECTION("size_t indices") {
         std::size_t sum = 0;
-        ILP_FOR(auto i, 0uz, 100uz, 8) {
+        ILP_FOR(auto i, size_t(0), size_t(100), 8) {
             sum += i;
         }
         ILP_END;

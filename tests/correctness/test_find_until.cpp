@@ -55,8 +55,8 @@ TEST_CASE("ilp::find_auto edge cases", "[find_auto][edge]") {
 
     SECTION("size_t indices") {
         std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8};
-        auto idx = ilp::find_auto(0uz, data.size(), [&](auto i, auto) { return data[i] == 5; });
-        REQUIRE(idx == 4uz);
+        auto idx = ilp::find_auto(size_t(0), data.size(), [&](auto i, auto) { return data[i] == 5; });
+        REQUIRE(idx == size_t(4));
     }
 }
 
