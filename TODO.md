@@ -17,7 +17,7 @@
 - [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
 - [x] use clang-format
 - [x] Get rid of all the silly LLM comments and formatting.
-- [ ] code review with gemini 3
+- [x] code review with gemini 3
 - [ ] are asm test serving any real purpose?
 - [ ] might want to overhaul benchmarks
 
@@ -39,6 +39,6 @@
 - [ ] Document Search loop N derivation from compare instruction characteristics
 
 ## Misc
-- [ ] Optionally compile in and out cpp 23 features
+- [x] Optionally compile in and out cpp 23 features
 - [x] M1 and cortex don't work in ILP N analyser
 - [ ] ARM64 MCA on Godbolt still showing llvm-mc errors (may be Godbolt infra issue)

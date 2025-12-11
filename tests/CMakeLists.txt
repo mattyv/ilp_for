@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(ilp_for_tests)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release)
 
@@ -80,7 +80,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/handrolled/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for handrolled/${name}"
         )
@@ -92,7 +92,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/ilp/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for ilp/${name}"
         )
@@ -104,7 +104,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/simple/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for simple/${name}"
         )
@@ -116,7 +116,7 @@ if(NOT MSVC)
         set(asm_file ${CMAKE_CURRENT_SOURCE_DIR}/asm_compare/std/${name}.s)
         add_custom_command(
             OUTPUT ${asm_file}
-            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
+            COMMAND ${CMAKE_CXX_COMPILER} -O2 -march=native -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR}/.. -S ${src} -o ${asm_file}
             DEPENDS ${src}
             COMMENT "Generating assembly for std/${name}"
         )

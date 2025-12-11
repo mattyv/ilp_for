@@ -14,7 +14,7 @@ target_include_directories(ilp_for INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
-target_compile_features(ilp_for INTERFACE cxx_std_23)
+target_compile_features(ilp_for INTERFACE cxx_std_20)
 
 # Installation
 include(GNUInstallDirs)
