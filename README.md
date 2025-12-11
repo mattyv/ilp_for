@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` generates, enabling better instruction-level parallelism.
+Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` typically generates, enabling better instruction-level parallelism.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -13,7 +13,7 @@ Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`)
 
 ## How It Works
 
-The library unrolls your loop body N times with a single bounds check per block:
+Lets say you want to write the below code:
 
 ```cpp
 int sum = 0;
@@ -24,7 +24,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`. ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
+Compilers *can* unroll this with `#pragma unroll`, but they'll probably insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`. ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
 
 ```cpp
 int sum = 0;
