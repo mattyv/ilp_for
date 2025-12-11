@@ -24,7 +24,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`:
+Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`,  so you end up with something like:
 
 ```
 loop:
@@ -47,7 +47,7 @@ loop:
   goto loop;
 ```
 
-ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
+So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone:
 
 ```cpp
 int sum = 0;
@@ -71,7 +71,7 @@ for (; i < n; ++i) {              // Remainder
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
 
-Using ILP_FOR, you write:
+But using ILP_FOR all you write it:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
