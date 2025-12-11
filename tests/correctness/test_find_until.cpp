@@ -62,16 +62,13 @@ TEST_CASE("ilp::find_auto edge cases", "[find_auto][edge]") {
 
 TEST_CASE("ilp::find_auto cleanup loop coverage", "[find_auto][cleanup]") {
     // Different sizes to exercise cleanup loops
-    for (int size = 1; size <= 10; ++size) {
-        std::vector<int> data(size);
-        for (int i = 0; i < size; ++i)
-            data[i] = i;
+    int size = GENERATE(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    std::vector<int> data(size);
+    for (int i = 0; i < size; ++i)
+        data[i] = i;
 
-        SECTION("size = " + std::to_string(size) + " find last") {
-            auto idx = ilp::find_auto(0, size, [&](auto i, auto) { return data[i] == size - 1; });
-            REQUIRE(idx == size - 1);
-        }
-    }
+    auto idx = ilp::find_auto(0, size, [&](auto i, auto) { return data[i] == size - 1; });
+    REQUIRE(idx == size - 1);
 }
 
 TEST_CASE("ilp::find_auto with complex predicate", "[find_auto][predicate]") {

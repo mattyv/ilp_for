@@ -4,7 +4,7 @@
 - [ ] ~~ILP_WHILE/ILP_DO_WHILE~~ More research needed
 
 ## Testing
-- [ ] Add more extreme unit tests for ILP_FOR (edge cases, stress tests)
+- [x] ~~Add smoke tests for untested macro variants~~ Added tests for ILP_FOR_RANGE_T, ILP_FOR_T_AUTO, ILP_FOR_RANGE_T_AUTO
 - [x] ~~are asm test serving any real purpose?~~ Removed - low value tests
 - [ ] might want to overhaul benchmarks
 - [x] Make UBSan and ASan more aggressive
