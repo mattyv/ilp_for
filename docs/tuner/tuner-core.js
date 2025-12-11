@@ -537,9 +537,10 @@ const TunerCore = (function() {
      * Default regex pattern for compute (ILP-able) instructions
      * Covers arithmetic/FP/shift/compare ops for x86 and ARM matching ilp::LoopType
      * Sum(add), DotProduct(fma), Multiply(mul), Divide(div), Sqrt(sqrt),
-     * MinMax(min/max), Bitwise(and/or/xor), Shift(shl/shr/lsl/lsr), Search(fcmp/comis)
+     * MinMax(min/max), Bitwise(and/or/xor), Shift(shl/shr/lsl/lsr),
+     * Search: x86(cmp/test/comis), ARM(cmp/tst/fcmp/ccmp)
      */
-    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor|sll|srl|sra|ps[lr]l|u?comis)|f(add|sub|mul|div|ma|ms|nma|nms|sqrt|min|max|mla|mls|cmp|ccmp)|madd|msub|[su]mul|mla|mls|imul|idiv|s[ah][lr]|lsl|lsr|asr)';
+    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor|sll|srl|sra|ps[lr]l|u?comis)|f(add|sub|mul|div|ma|ms|nma|nms|sqrt|min|max|mla|mls|cmp|ccmp)|madd|msub|[su]mul|mla|mls|imul|idiv|s[ah][lr]|lsl|lsr|asr|cmp|test|tst)';
 
     /**
      * Check if an instruction is a compute (ILP-able) instruction
