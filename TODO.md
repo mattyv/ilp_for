@@ -17,4 +17,4 @@
 - [x] Document Search loop N derivation from compare instruction characteristics
 
 ## Misc
-- [ ] ARM64 MCA on Godbolt still showing llvm-mc errors (may be Godbolt infra issue)
+- [x] ~~ARM64 MCA on Godbolt~~ Fixed invalid compiler IDs in tuner (no ARM64 Clang on Godbolt, use GCC)
