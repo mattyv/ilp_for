@@ -24,7 +24,30 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`, but they'll probably insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`. ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
+Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`:
+
+```
+loop:
+  if (i >= n) goto done;        // bounds check
+  if (data[i] > th) goto done;
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] > th) goto done;
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] > th) goto done;
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] > th) goto done;
+  i++;
+
+  goto loop;
+```
+
+ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
 
 ```cpp
 int sum = 0;
@@ -46,7 +69,7 @@ for (; i < n; ++i) {              // Remainder
 }
 ```
 
-With `#pragma unroll`, the compiler would insert `if (i >= n) break;` after each element - roughly 6 instructions per element vs 4 for ILP_FOR (~1.29x speedup). See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence.
+See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
 
 Using ILP_FOR, you write:
 ```cpp
