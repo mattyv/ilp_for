@@ -25,8 +25,8 @@ install(TARGETS ilp_for
 )
 
 install(FILES ilp_for.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(DIRECTORY cpu_profiles DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(DIRECTORY detail DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY ilp_for/cpu_profiles DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ilp_for)
+install(DIRECTORY ilp_for/detail DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ilp_for)
 
 install(EXPORT ilp_for-targets
     FILE ilp_for-targets.cmake
