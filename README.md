@@ -317,26 +317,27 @@ ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
 
 ## When to Use ILP
 
-ILP helps most when your loop has early exit (`break`, `return`) or dependency chains that prevent the compiler from optimising. Good candidates:
-- Search loops (find, any-of, all-of)
-- Parallel comparisons (min, max)
-- Loops with `break`/`return` that compilers refuse to unroll
+**Use ILP_FOR for loops with early exit** (`break`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
 
-You probably don't need ILP for simple sums without early exit, especially if the compiler can unroll the entire loop - compilers auto-vectorize these better.
+**Use `ilp::reduce` for reductions with dependency chains** (min, max). Multiple independent accumulators break the dependency chain (~5.8x speedup).
 
-However... ilp will rarely be slower than the standard for loop mechanism or equivalent std function so feel free to reach for it. In some simple cases ilp will fall back to std functions.  
+**Skip ILP for simple loops without early exit.** Compilers produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) compile to the same assembly.
 
 ```cpp
-// Use ILP - early exit benefits from parallel evaluation
+// Use ILP_FOR - early exit benefits from fewer bounds checks
 ILP_FOR_AUTO(auto i, 0, n, Search) {
     if (data[i] == target) ILP_BREAK;
 } ILP_END;
 
-// Skip ILP - compiler auto-vectorizes this better
+// Use ilp::reduce - breaks dependency chain for parallel min
+int min_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
+    data, INT_MAX, [](int a, int b) { return std::min(a, b); }, [](auto&& v) { return v; });
+
+// Skip ILP - compiler auto-vectorizes loops without break
 int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md) for why pragma doesn't help.
 
 ---
 
