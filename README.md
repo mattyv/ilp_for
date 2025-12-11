@@ -345,7 +345,7 @@ ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
 
 **Use `ilp::reduce` for reductions with dependency chains** (min, max). Multiple independent accumulators break the dependency chain (~5.8x speedup).
 
-**Skip ILP for simple loops without early exit.** Compilers produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) compile to the same assembly.
+**Skip ILP for simple loops without early exit.** Compilers *can* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly.
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
