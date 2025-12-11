@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Generates unrolled code with parallel condition evaluation, enabling better instruction-level parallelism than `#pragma unroll`.
+Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Generates unrolled code with parallel condition evaluation, enabling better instruction-level parallelism than `#pragma unroll` will likely create.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
