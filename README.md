@@ -49,6 +49,7 @@ loop:
   i++;
 
   goto loop;
+done:
 ```
 
 So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone:
@@ -151,7 +152,12 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Large Return Types
 
-To save you typing the return type each time `ILP_FOR` &  `ILP_FOR_AUTO` store return values in an 8-byte buffer, which covers you for `int`, `size_t`, and pointers. But for larger types, you'll need to use `ILP_FOR_T` to specify the return type:
+To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in an 8-byte buffer (SBO). This works for types that are:
+- **≤ 8 bytes** in size
+- **≤ 8 byte** alignment
+- **Trivially destructible** (no custom destructor)
+
+This covers `int`, `size_t`, pointers, and simple structs. For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
@@ -166,7 +172,7 @@ Result find_result(const std::vector<int>& data, int target) {
 
 ### Function API 
 
-After implementing the ILP_FOR api I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
+After implementing the ILP_FOR api, I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
 Some std functions unroll very badly or cannot easily accomodate early return easily and still retain any unrolling.
 The library provides `ilp::find` and `ilp::reduce`:
 
