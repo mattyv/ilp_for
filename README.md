@@ -372,9 +372,9 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_U
 You can target specific CPU architectures for optimal unroll factors. This is highly advisable if you plan to be portable or highly optimised:
 
 ```bash
-clang++ -std=c++23 -DILP_CPU=skylake    # Intel Skylake
-clang++ -std=c++23 -DILP_CPU=apple_m1   # Apple M1
-clang++ -std=c++23 -DILP_CPU=zen5       # AMD Zen 5
+clang++ -std=C++20 -DILP_CPU=skylake    # Intel Skylake
+clang++ -std=C++20 -DILP_CPU=apple_m1   # Apple M1
+clang++ -std=C++20 -DILP_CPU=zen5       # AMD Zen 5
 ```
 
 I source the locations where I have gathered data on the each architecture so I believe this to be accurate.
@@ -385,7 +385,7 @@ If you do add a new architecture please let me know and I'll get it added.
 If you need to debug your loop logic, you can disable ILP entirely:
 
 ```bash
-clang++ -std=c++23 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
+clang++ -std=C++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
 ...all macros then expand to simple `for` loops with the same semantics.
@@ -497,7 +497,7 @@ All core functionality including cleanup loops, bitwise operations, and edge cas
 
 ## Requirements
 
-- C++23
+- C++20
 - Header-only
 
 ---
