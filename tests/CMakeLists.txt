@@ -46,6 +46,8 @@ if(NOT MSVC)
         set(UBSAN_FLAGS "-fsanitize=undefined,float-divide-by-zero,unsigned-integer-overflow,local-bounds,nullability,pointer-overflow")
         # Make UBSan errors fatal - halt on first error instead of continuing
         set(UBSAN_FLAGS "${UBSAN_FLAGS} -fno-sanitize-recover=all")
+        # Ignorelist for false positives in system libraries (libstdc++ string::compare)
+        set(UBSAN_FLAGS "${UBSAN_FLAGS} -fsanitize-ignorelist=${CMAKE_CURRENT_SOURCE_DIR}/ubsan_suppressions.txt")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${UBSAN_FLAGS} -fno-omit-frame-pointer")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined")
     endif()

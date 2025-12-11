@@ -1,0 +1,5 @@
+# UBSan ignorelist for false positives in system libraries
+# libstdc++ uses unsigned subtraction in string::compare which is well-defined
+# Format: https://clang.llvm.org/docs/SanitizerSpecialCaseList.html
+[unsigned-integer-overflow]
+src:*basic_string*
