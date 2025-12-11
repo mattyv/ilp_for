@@ -8,6 +8,48 @@ Compilers *can* unroll loops with `break`/`continue`/`return` using `#pragma unr
 
 When you add `#pragma unroll` to a loop with early exit, the compiler must preserve exact break semantics. Since it cannot determine the trip count (SCEV fails for loops with `break`), it inserts bounds checks after **each unrolled element**.
 
+### Assembly Evidence (x86-64 Clang)
+
+**Pragma Unroll:**
+```asm
+.LBB0_2:                                ; main loop
+    cmp  dword ptr [rdi + 4*rax], edx   ; load & compare element 0
+    ja   .LBB0_18                       ; exit if > threshold
+    cmp  r9, rax                        ; <-- bounds check (i < n-1?)
+    je   .LBB0_12                       ; <-- exit if at end
+    cmp  dword ptr [rdi + 4*rax + 4], edx ; element 1
+    ja   .LBB0_13
+    cmp  r8, rax                        ; <-- bounds check (again!)
+    je   .LBB0_12
+    cmp  dword ptr [rdi + 4*rax + 8], edx ; element 2
+    ja   .LBB0_15
+    cmp  rcx, rax                       ; <-- bounds check (again!)
+    je   .LBB0_12
+    cmp  dword ptr [rdi + 4*rax + 12], edx ; element 3
+    ja   .LBB0_17
+    add  rax, 4
+    cmp  rsi, rax
+    jne  .LBB0_2
+```
+
+**ILP_FOR:**
+```asm
+.LBB1_9:                                ; main loop
+    cmp  dword ptr [rdi + 4*rax - 8], edx  ; element 0
+    ja   .LBB1_17
+    cmp  dword ptr [rdi + 4*rax - 4], edx  ; element 1
+    ja   .LBB1_15
+    cmp  dword ptr [rdi + 4*rax], edx      ; element 2
+    ja   .LBB1_18
+    cmp  dword ptr [rdi + 4*rax + 4], edx  ; element 3
+    ja   .LBB1_16
+    lea  rcx, [rax + 4]
+    add  rax, 6
+    cmp  rax, rsi                       ; <-- bounds check only HERE
+    mov  rax, rcx
+    jbe  .LBB1_9
+```
+
 ### Assembly Evidence (ARM64 Clang)
 
 **Pragma Unroll:**
