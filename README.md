@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Generates unrolled code with parallel condition evaluation, enabling better instruction-level parallelism than `#pragma unroll` will likely create.
+Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` generates, enabling better instruction-level parallelism.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -13,40 +13,31 @@ Compile-time loop unrolling for complex or early exit loops (i.e. for loops cont
 
 ## How It Works
 
-The library unrolls your loop body N times, allowing the CPU to execute multiple iterations in parallel:
+The library unrolls your loop body N times with a single bounds check per block:
 
-Imagine you want to write:
 ```cpp
 int sum = 0;
-for (size_t i = 0; i < n; ++i)
-{
-    if (data[i] < 0) break;       // Error: stop
+for (size_t i = 0; i < n; ++i) {
+    if (data[i] < 0) break;       // Early exit
     if (data[i] == 0) continue;   // Skip zeros
-    sum += data[i];               // Accumulate positives
+    sum += data[i];
 }
 ```
 
-While compilers *can* unroll this with `#pragma unroll`, they generate sequential condition checks ([why not just pragma unroll?](docs/PRAGMA_UNROLL.md)). For better ILP, you want parallel evaluation of conditions before sequential checking:
+Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`. ILP_FOR generates a main loop + remainder pattern that checks bounds only once per block:
+
 ```cpp
 int sum = 0;
 size_t i = 0;
-for (; i + 4 <= n; i += 4) {
-    bool brk0 = data[i+0] < 0;    // Parallel evaluation
-    bool brk1 = data[i+1] < 0;
-    bool brk2 = data[i+2] < 0;
-    bool brk3 = data[i+3] < 0;
-    bool skp0 = data[i+0] == 0;
-    bool skp1 = data[i+1] == 0;
-    bool skp2 = data[i+2] == 0;
-    bool skp3 = data[i+3] == 0;
-    if (brk0) break;              // Sequential check
-    if (!skp0) sum += data[i+0];
-    if (brk1) break;
-    if (!skp1) sum += data[i+1];
-    if (brk2) break;
-    if (!skp2) sum += data[i+2];
-    if (brk3) break;
-    if (!skp3) sum += data[i+3];
+for (; i + 4 <= n; i += 4) {      // Main loop: bounds check once per 4 elements
+    if (data[i+0] < 0) break;
+    if (data[i+0] != 0) sum += data[i+0];
+    if (data[i+1] < 0) break;
+    if (data[i+1] != 0) sum += data[i+1];
+    if (data[i+2] < 0) break;
+    if (data[i+2] != 0) sum += data[i+2];
+    if (data[i+3] < 0) break;
+    if (data[i+3] != 0) sum += data[i+3];
 }
 for (; i < n; ++i) {              // Remainder
     if (data[i] < 0) break;
@@ -54,9 +45,10 @@ for (; i < n; ++i) {              // Remainder
     sum += data[i];
 }
 ```
-...but this is tedious and error-prone!
 
-This is where ILP_FOR macro helps. All you need to write is:
+With `#pragma unroll`, the compiler would insert `if (i >= n) break;` after each element - roughly 6 instructions per element vs 4 for ILP_FOR (~1.29x speedup). See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence.
+
+Using ILP_FOR, you write:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
@@ -65,7 +57,6 @@ ILP_FOR(auto i, 0uz, n, 4) {
     sum += data[i];
 } ILP_END;
 ```
-...which effectively generates the above unrolled code.
 
 The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below) and probably saving you a few cycles if you want to make sure you're tuning to your hardware properly.
 
