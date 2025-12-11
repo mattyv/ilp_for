@@ -24,7 +24,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/docs/ScalarEvolution.html) cannot determine the trip count for loops with `break`,  so you end up with something like:
+Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/doxygen/classllvm_1_1ScalarEvolution.html) cannot determine the trip count for loops with `break`,  so you end up with something like:
 
 ```
 loop:
@@ -71,7 +71,7 @@ for (; i < n; ++i) {              // Remainder
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
 
-But using ILP_FOR all you write it:
+But using ILP_FOR all you write is the below. which expands to effectily the same code as above:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
