@@ -41,6 +41,11 @@ EXAMPLES = [
         'description': 'ILP_FOR with ILP_BREAK showing early exit from unrolled loop'
     },
     {
+        'file': 'pragma_vs_ilp.cpp',
+        'title': 'Pragma Unroll vs ILP_FOR',
+        'description': 'Why #pragma unroll doesn\'t help for early-exit loops - look for per-iteration bounds checks'
+    },
+    {
         'file': 'loop_with_return.cpp',
         'title': 'Loop with Return',
         'description': 'ILP_FOR with ILP_RETURN to exit enclosing function from loop'
@@ -413,8 +418,8 @@ The primary API for loops with `break`, `continue`, or `return`.
 
 """
 
-    # ILP_FOR examples (first three)
-    for example in EXAMPLES[:3]:
+    # ILP_FOR examples (first four)
+    for example in EXAMPLES[:4]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue
@@ -438,7 +443,7 @@ Alternative `std::`-style functions with early exit support.
 """
 
     # Function API examples (remaining)
-    for example in EXAMPLES[3:]:
+    for example in EXAMPLES[4:]:
         file_name = example['file']
         if file_name not in links or not links[file_name]:
             continue

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ILP Tuner Tests</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --surface: #252526;
+            --text: #d4d4d4;
+            --success: #4ec9b0;
+            --error: #f14c4c;
+        }
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: var(--text);
+            margin-bottom: 20px;
+        }
+        #test-output {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .pass { color: var(--success); }
+        .fail { color: var(--error); }
+    </style>
+</head>
+<body>
+    <h1>ILP Tuner Unit Tests</h1>
+    <pre id="test-output">Running tests...</pre>
+
+    <script src="tuner-core.js"></script>
+    <script src="tuner-tests.js"></script>
+</body>
+</html>

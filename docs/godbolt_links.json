@@ -4,6 +4,11 @@
     "x86-64 GCC": "https://godbolt.org/z/9rc5GoevP",
     "ARM64": "https://godbolt.org/z/7WM61Ea96"
   },
+  "pragma_vs_ilp.cpp": {
+    "x86-64 Clang (MCA)": "https://godbolt.org/z/Mh4aTP5j7",
+    "x86-64 GCC": "https://godbolt.org/z/6najPjd3a",
+    "ARM64": "https://godbolt.org/z/7dnxEoWbc"
+  },
   "loop_with_return.cpp": {
     "x86-64 Clang (MCA)": "https://godbolt.org/z/dYs45d5T4",
     "x86-64 GCC": "https://godbolt.org/z/es9ao7W5c",

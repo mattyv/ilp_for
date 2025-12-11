@@ -23,6 +23,16 @@ ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
 ---
 
+## Pragma Unroll vs ILP_FOR
+
+Why #pragma unroll doesn't help for early-exit loops - look for per-iteration bounds checks
+
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/Mh4aTP5j7) | [x86-64 GCC](https://godbolt.org/z/6najPjd3a) | [ARM64](https://godbolt.org/z/7dnxEoWbc)
+
+[Source code](../godbolt_examples/pragma_vs_ilp.cpp)
+
+---
+
 ## Loop with Return
 
 ILP_FOR with ILP_RETURN to exit enclosing function from loop

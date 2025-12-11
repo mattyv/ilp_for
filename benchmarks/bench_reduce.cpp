@@ -424,6 +424,24 @@ BENCHMARK_DEFINE_F(ForBreakFixture, ILP)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * break_pos);
 }
 
+BENCHMARK_DEFINE_F(ForBreakFixture, PragmaUnroll)(benchmark::State& state) {
+    for (auto _ : state) {
+        size_t count = 0;
+#if defined(__clang__)
+#pragma clang loop unroll_count(4)
+#elif defined(__GNUC__)
+#pragma GCC unroll 4
+#endif
+        for (size_t i = 0; i < data.size(); ++i) {
+            if (data[i] > threshold)
+                break;
+            ++count;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+    state.SetItemsProcessed(state.iterations() * break_pos);
+}
+
 BENCHMARK_REGISTER_F(ForBreakFixture, Simple)
     ->Arg(1000)
     ->Arg(10000)
@@ -433,6 +451,14 @@ BENCHMARK_REGISTER_F(ForBreakFixture, Simple)
     ->Unit(benchmark::kNanosecond);
 
 BENCHMARK_REGISTER_F(ForBreakFixture, ILP)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Arg(100000)
+    ->Arg(1000000)
+    ->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(ForBreakFixture, PragmaUnroll)
     ->Arg(1000)
     ->Arg(10000)
     ->Arg(100000)

@@ -98,6 +98,21 @@ jobs:
           cd tests\build
           .\test_runner.exe
 
+  tuner-tests:
+    name: tuner-js-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Tuner Tests
+        run: node docs/tuner/tuner-tests.js
+
   sanitizers:
     name: sanitizers-${{ matrix.sanitizer }}
     runs-on: ubuntu-24.04

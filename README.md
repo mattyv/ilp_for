@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for complex or early exit loops (i.e. for loops containing `break`, `continue`, `return`). Basically if the compiler cannot unroll, ilp_for probably can.
+Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` typically generates, enabling better instruction-level parallelism.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -13,40 +13,59 @@ Compile-time loop unrolling for complex or early exit loops (i.e. for loops cont
 
 ## How It Works
 
-The library unrolls your loop body N times, allowing the CPU to execute multiple iterations in parallel:
+Lets say you want to write the below code:
 
-Imagine you want to write:
 ```cpp
 int sum = 0;
-for (size_t i = 0; i < n; ++i)
-{
-    if (data[i] < 0) break;       // Error: stop
+for (size_t i = 0; i < n; ++i) {
+    if (data[i] < 0) break;       // Early exit
     if (data[i] == 0) continue;   // Skip zeros
-    sum += data[i];               // Accumulate positives
+    sum += data[i];
 }
 ```
 
-Compilers cannot unroll this loop - the mixed `break` and `continue` paths create complex control flow. So you might manually unroll it:
+Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break`,  so you end up with something like:
+
+```
+loop:
+  if (i >= n) goto done;        // bounds check
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
+  i++;
+
+  if (i >= n) goto done;        // bounds check (again!)
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
+  i++;
+
+  goto loop;
+done:
+```
+
+So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone:
+
 ```cpp
 int sum = 0;
 size_t i = 0;
-for (; i + 4 <= n; i += 4) {
-    bool brk0 = data[i+0] < 0;    // Parallel evaluation
-    bool brk1 = data[i+1] < 0;
-    bool brk2 = data[i+2] < 0;
-    bool brk3 = data[i+3] < 0;
-    bool skp0 = data[i+0] == 0;
-    bool skp1 = data[i+1] == 0;
-    bool skp2 = data[i+2] == 0;
-    bool skp3 = data[i+3] == 0;
-    if (brk0) break;              // Sequential check
-    if (!skp0) sum += data[i+0];
-    if (brk1) break;
-    if (!skp1) sum += data[i+1];
-    if (brk2) break;
-    if (!skp2) sum += data[i+2];
-    if (brk3) break;
-    if (!skp3) sum += data[i+3];
+for (; i + 4 <= n; i += 4) {      // Main loop: bounds check once per 4 elements
+    if (data[i+0] < 0) break;
+    if (data[i+0] != 0) sum += data[i+0];
+    if (data[i+1] < 0) break;
+    if (data[i+1] != 0) sum += data[i+1];
+    if (data[i+2] < 0) break;
+    if (data[i+2] != 0) sum += data[i+2];
+    if (data[i+3] < 0) break;
+    if (data[i+3] != 0) sum += data[i+3];
 }
 for (; i < n; ++i) {              // Remainder
     if (data[i] < 0) break;
@@ -54,9 +73,10 @@ for (; i < n; ++i) {              // Remainder
     sum += data[i];
 }
 ```
-...but this is tedious and error-prone!
 
-This is where ILP_FOR macro helps. All you need to write is:
+See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
+
+But using ILP_FOR all you write is the below. which expands to effectily the same code as above:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
@@ -65,7 +85,6 @@ ILP_FOR(auto i, 0uz, n, 4) {
     sum += data[i];
 } ILP_END;
 ```
-...which effectively generates the above unrolled code.
 
 The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below) and probably saving you a few cycles if you want to make sure you're tuning to your hardware properly.
 
@@ -133,7 +152,12 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Large Return Types
 
-To save you typing the return type each time `ILP_FOR` &  `ILP_FOR_AUTO` store return values in an 8-byte buffer, which covers you for `int`, `size_t`, and pointers. But for larger types, you'll need to use `ILP_FOR_T` to specify the return type:
+To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in an 8-byte buffer (SBO). This works for types that are:
+- **≤ 8 bytes** in size
+- **≤ 8 byte** alignment
+- **Trivially destructible** (no custom destructor)
+
+This covers `int`, `size_t`, pointers, and simple structs. For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
@@ -148,7 +172,7 @@ Result find_result(const std::vector<int>& data, int target) {
 
 ### Function API 
 
-After implementing the ILP_FOR api I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
+After implementing the ILP_FOR api, I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
 Some std functions unroll very badly or cannot easily accomodate early return easily and still retain any unrolling.
 The library provides `ilp::find` and `ilp::reduce`:
 
@@ -317,26 +341,27 @@ ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
 
 ## When to Use ILP
 
-ILP helps most when your loop has early exit (`break`, `return`) or dependency chains that prevent the compiler from optimising. Good candidates:
-- Search loops (find, any-of, all-of)
-- Parallel comparisons (min, max)
-- Loops with `break`/`return` that compilers refuse to unroll
+**Use ILP_FOR for loops with early exit** (`break`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
 
-You probably don't need ILP for simple sums without early exit, especially if the compiler can unroll the entire loop - compilers auto-vectorize these better.
+**Use `ilp::reduce` for reductions with dependency chains** (min, max). Multiple independent accumulators break the dependency chain (~5.8x speedup).
 
-However... ilp will rarely be slower than the standard for loop mechanism or equivalent std function so feel free to reach for it. In some simple cases ilp will fall back to std functions.  
+**Skip ILP for simple loops without early exit.** Compilers produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) compile to the same assembly.
 
 ```cpp
-// Use ILP - early exit benefits from parallel evaluation
+// Use ILP_FOR - early exit benefits from fewer bounds checks
 ILP_FOR_AUTO(auto i, 0, n, Search) {
     if (data[i] == target) ILP_BREAK;
 } ILP_END;
 
-// Skip ILP - compiler auto-vectorizes this better
+// Use ilp::reduce - breaks dependency chain for parallel min
+int min_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
+    data, INT_MAX, [](int a, int b) { return std::min(a, b); }, [](auto&& v) { return v; });
+
+// Skip ILP - compiler auto-vectorizes loops without break
 int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md) for why pragma doesn't help.
 
 ---
 

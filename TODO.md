@@ -7,7 +7,7 @@
 - [x] Remove ILP_FIND* and ILP_REDUCE* macros (use ilp::find, ilp::reduce functions instead)
 - [x] Try super simple version (like SIMPLE mode): `#define ILP_FOR for(...) {...}` etc.
 - [x] Remove old SIMPLE/PRAGMA modes, rename SUPER_SIMPLE -> SIMPLE
-- [ ] Probably need a ILP_WHILE and ILP_DO ... WHILE
+- [ ] ~~ILP_WHILE/ILP_DO_WHILE~~ More research needed
 
 ## Testing
 - [x] Add UBSan (Undefined Behavior Sanitizer) to test builds
@@ -34,5 +34,11 @@
 ## Guts
 - [x] AnyStorage with fixed buffer seems odd.
 
+## CPU Profiles
+- [ ] Add compare/branch instruction info to cpu profile headers (FCMP, VUCOMISS latency/throughput)
+- [ ] Document Search loop N derivation from compare instruction characteristics
+
 ## Misc
 - [ ] Optionally compile in and out cpp 23 features
+- [x] M1 and cortex don't work in ILP N analyser
+- [ ] ARM64 MCA on Godbolt still showing llvm-mc errors (may be Godbolt infra issue)

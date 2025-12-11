@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ILP Tuner - Find Optimal Unroll Factor</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --surface: #252526;
+            --border: #3c3c3c;
+            --text: #d4d4d4;
+            --text-dim: #808080;
+            --accent: #569cd6;
+            --success: #4ec9b0;
+            --error: #f14c4c;
+            --warning: #dcdcaa;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1 {
+            color: var(--accent);
+            margin: 0 0 10px;
+            font-size: 1.5rem;
+        }
+        .subtitle {
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+        }
+        .panel h2 {
+            margin: 0 0 15px;
+            font-size: 1rem;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+        label {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+        textarea, input, select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 300px;
+            resize: vertical;
+        }
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .row > * { flex: 1; }
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .output {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: var(--error); }
+        .success { color: var(--success); }
+        .warning { color: var(--warning); }
+        .recommendation {
+            background: #2d4a3e;
+            border: 1px solid var(--success);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .recommendation h3 {
+            margin: 0 0 10px;
+            color: var(--success);
+        }
+        .metric {
+            display: inline-block;
+            background: var(--bg);
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 2px;
+        }
+        .metric-label { color: var(--text-dim); }
+        .metric-value { color: var(--accent); font-weight: bold; }
+        .hidden { display: none; }
+        a { color: var(--accent); }
+        .help {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+        }
+        .formula-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        .formula-box h4 {
+            margin: 0 0 8px;
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+        .formula-box code {
+            background: var(--surface);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .calc-step {
+            color: var(--text-dim);
+            margin: 4px 0;
+        }
+        .calc-result {
+            color: var(--success);
+            font-weight: bold;
+        }
+        .info-note {
+            background: #2d3a4a;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+        }
+        .info-note h4 {
+            margin: 0 0 8px;
+            color: var(--accent);
+        }
+        .advanced-config {
+            margin: 10px 0;
+            font-size: 0.85rem;
+        }
+        .advanced-config summary {
+            cursor: pointer;
+            color: var(--text-dim);
+        }
+        .advanced-config summary:hover {
+            color: var(--text);
+        }
+        .non-compute {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ILP Tuner - (Extremely Beta)</h1>
+        <p class="subtitle">Analyze your loop with LLVM-MCA to find the optimal unroll factor (N)</p>
+
+        <div class="grid">
+            <div class="panel">
+                <h2>Input</h2>
+
+                <label for="code">Loop Code</label>
+                <textarea id="code" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="#include <cstddef>
+
+// Mixed loop: accumulate with early exit and FMA
+float weighted_sum_until(const float* values, const float* weights,
+                         size_t n, float limit) {
+    float sum = 0.0f;
+    asm volatile(&quot;&quot; ::: &quot;memory&quot;);
+    asm volatile(&quot;# LLVM-MCA-BEGIN loop&quot; ::: &quot;memory&quot;);
+    for (size_t i = 0; i &lt; n; ++i) {
+        sum += values[i] * weights[i];  // FMA candidate
+        if (sum &gt; limit) break;         // early exit
+    }
+    asm volatile(&quot;# LLVM-MCA-END loop&quot; ::: &quot;memory&quot;);
+    asm volatile(&quot;&quot; ::: &quot;memory&quot;);
+    return sum;
+}">#include <cstddef>
+
+// Mixed loop: accumulate with early exit and FMA
+float weighted_sum_until(const float* values, const float* weights,
+                         size_t n, float limit) {
+    float sum = 0.0f;
+    asm volatile("" ::: "memory");
+    asm volatile("# LLVM-MCA-BEGIN loop" ::: "memory");
+    for (size_t i = 0; i < n; ++i) {
+        sum += values[i] * weights[i];  // FMA candidate
+        if (sum > limit) break;         // early exit
+    }
+    asm volatile("# LLVM-MCA-END loop" ::: "memory");
+    asm volatile("" ::: "memory");
+    return sum;
+}</textarea>
+
+                <div class="row">
+                    <div>
+                        <label for="arch">Target Architecture</label>
+                        <select id="arch">
+                            <option value="skylake" selected>Intel Skylake (x86-64)</option>
+                            <option value="znver4">AMD Zen 4 (x86-64)</option>
+                            <option value="apple-m1">Apple M1 (ARM64)</option>
+                            <option value="cortex-a72">Cortex-A72 (ARM64)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="compiler">Compiler</label>
+                        <select id="compiler">
+                            <!-- Populated dynamically based on architecture -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label for="args">Compiler Arguments</label>
+                        <input type="text" id="args" autocapitalize="off" autocorrect="off" spellcheck="false" value="-std=c++2b -O3">
+                    </div>
+                </div>
+
+                <details class="advanced-config">
+                    <summary>Advanced</summary>
+                    <div style="margin-top: 8px;">
+                        <label for="compute-pattern">Compute Instruction Pattern (regex)</label>
+                        <input type="text" id="compute-pattern" autocapitalize="off" autocorrect="off" spellcheck="false"
+                            style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px;">
+                        <p class="help" style="margin-top: 4px; font-size: 11px;">
+                            Only instructions matching this pattern count toward suggested N.
+                        </p>
+                    </div>
+                </details>
+
+                <button id="analyze" onclick="analyze()">Analyze</button>
+
+                <p class="help">
+                    <strong>Required:</strong> Wrap your loop with MCA markers. Use <code>::: "memory"</code> clobbers and
+                    empty barriers to prevent code movement into the analyzed region.
+                    <a href="https://llvm.org/docs/CommandGuide/llvm-mca.html" target="_blank">Learn about MCA</a>
+                </p>
+            </div>
+
+            <div class="panel">
+                <h2>Results</h2>
+
+                <div id="recommendation" class="recommendation hidden">
+                    <h3>Recommendation</h3>
+                    <div id="rec-content"></div>
+                </div>
+
+                <div id="calculation" class="formula-box hidden">
+                    <h4>Calculation</h4>
+                    <div id="calc-content"></div>
+                </div>
+
+                <label>Compiler Output</label>
+                <div id="compiler-output" class="output" style="max-height: 150px; margin-bottom: 15px;">
+                    <span class="text-dim">Compiler output will appear here...</span>
+                </div>
+
+                <label>LLVM-MCA Analysis</label>
+                <div id="mca-output" class="output">
+                    <span class="text-dim">MCA analysis will appear here...</span>
+                </div>
+
+                <div class="info-note">
+                    <h4>How N is Calculated</h4>
+                    <p style="margin: 0 0 8px;">
+                        <strong>Formula:</strong> <code>N = max(ceil(L/RThr) per instruction)</code> clamped to [2, 16]
+                    </p>
+                    <p style="margin: 0; color: var(--text-dim);">
+                        For each instruction, compute <code>ceil(Latency / RThroughput)</code>, then take the maximum.
+                        This ensures all instruction types have sufficient parallelism.
+                        <a href="https://www.agner.org/optimize/" target="_blank">Agner Fog</a> |
+                        <a href="https://uops.info/" target="_blank">uops.info</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="tuner-core.js"></script>
+    <script>
+        // Populate compiler dropdown based on architecture
+        function updateCompilers() {
+            const arch = document.getElementById('arch').value;
+            const compilerSelect = document.getElementById('compiler');
+            const compilers = TunerCore.getCompilersForArch(arch);
+
+            compilerSelect.innerHTML = '';
+            for (const c of compilers) {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                compilerSelect.appendChild(opt);
+            }
+        }
+
+        // Initialize on page load (call immediately since script is at end of body)
+        updateCompilers();
+
+        // Initialize compute pattern from localStorage or default
+        const computePatternInput = document.getElementById('compute-pattern');
+        computePatternInput.value = localStorage.getItem('ilp-tuner-compute-pattern') || TunerCore.DEFAULT_COMPUTE_PATTERN;
+        computePatternInput.addEventListener('change', function() {
+            localStorage.setItem('ilp-tuner-compute-pattern', this.value);
+        });
+
+        // Update when architecture changes
+        document.getElementById('arch').addEventListener('change', updateCompilers);
+
+        // Allow Tab key to insert tabs in textarea
+        document.getElementById('code').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        async function analyze() {
+            const btn = document.getElementById('analyze');
+            const code = document.getElementById('code').value;
+            const arch = document.getElementById('arch').value;
+            const compiler = document.getElementById('compiler').value;
+            const args = document.getElementById('args').value;
+
+            // Validate input
+            const validation = TunerCore.validateInput(code, arch, compiler);
+            if (!validation.valid) {
+                document.getElementById('compiler-output').innerHTML =
+                    `<span class="error">${TunerCore.escapeHtml(validation.error)}</span>`;
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Analyzing...';
+
+            document.getElementById('recommendation').classList.add('hidden');
+            document.getElementById('calculation').classList.add('hidden');
+            document.getElementById('compiler-output').innerHTML = 'Compiling...';
+            document.getElementById('mca-output').innerHTML = 'Waiting for compilation...';
+
+            try {
+                const wrappedCode = TunerCore.wrapCode(code, arch);
+                const archFlag = TunerCore.getArchFlag(arch);
+                const mcaCpu = TunerCore.getMcaCpu(arch);
+
+                // Step 1: Compile to assembly (without MCA tool)
+                const compileRequest = TunerCore.buildCompileOnlyRequest(wrappedCode, args, archFlag, arch);
+                const compileResponse = await fetch(`${TunerCore.GODBOLT_API}/compiler/${compiler}/compile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(compileRequest)
+                });
+
+                if (!compileResponse.ok) {
+                    throw new Error(`Compile API error: ${compileResponse.status}`);
+                }
+
+                const compileResult = await compileResponse.json();
+
+                // Show compiler output
+                const compilerOut = TunerCore.extractCompilerOutput(compileResult);
+                if (compilerOut.hasError) {
+                    document.getElementById('compiler-output').innerHTML =
+                        `<span class="error">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
+                } else {
+                    document.getElementById('compiler-output').innerHTML =
+                        `<span class="success">${TunerCore.escapeHtml(compilerOut.text)}</span>`;
+                }
+
+                // Step 2: Extract and clean assembly (remove duplicate MCA-END markers)
+                let asm = TunerCore.extractAssembly(compileResult);
+                asm = TunerCore.cleanMcaMarkers(asm);
+
+                // Step 3: Run MCA on cleaned assembly (for x86 only)
+                let mcaOutput = '';
+                if (!TunerCore.isArmArch(arch) && asm) {
+                    document.getElementById('mca-output').innerHTML = 'Running MCA analysis...';
+                    const mcaRequest = TunerCore.buildMcaRequest(asm, mcaCpu, arch);
+                    const mcaResponse = await fetch(`${TunerCore.GODBOLT_API}/compiler/llvm-mcatrunk/compile`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(mcaRequest)
+                    });
+
+                    if (mcaResponse.ok) {
+                        const mcaResult = await mcaResponse.json();
+                        // MCA output comes from asm array when used as compiler
+                        if (mcaResult.asm && Array.isArray(mcaResult.asm)) {
+                            mcaOutput = mcaResult.asm.map(a => a.text || '').join('\n');
+                        }
+                        // Also check stderr for errors/output
+                        if (mcaResult.stderr && Array.isArray(mcaResult.stderr)) {
+                            const stderr = mcaResult.stderr.map(s => s.text || '').join('\n');
+                            if (stderr) mcaOutput = stderr + '\n' + mcaOutput;
+                        }
+                    }
+                }
+
+                if (mcaOutput) {
+                    document.getElementById('mca-output').innerHTML = TunerCore.escapeHtml(mcaOutput);
+
+                    // Parse and display metrics
+                    const metrics = TunerCore.parseMetrics(mcaOutput);
+
+                    // Generate recommendation
+                    const rec = TunerCore.generateRecommendation(metrics);
+
+                    // Get compute pattern from config
+                    const computePattern = document.getElementById('compute-pattern').value || TunerCore.DEFAULT_COMPUTE_PATTERN;
+
+                    // Build calculation debug output with per-instruction breakdown
+                    let calcHtml = '';
+                    let bottleneckInstr = null;
+                    let suggestedN = 4; // default
+
+                    if (rec.perInstruction && rec.perInstruction.length > 0) {
+                        // Classify instructions
+                        const classified = rec.perInstruction.map(inst => {
+                            const opcode = inst.instruction.split(/\s+/)[0];
+                            return {
+                                ...inst,
+                                opcode,
+                                isCompute: TunerCore.isComputeInstruction(opcode, computePattern)
+                            };
+                        });
+
+                        // Filter to compute-only for N calculation
+                        const computeInstructions = classified.filter(i => i.isCompute);
+
+                        // Find the bottleneck among compute instructions
+                        if (computeInstructions.length > 0) {
+                            const maxN = Math.max(...computeInstructions.map(i => i.n));
+                            bottleneckInstr = computeInstructions.find(i => i.n === maxN);
+                            suggestedN = Math.max(2, Math.min(16, maxN));
+                        }
+
+                        calcHtml += '<div style="font-size: 12px; margin-bottom: 8px;">';
+                        for (const inst of classified) {
+                            const isBottleneck = inst === bottleneckInstr;
+                            const marker = isBottleneck ? ' <span style="color: var(--accent);">← bottleneck</span>' : '';
+                            const dimClass = inst.isCompute ? '' : ' class="non-compute"';
+                            const typeLabel = inst.isCompute ? '' : ' <span style="color: var(--text-dim);">(non-compute)</span>';
+                            const style = isBottleneck ? 'font-weight: bold;' : '';
+                            calcHtml += `<div${dimClass} style="${style}">${TunerCore.escapeHtml(inst.opcode)}: ceil(${inst.latency} / ${inst.rthroughput.toFixed(2)}) = <code>${inst.n}</code>${marker}${typeLabel}</div>`;
+                        }
+                        calcHtml += '</div>';
+                        calcHtml += '<hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">';
+
+                        if (computeInstructions.length > 0) {
+                            const nValues = computeInstructions.map(i => i.n);
+                            calcHtml += `<div class="calc-step">N = max(${nValues.join(', ')}) = ${Math.max(...nValues)}</div>`;
+                            calcHtml += `<div class="calc-step">Clamped to [2, 16]: <span class="calc-result">${suggestedN}</span></div>`;
+                        } else {
+                            calcHtml += `<div class="calc-step" style="color: var(--warning);">No compute instructions found matching pattern. Using default N=4.</div>`;
+                        }
+                    } else {
+                        calcHtml += `<div class="calc-step">No instruction info found, using default: <span class="calc-result">${suggestedN}</span></div>`;
+                    }
+                    if (metrics.bottleneck) {
+                        calcHtml += `<div class="calc-step" style="margin-top: 8px;">Bottleneck: <code>${TunerCore.escapeHtml(metrics.bottleneck)}</code></div>`;
+                    }
+                    // Add bottleneck instruction description placeholder
+                    calcHtml += '<div id="bottleneck-desc" style="margin-top: 8px; font-style: italic; color: var(--text-muted);"></div>';
+                    document.getElementById('calc-content').innerHTML = calcHtml;
+                    document.getElementById('calculation').classList.remove('hidden');
+
+                    // Fetch and display bottleneck instruction description
+                    if (bottleneckInstr) {
+                        TunerCore.fetchInstructionDoc(arch, bottleneckInstr.opcode).then(tooltip => {
+                            if (tooltip) {
+                                document.getElementById('bottleneck-desc').innerHTML =
+                                    `<strong>${TunerCore.escapeHtml(bottleneckInstr.opcode)}:</strong> ${TunerCore.escapeHtml(tooltip)}`;
+                            }
+                        });
+                    }
+
+                    // Show recommendation
+                    document.getElementById('rec-content').innerHTML = `
+                        <p><strong>Suggested N:</strong> <code>${suggestedN}</code></p>
+                        <p><strong>Usage:</strong></p>
+                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${suggestedN}) {
+    // your loop body
+} ILP_END;</pre>
+                    `;
+                    document.getElementById('recommendation').classList.remove('hidden');
+                } else if (TunerCore.isArmArch(arch)) {
+                    // ARM64 doesn't support MCA on Godbolt
+                    document.getElementById('mca-output').innerHTML =
+                        '<span class="warning">LLVM-MCA is not available for ARM64 on Godbolt. ' +
+                        'Use x86 architecture for MCA analysis, or consult ' +
+                        '<a href="https://developer.arm.com/documentation/102107/latest" target="_blank">Arm optimization guides</a>.</span>';
+                } else {
+                    document.getElementById('mca-output').innerHTML =
+                        '<span class="warning">No MCA output available. Check for compilation errors.</span>';
+                }
+
+            } catch (err) {
+                document.getElementById('compiler-output').innerHTML =
+                    `<span class="error">Error: ${TunerCore.escapeHtml(err.message)}</span>`;
+                document.getElementById('mca-output').innerHTML = '';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Analyze';
+            }
+        }
+    </script>
+</body>
+</html>

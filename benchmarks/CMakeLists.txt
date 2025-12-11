@@ -32,4 +32,7 @@ target_link_libraries(bench_reduce
 target_compile_options(bench_reduce PRIVATE
     -O3
     -march=native
+    # Show when loop unrolling fails/is ignored
+    $<$<CXX_COMPILER_ID:Clang>:-Rpass-missed=loop-unroll>
+    $<$<CXX_COMPILER_ID:GNU>:-fopt-info-loop>
 )

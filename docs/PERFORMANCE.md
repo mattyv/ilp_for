@@ -6,10 +6,12 @@ This library's goal is not to be a performance library, but to ensure performanc
 
 Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
-| Loop Type | Simple | ILP | Speedup |
-|-----------|--------|-----|---------|
-| `ILP_FOR` with `ILP_BREAK` | 1.49ms | 1.15ms | **1.29x** |
-| `ILP_FOR` with `ILP_RETURN` | 1.66ms | 0.94ms | **1.77x** |
+| Loop Type | Simple | Pragma | ILP | Speedup |
+|-----------|--------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.49ms | 1.48ms | 1.15ms | **1.29x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.66ms | - | 0.94ms | **1.77x** |
+
+Note: `#pragma unroll` performs the same as Simple for early-exit loops due to per-iteration bounds checks. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md) for details.
 
 ### Why ILP_RETURN is Faster
 
@@ -65,21 +67,8 @@ int sum = std::accumulate(data.begin(), data.end(), 0);
 
 ## Why Not `#pragma unroll`?
 
-Pragma unroll duplicates loop bodies but doesn't parallelize conditional checks:
+For loops with early exit, `#pragma unroll` inserts per-iteration bounds checks that negate the performance benefit. The compiler cannot determine the trip count (SCEV fails for loops with `break`), so it conservatively checks bounds after each element.
 
-```cpp
-// #pragma unroll generates sequential dependency chain:
-for (int i = 0; i < n; i++) {
-    if (data[i] == target) return i;  // check 0
-    if (data[i+1] == target) return i+1;  // waits for check 0
-    if (data[i+2] == target) return i+2;  // waits for check 1
-    if (data[i+3] == target) return i+3;  // waits for check 2
-}
+**Result:** Pragma unroll performs the same as a simple loop for early-exit patterns.
 
-// ILP multi-accumulator runs checks in parallel:
-bool found0 = data[i] == target;    // parallel
-bool found1 = data[i+1] == target;  // parallel
-bool found2 = data[i+2] == target;  // parallel
-bool found3 = data[i+3] == target;  // parallel
-if (found0 | found1 | found2 | found3) { /* find which */ }
-```
+See [PRAGMA_UNROLL.md](PRAGMA_UNROLL.md) for assembly evidence and technical details.
