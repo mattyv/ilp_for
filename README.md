@@ -491,8 +491,6 @@ Default Header values by type:
 
 **[View Coverage Report](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
 
-All core functionality including cleanup loops, bitwise operations, and edge cases are fully tested.
-
 ---
 
 ## Requirements
