@@ -29,19 +29,23 @@ Compilers *can* unroll this with `#pragma unroll`, but they insert bounds checks
 ```
 loop:
   if (i >= n) goto done;        // bounds check
-  if (data[i] > th) goto done;
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
-  if (data[i] > th) goto done;
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
-  if (data[i] > th) goto done;
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
-  if (data[i] > th) goto done;
+  if (data[i] < 0) goto done;
+  if (data[i] != 0) sum += data[i];
   i++;
 
   goto loop;
