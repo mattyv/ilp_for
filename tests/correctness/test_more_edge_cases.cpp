@@ -2,6 +2,8 @@
 #include "catch.hpp"
 #include <cstdint>
 #include <limits>
+#include <numeric>
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -94,16 +96,17 @@ TEST_CASE("Range exactly = N*k + r for various r", "[edge][remainder]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("For-until with stateful predicate", "[edge][until]") {
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+
     int call_count = 0;
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
+    auto it = ilp::find_if<4>(data, [&](auto val) {
         call_count++;
-        if (i == 50)
-            return i;
-        return _ilp_end_;
+        return val == 50;
     });
 
-    REQUIRE(result != 100); // Found (not sentinel)
-    REQUIRE(result == 50);
+    REQUIRE(it != data.end()); // Found
+    REQUIRE(*it == 50);
     // call_count should be at least 51
     REQUIRE(call_count >= 51);
 }
@@ -115,7 +118,7 @@ TEST_CASE("For-until with stateful predicate", "[edge][until]") {
 TEST_CASE("Reduce body with side effects", "[edge][reduce]") {
     int side_effect = 0;
 
-    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 10), 0, std::plus<>{}, [&](auto i) {
         side_effect += i;
         return i;
     });
@@ -160,31 +163,23 @@ TEST_CASE("Const element type", "[edge][const]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
+    std::vector<int> data = {0, 1, 2, 3};
+
     SECTION("Find at 0 with N elements") {
-        auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 0)
-                return i;
-            return _ilp_end_;
-        });
-        REQUIRE(result == 0);
+        auto it = ilp::find_if<4>(data, [](auto val) { return val == 0; });
+        REQUIRE(it != data.end());
+        REQUIRE(*it == 0);
     }
 
     SECTION("Find at N-1 with N elements") {
-        auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 3)
-                return i;
-            return _ilp_end_;
-        });
-        REQUIRE(result == 3);
+        auto it = ilp::find_if<4>(data, [](auto val) { return val == 3; });
+        REQUIRE(it != data.end());
+        REQUIRE(*it == 3);
     }
 
     SECTION("Find nothing with N elements") {
-        auto result = ilp::find<4>(0, 4, [&](auto i, auto _ilp_end_) {
-            if (i == 99)
-                return i;
-            return _ilp_end_;
-        });
-        REQUIRE(result == 4); // Sentinel
+        auto it = ilp::find_if<4>(data, [](auto val) { return val == 99; });
+        REQUIRE(it == data.end()); // Not found
     }
 }
 
@@ -195,7 +190,7 @@ TEST_CASE("For-ret-simple exact boundaries", "[edge][ret]") {
 TEST_CASE("Auto-select with int8_t", "[edge][auto]") {
     std::vector<int8_t> data = {1, 2, 3, 4, 5};
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -203,7 +198,7 @@ TEST_CASE("Auto-select with int8_t", "[edge][auto]") {
 TEST_CASE("Auto-select with int64_t", "[edge][auto]") {
     std::vector<int64_t> data = {1, 2, 3, 4, 5};
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -233,7 +228,7 @@ TEST_CASE("Empty struct in vector", "[edge][empty]") {
 TEST_CASE("Reduce captures work correctly", "[edge][capture]") {
     int multiplier = 2;
 
-    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) { return i * multiplier; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 10), 0, std::plus<>{}, [&](auto i) { return i * multiplier; });
 
     // 0*2 + 1*2 + ... + 9*2 = 90
     REQUIRE(result == 90);
@@ -317,8 +312,8 @@ TEST_CASE("Find range with index", "[edge][find]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Double-nested reduce", "[edge][nested][reduce]") {
-    auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) {
-        auto inner = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto j) { return i + j; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 5), 0, std::plus<>{}, [&](auto i) {
+        auto inner = ilp::transform_reduce<4>(std::views::iota(0, 5), 0, std::plus<>{}, [&](auto j) { return i + j; });
         return inner;
     });
 
@@ -364,13 +359,13 @@ TEST_CASE("Odd N values - N=7", "[edge][oddN]") {
 
 TEST_CASE("Return type preservation", "[edge][types]") {
     SECTION("Double return") {
-        auto result = ilp::reduce<4>(0, 10, 0.0, std::plus<>(), [&](auto i) { return static_cast<double>(i); });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 10), 0.0, std::plus<>(), [&](auto i) { return static_cast<double>(i); });
         REQUIRE(result == 45.0);
     }
 
     SECTION("Long long return") {
         auto result =
-            ilp::reduce<4>(0, 10, (long long)0, std::plus<>(), [&](auto i) { return static_cast<long long>(i); });
+            ilp::transform_reduce<4>(std::views::iota(0, 10), (long long)0, std::plus<>(), [&](auto i) { return static_cast<long long>(i); });
         REQUIRE(result == 45LL);
     }
 }

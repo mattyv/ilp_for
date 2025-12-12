@@ -12,6 +12,8 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <numeric>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -149,18 +151,20 @@ TEST_CASE("Single element vector", "[edge][single]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce empty range", "[edge][reduce]") {
-    auto result = ilp::reduce<4>(0, 0, 0, std::plus<>{}, [&](auto i) { return i; });
+    std::vector<int> empty;
+    auto result = ilp::transform_reduce<4>(empty, 0, std::plus<>{}, [&](auto i) { return i; });
     REQUIRE(result == 0);
 }
 
 TEST_CASE("Reduce single element", "[edge][reduce]") {
-    auto result = ilp::reduce<4>(0, 1, 0, std::plus<>{}, [&](auto i) { return i; });
+    std::vector<int> single = {0};
+    auto result = ilp::transform_reduce<4>(single, 0, std::plus<>{}, [&](auto i) { return i; });
     REQUIRE(result == 0);
 }
 
 TEST_CASE("Reduce with custom operation - min", "[edge][reduce]") {
     std::vector<int> data = {5, 3, 8, 1, 9, 2};
-    auto result = ilp::reduce_range<4>(
+    auto result = ilp::transform_reduce<4>(
         data, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
         [&](auto&& val) { return val; });
     REQUIRE(result == 1);
@@ -168,7 +172,7 @@ TEST_CASE("Reduce with custom operation - min", "[edge][reduce]") {
 
 TEST_CASE("Reduce empty vector", "[edge][reduce]") {
     std::vector<int> empty;
-    auto result = ilp::reduce_range<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
     REQUIRE(result == 0);
 }
 
