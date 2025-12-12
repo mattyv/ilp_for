@@ -21,3 +21,6 @@
 
 ## Misc
 - [x] ~~ARM64 MCA on Godbolt~~ Fixed invalid compiler IDs in tuner (no ARM64 Clang on Godbolt, use GCC)
+
+## readme
+- [ ] update SBO to discuss how UB is handled 
