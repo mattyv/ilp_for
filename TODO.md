@@ -3,6 +3,9 @@
 ## Macros
 - [ ] ~~ILP_WHILE/ILP_DO_WHILE~~ More research needed
 
+## functions 
+- [ ] change api to follow std conventions
+
 ## Testing
 - [x] ~~Add smoke tests for untested macro variants~~ Added tests for ILP_FOR_RANGE_T, ILP_FOR_T_AUTO, ILP_FOR_RANGE_T_AUTO
 - [x] ~~are asm test serving any real purpose?~~ Removed - low value tests
