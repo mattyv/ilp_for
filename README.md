@@ -157,7 +157,9 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 - **≤ 8 byte** alignment
 - **Trivially destructible** (no custom destructor)
 
-This covers `int`, `size_t`, pointers, and simple structs. For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
+This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
+
+For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
