@@ -217,7 +217,7 @@ int min_val = ilp::reduce_range<4>(
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
-End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
+Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ### Control Flow
 
