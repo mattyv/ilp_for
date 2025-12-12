@@ -1,4 +1,4 @@
-// ilp_for - ILP loop unrolling for C++23
+// ilp_for - ILP loop unrolling for C++20
 // Copyright (c) 2025 Matt Vanderdorff
 // https://github.com/mattyv/ilp_for
 // SPDX-License-Identifier: BSL-1.0
@@ -14,6 +14,8 @@
 // | FMLA           | FMA      |    4    | 0.25 |  16   |
 // | FADD           | FP Add   |    3    | 0.25 |  12   |
 // | ADD (vec)      | Int Add  |    2    | 0.25 |   8   |
+// | FCMP           | FP Cmp   |    2    | 0.33 |   6   |
+// | CMP (vec)      | Int Cmp  |    1    | 0.25 |   4   |
 // +----------------+----------+---------+------+-------+
 
 // Sum - Integer (ADD vec): L=2, RThr=0.25, TPC=4 → 2×4 = 8
@@ -30,11 +32,16 @@
 #define ILP_N_DOTPRODUCT_4 16
 #define ILP_N_DOTPRODUCT_8 16
 
-// Search - excellent branch prediction
-#define ILP_N_SEARCH_1 4
-#define ILP_N_SEARCH_2 4
-#define ILP_N_SEARCH_4 4
-#define ILP_N_SEARCH_8 4
+// Search - compare + conditional branch loop
+// Unlike arithmetic ops, Search N is constrained by:
+// 1. Compare latency (FCMP: L=2, CMP vec: L=1)
+// 2. Branch misprediction penalty (~14 cycles on M1)
+// 3. Wasted work on early exit (fewer iterations = less waste)
+// FCMP: L=2, TPC=3 → 6; M1's excellent branch predictor allows higher N
+#define ILP_N_SEARCH_1 6
+#define ILP_N_SEARCH_2 6
+#define ILP_N_SEARCH_4 6
+#define ILP_N_SEARCH_8 6
 
 // Copy - 4 load/store units
 #define ILP_N_COPY_1 8

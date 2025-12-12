@@ -1,4 +1,4 @@
-// ilp_for - ILP loop unrolling for C++23
+// ilp_for - ILP loop unrolling for C++20
 // Copyright (c) 2025 Matt Vanderdorff
 // https://github.com/mattyv/ilp_for
 // SPDX-License-Identifier: BSL-1.0
@@ -22,6 +22,9 @@
 // | VPMINS*/VPMAXS*| Int MinMax|   1    | 0.33 |   3   |
 // | VPAND/POR/PXOR | Bitwise  |    1    | 0.33 |   3   |
 // | VPSLLW/VPSRLW  | Shift    |    1    | 0.50 |   2   |
+// | VUCOMISS/SD    | FP Cmp   |    3    | 1.00 |   3   |
+// | VPCMPEQD       | Int Cmp  |    1    | 0.50 |   2   |
+// | CMP r,r        | Cmp+Flag |    1    | 0.25 |   4   |
 // +----------------+----------+---------+------+-------+
 
 // Sum - Integer (VPADD*): L=1, RThr=0.33, TPC=3 → 1×3 = 3
@@ -38,7 +41,13 @@
 #define ILP_N_DOTPRODUCT_4 8
 #define ILP_N_DOTPRODUCT_8 8
 
-// Search - branching loop
+// Search - compare + conditional branch loop
+// Unlike arithmetic ops, Search N is constrained by:
+// 1. Compare latency (VUCOMISS: L=3, VPCMPEQD: L=1)
+// 2. Branch misprediction penalty (~15-20 cycles)
+// 3. Wasted work on early exit (fewer iterations = less waste)
+// Optimal N balances ILP benefit vs misprediction cost.
+// VUCOMISS: L=3, RThr=1.0 → batch 4 compares before checking
 #define ILP_N_SEARCH_1 4
 #define ILP_N_SEARCH_2 4
 #define ILP_N_SEARCH_4 4

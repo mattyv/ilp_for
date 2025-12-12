@@ -264,35 +264,6 @@ TEST_CASE("Range-idx nested operations", "[edge][rangeidx]") {
 }
 
 // -----------------------------------------------------------------------------
-// Very Long Vectors
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Very long vector iteration - overflow bug", "[bug][overflow]") {
-    // This test demonstrates integer overflow in reduce_range_sum
-    // The return type is inferred from vector element type (int)
-    // but sum of 0..99999 = 4,999,950,000 which overflows int32
-
-    std::vector<int> data(100000);
-    for (size_t i = 0; i < data.size(); ++i) {
-        data[i] = static_cast<int>(i);
-    }
-
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
-
-    // Sum of 0..99999 = 4,999,950,000 (overflows int32 max 2,147,483,647)
-    // Result type is int (from vector element), so this overflows!
-    // This is expected behavior but users should be warned
-    int64_t expected = 99999LL * 100000LL / 2;
-
-    INFO("Bug: Result type is int from vector element, causing overflow");
-    INFO("Expected: " << expected << ", Got: " << result);
-    // Test that it at least doesn't crash
-    (void)result;
-    // Correct usage would be:
-    // return static_cast<int64_t>(val);
-}
-
-// -----------------------------------------------------------------------------
 // Control Flow in Last Element
 // -----------------------------------------------------------------------------
 

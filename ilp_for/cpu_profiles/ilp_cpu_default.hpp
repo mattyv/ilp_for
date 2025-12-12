@@ -1,4 +1,4 @@
-// ilp_for - ILP loop unrolling for C++23
+// ilp_for - ILP loop unrolling for C++20
 // Copyright (c) 2025 Matt Vanderdorff
 // https://github.com/mattyv/ilp_for
 // SPDX-License-Identifier: BSL-1.0
@@ -11,6 +11,11 @@
 // Sources:
 // - x86: https://uops.info, https://www.agner.org/optimize/instruction_tables.pdf
 // - ARM: https://dougallj.github.io/applecpu/firestorm.html
+//
+// Compare instructions (for Search loop derivation):
+// - x86 VUCOMISS/SD: L=3-6, RThr=1.0
+// - x86 CMP r,r: L=1, RThr=0.25
+// - ARM FCMP: L=2, RThr=0.33
 
 // Sum - Integer (VPADD* or ADD vec): conservative L=1, TPC=4 → 4
 #define ILP_N_SUM_1 4  // int8
@@ -26,7 +31,12 @@
 #define ILP_N_DOTPRODUCT_4 8
 #define ILP_N_DOTPRODUCT_8 8
 
-// Search - branching loop, don't over-unroll
+// Search - compare + conditional branch loop
+// Unlike arithmetic ops, Search N is constrained by:
+// 1. Compare latency (varies: x86 VUCOMISS L=3-6, ARM FCMP L=2)
+// 2. Branch misprediction penalty (~15-20 cycles)
+// 3. Wasted work on early exit (fewer iterations = less waste)
+// Conservative N=4 balances ILP benefit vs misprediction cost
 #define ILP_N_SEARCH_1 4
 #define ILP_N_SEARCH_2 4
 #define ILP_N_SEARCH_4 4

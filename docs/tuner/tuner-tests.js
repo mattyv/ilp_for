@@ -167,12 +167,12 @@ void test(int* data) {
         assertEqual(T.getDefaultCompiler('znver4'), 'clang_trunk');
     });
 
-    test('apple-m1 defaults to llvmasarm64_trunk', function() {
-        assertEqual(T.getDefaultCompiler('apple-m1'), 'llvmasarm64_trunk');
+    test('apple-m1 defaults to arm64gtrunk', function() {
+        assertEqual(T.getDefaultCompiler('apple-m1'), 'arm64gtrunk');
     });
 
-    test('cortex-a72 defaults to llvmasarm64_trunk', function() {
-        assertEqual(T.getDefaultCompiler('cortex-a72'), 'llvmasarm64_trunk');
+    test('cortex-a72 defaults to arm64gtrunk', function() {
+        assertEqual(T.getDefaultCompiler('cortex-a72'), 'arm64gtrunk');
     });
 
     // ========================================
@@ -191,13 +191,13 @@ void test(int* data) {
         const compilers = T.getCompilersForArch('apple-m1');
         assert(Array.isArray(compilers));
         assert(compilers.length > 0);
-        assert(compilers.some(c => c.id === 'llvmasarm64_trunk'));
+        assert(compilers.some(c => c.id === 'arm64gtrunk'));
     });
 
     test('cortex-a72 returns ARM64 compilers', function() {
         const compilers = T.getCompilersForArch('cortex-a72');
         assert(Array.isArray(compilers));
-        assert(compilers.some(c => c.id === 'llvmasarm64_trunk'));
+        assert(compilers.some(c => c.id === 'arm64gtrunk'));
     });
 
     test('compiler objects have id and name', function() {
@@ -622,7 +622,7 @@ Block RThroughput: 5.0
     });
 
     test('accepts ARM64 compiler for ARM architecture', function() {
-        const r = T.validateInput('code', 'apple-m1', 'llvmasarm64_trunk');
+        const r = T.validateInput('code', 'apple-m1', 'arm64gtrunk');
         assertEqual(r.valid, true);
     });
 
@@ -632,7 +632,7 @@ Block RThroughput: 5.0
     });
 
     test('rejects ARM64 compiler for x86 architecture', function() {
-        const r = T.validateInput('code', 'skylake', 'llvmasarm64_trunk');
+        const r = T.validateInput('code', 'skylake', 'arm64gtrunk');
         assertEqual(r.valid, false);
     });
 

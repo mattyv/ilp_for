@@ -157,7 +157,9 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 - **≤ 8 byte** alignment
 - **Trivially destructible** (no custom destructor)
 
-This covers `int`, `size_t`, pointers, and simple structs. For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
+This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
+
+For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
@@ -217,7 +219,7 @@ int min_val = ilp::reduce_range<4>(
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
-End with `ILP_END`, or `ILP_END_RETURN` when using `ILP_RETURN`.
+Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ### Control Flow
 
@@ -372,9 +374,9 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_U
 You can target specific CPU architectures for optimal unroll factors. This is highly advisable if you plan to be portable or highly optimised:
 
 ```bash
-clang++ -std=c++23 -DILP_CPU=skylake    # Intel Skylake
-clang++ -std=c++23 -DILP_CPU=apple_m1   # Apple M1
-clang++ -std=c++23 -DILP_CPU=zen5       # AMD Zen 5
+clang++ -std=C++20 -DILP_CPU=skylake    # Intel Skylake
+clang++ -std=C++20 -DILP_CPU=apple_m1   # Apple M1
+clang++ -std=C++20 -DILP_CPU=zen5       # AMD Zen 5
 ```
 
 I source the locations where I have gathered data on the each architecture so I believe this to be accurate.
@@ -385,7 +387,7 @@ If you do add a new architecture please let me know and I'll get it added.
 If you need to debug your loop logic, you can disable ILP entirely:
 
 ```bash
-clang++ -std=c++23 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
+clang++ -std=C++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
 ...all macros then expand to simple `for` loops with the same semantics.
@@ -495,7 +497,7 @@ Default Header values by type:
 
 ## Requirements
 
-- C++23
+- C++20
 - Header-only
 
 ---

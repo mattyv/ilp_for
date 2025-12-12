@@ -157,7 +157,7 @@ Test compilation:
 ```bash
 for f in godbolt_examples/*.cpp; do
     echo "Testing $f"
-    clang++ -std=c++23 -O3 -Wall "$f" -o /tmp/test && /tmp/test && echo "PASS"
+    clang++ -std=C++20 -O3 -Wall "$f" -o /tmp/test && /tmp/test && echo "PASS"
 done
 ```
 
