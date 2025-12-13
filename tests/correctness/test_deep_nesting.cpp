@@ -1,5 +1,6 @@
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -208,7 +209,7 @@ TEST_CASE("Nested reduce - sum of products", "[nesting][reduce]") {
     int total = 0;
 
     ILP_FOR(auto i, 1, 5, 4) {
-        auto product = ilp::reduce<4>(1, 4, 1, std::multiplies<>{}, [](auto j) { return j; });
+        auto product = ilp::transform_reduce<4>(std::views::iota(1, 4), 1, std::multiplies<>{}, [](auto j) { return j; });
         total += product * i;
     }
     ILP_END;
@@ -221,8 +222,8 @@ TEST_CASE("Nested reduce - sum of products", "[nesting][reduce]") {
 TEST_CASE("Nested reduce - matrix sum", "[nesting][reduce]") {
     std::vector<std::vector<int>> matrix = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
 
-    auto result = ilp::reduce_range<4>(matrix, 0, std::plus<>{}, [](auto&& row) {
-        return ilp::reduce_range<4>(row, 0, std::plus<>{}, [](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(matrix, 0, std::plus<>{}, [](auto&& row) {
+        return ilp::transform_reduce<4>(row, 0, std::plus<>{}, [](auto&& val) { return val; });
     });
 
     REQUIRE(result == 45);
@@ -339,10 +340,10 @@ TEST_CASE("Different N at each nesting level", "[nesting][varied]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce at each nesting level", "[nesting][reduce]") {
-    auto level4 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
-        auto level3 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
-            auto level2 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto) {
-                auto level1 = ilp::reduce<4>(0, 3, 0, std::plus<>{}, [](auto l) { return l; });
+    auto level4 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
+        auto level3 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
+            auto level2 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
+                auto level1 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto l) { return l; });
                 return level1;
             });
             return level2;
