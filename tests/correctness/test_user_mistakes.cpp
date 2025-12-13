@@ -2,6 +2,8 @@
 #include "catch.hpp"
 #include <cstdint>
 #include <limits>
+#include <numeric>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -31,11 +33,12 @@ TEST_CASE("Inverted range (start > end)", "[mistake][range]") {
 
 TEST_CASE("Return sentinel correctly", "[mistake][sentinel]") {
     // User might not understand end parameter usage
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto end) {
-        if (i == 50)
-            return i;
-        return end; // Correct usage
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val == 50;
     });
+    auto result = (it != data.end()) ? *it : 100;
     REQUIRE(result == 50);
 }
 
@@ -81,7 +84,7 @@ TEST_CASE("Empty loop body", "[mistake][empty]") {
 }
 
 TEST_CASE("Empty reduce body", "[mistake][empty]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
         (void)i;
         return 0; // Always returns 0
     });
@@ -182,11 +185,14 @@ TEST_CASE("User confused about remainder", "[mistake][remainder]") {
 
 TEST_CASE("Using return false for continue in find", "[mistake][find]") {
     int count = 0;
-    auto result = ilp::find<4>(0, 10, [&](auto i, auto) {
+    std::vector<int> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [&](auto val) {
         count++;
-        return i == 5; // Find 5
+        return val == 5; // Find 5
     });
 
+    auto result = (it != data.end()) ? *it : 10;
     REQUIRE(result != 10); // Found
     REQUIRE(result == 5);
     // Note: count may be > 6 due to unrolling semantics
@@ -201,7 +207,7 @@ TEST_CASE("Non-commutative reduction (subtraction)", "[mistake][associativity]")
     // ((((0 - 1) - 2) - 3) - 4) = -10
     // But with multiple accumulators, order changes
 
-    auto result = ilp::reduce<4>(1, 5, 0, std::minus<>(), [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 5), 0, std::minus<>(), [&](auto i) { return i; });
 
     // Note: This might give different results due to parallel accumulation!
     // Expected with sequential: 0-1-2-3-4 = -10
@@ -216,13 +222,13 @@ TEST_CASE("Operations on empty vector", "[mistake][empty]") {
     std::vector<int> empty;
 
     // Min of empty set
-    auto min_result = ilp::reduce_range<4>(
+    auto min_result = ilp::transform_reduce<4>(
         empty, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
         [&](auto&& val) { return val; });
     REQUIRE(min_result == std::numeric_limits<int>::max());
 
     // Max of empty set
-    auto max_result = ilp::reduce_range<4>(
+    auto max_result = ilp::transform_reduce<4>(
         empty, std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
         [&](auto&& val) { return val; });
     REQUIRE(max_result == std::numeric_limits<int>::min());
@@ -285,7 +291,7 @@ TEST_CASE("Nested loops with same variable name", "[mistake][nested]") {
 
 TEST_CASE("Sum of large range", "[mistake][overflow]") {
     // Sum of 0..999999 = 499999500000 (needs 64-bit)
-    uint64_t result = ilp::reduce<4>((uint64_t)0, (uint64_t)1000000, 0, std::plus<>{}, [&](auto i) { return i; });
+    uint64_t result = ilp::transform_reduce<4>(std::views::iota((uint64_t)0, (uint64_t)1000000), (uint64_t)0, std::plus<>{}, [&](auto i) { return i; });
     REQUIRE(result == 499999500000ULL);
 }
 
@@ -351,11 +357,14 @@ TEST_CASE("Initializer list as range", "[mistake][init]") {
 TEST_CASE("Inverted boolean logic in find", "[mistake][logic]") {
     // User thinks true = continue, false = stop (inverted)
     int last = -1;
-    auto result = ilp::find<4>(0, 10, [&](auto i, auto) {
-        last = i;
-        return i >= 5; // Stop when >= 5
+    std::vector<int> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [&](auto val) {
+        last = val;
+        return val >= 5; // Stop when >= 5
     });
 
+    auto result = (it != data.end()) ? *it : 10;
     REQUIRE(result != 10); // Found
     REQUIRE(result >= 5);
     // last should be 5 or higher (unrolling may affect exact value)
@@ -442,7 +451,7 @@ TEST_CASE("Iterator comparison in find_range_idx", "[mistake][iterator]") {
 
 TEST_CASE("Using plus for product (wrong op)", "[mistake][operator]") {
     // User means to multiply but uses plus
-    auto result = ilp::reduce<4>(1, 5, 0, std::plus<>{}, [&](auto i) { // Should be multiplies with init 1
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 5), 0, std::plus<>{}, [&](auto i) { // Should be multiplies with init 1
         return i;
     });
     REQUIRE(result == 10); // Got sum instead of product
@@ -454,7 +463,7 @@ TEST_CASE("Using plus for product (wrong op)", "[mistake][operator]") {
 
 TEST_CASE("Division reduce (problematic)", "[mistake][associativity]") {
     // Division is not associative!
-    auto result = ilp::reduce<4>(1, 4, 1000, std::divides<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 4), 1000, std::divides<>{}, [&](auto i) { return i; });
     // 1000 / 1 / 2 / 3 = 166 (integer division)
     // But parallel accumulators might give different result
     (void)result; // Just check it runs
@@ -467,7 +476,7 @@ TEST_CASE("Division reduce (problematic)", "[mistake][associativity]") {
 TEST_CASE("All iterations evaluate even if not needed", "[mistake][lazy]") {
     int eval_count = 0;
 
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
         eval_count++;
         return i;
     });
@@ -500,7 +509,7 @@ TEST_CASE("Large vector performance", "[mistake][performance]") {
     for (int i = 0; i < 10000; ++i)
         large[i] = i;
 
-    auto result = ilp::reduce_range<4>(large, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(large, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 49995000);
 }
@@ -570,9 +579,9 @@ TEST_CASE("Return vs break confusion", "[mistake][control]") {
 
 TEST_CASE("Auto-select vs manual N", "[mistake][auto]") {
     // Sometimes manual N is better for specific use case
-    auto auto_result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto auto_result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) { return i; });
 
-    auto manual_result = ilp::reduce<8>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto manual_result = ilp::transform_reduce<8>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) { return i; });
 
     REQUIRE(auto_result == manual_result);
 }
@@ -584,8 +593,8 @@ TEST_CASE("Auto-select vs manual N", "[mistake][auto]") {
 TEST_CASE("No short-circuit in reduce", "[mistake][shortcircuit]") {
     int count = 0;
 
-    auto result = ilp::reduce<4>(
-        0, 100, 0, [](int a, int b) { return a + b; },
+    auto result = ilp::transform_reduce<4>(
+        std::views::iota(0, 100), 0, [](int a, int b) { return a + b; },
         [&](auto i) {
             count++;
             return i;
@@ -603,7 +612,7 @@ TEST_CASE("Accumulator combination order", "[mistake][order]") {
     // Multiple accumulators combine in unspecified order
     // For associative+commutative ops, this is fine
 
-    auto result = ilp::reduce<4>(0, 20, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 20), 0, std::plus<>{}, [&](auto i) { return i; });
 
     REQUIRE(result == 190); // Sum is always correct
 }

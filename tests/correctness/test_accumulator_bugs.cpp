@@ -2,6 +2,7 @@
 #include "catch.hpp"
 #include <functional>
 #include <limits>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -17,7 +18,7 @@
 
 TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     SECTION("Sum with init 100, empty range") {
-        auto result = ilp::reduce<4>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 100, std::plus<>(), [&](auto i) { return i; });
         INFO("Bug: Returns 400 instead of 100 (N=4 × init=100)");
         // EXPECTED: 100 (init unchanged)
         // ACTUAL: 400 (4 × 100)
@@ -25,7 +26,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("Product with init 5, empty range") {
-        auto result = ilp::reduce<4>(0, 0, 5, std::multiplies<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 5, std::multiplies<>(), [&](auto i) { return i; });
         INFO("Bug: Returns 625 instead of 5 (5^4)");
         // EXPECTED: 5
         // ACTUAL: 5 * 5 * 5 * 5 = 625
@@ -33,23 +34,23 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
     }
 
     SECTION("Max with init MIN, empty range") {
-        auto result = ilp::reduce<4>(
-            0, 0, std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
+        auto result = ilp::transform_reduce<4>(
+            std::views::iota(0, 0), std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
             [&](auto i) { return i; });
         // max(min, min, min, min) = min - this actually works!
         REQUIRE(result == std::numeric_limits<int>::min());
     }
 
     SECTION("Min with init MAX, empty range") {
-        auto result = ilp::reduce<4>(
-            0, 0, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
+        auto result = ilp::transform_reduce<4>(
+            std::views::iota(0, 0), std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
             [&](auto i) { return i; });
         // min(max, max, max, max) = max - this actually works!
         REQUIRE(result == std::numeric_limits<int>::max());
     }
 
     SECTION("XOR with init, empty range") {
-        auto result = ilp::reduce<4>(0, 0, 42, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 42, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
         INFO("Bug: XOR of 4 copies - 42^42^42^42 = 0");
         // EXPECTED: 42
         // ACTUAL: 0 (xor is self-inverse)
@@ -63,7 +64,7 @@ TEST_CASE("Empty range - init multiplication bug", "[bug][accumulator]") {
 
 TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
     SECTION("Sum with init 100, single element 5") {
-        auto result = ilp::reduce<4>(0, 1, 100, std::plus<>(), [&](auto i) {
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 1), 100, std::plus<>(), [&](auto i) {
             return i; // returns 0
         });
         INFO("Bug: Returns 400 instead of 100 (element 0 is consumed by one accumulator)");
@@ -73,7 +74,7 @@ TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
     }
 
     SECTION("Product with init 2, single element") {
-        auto result = ilp::reduce<4>(1, 2, 2, std::multiplies<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(1, 2), 2, std::multiplies<>(), [&](auto i) { return i; });
         INFO("Bug: Returns 16 instead of 2 (2*1 * 2 * 2 * 2 = 16)");
         // EXPECTED: 2 * 1 = 2
         // ACTUAL: (2*1) * 2 * 2 * 2 = 16
@@ -87,19 +88,19 @@ TEST_CASE("Single element - init multiplication impact", "[bug][accumulator]") {
 
 TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
     SECTION("N=1 - should be correct") {
-        auto result = ilp::reduce<1>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<1>(std::views::iota(0, 0), 100, std::plus<>(), [&](auto i) { return i; });
         REQUIRE(result == 100); // N=1, so 100*1 = 100
     }
 
     SECTION("N=2 - init×2") {
-        auto result = ilp::reduce<2>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<2>(std::views::iota(0, 0), 100, std::plus<>(), [&](auto i) { return i; });
         // Will be 200
         INFO("With N=2, empty range returns 200");
         REQUIRE(result == 100); // Will FAIL with 200
     }
 
     SECTION("N=8 - init×8") {
-        auto result = ilp::reduce<8>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<8>(std::views::iota(0, 0), 100, std::plus<>(), [&](auto i) { return i; });
         // Will be 800
         INFO("With N=8, empty range returns 800");
         REQUIRE(result == 100); // Will FAIL with 800
@@ -114,7 +115,7 @@ TEST_CASE("Init multiplication scales with N", "[bug][accumulator]") {
 
 TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     SECTION("Break on first iteration") {
-        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> {
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 100, std::plus<>(), [&](auto) -> std::optional<int> {
             return std::nullopt; // 0 is identity for plus
         });
         INFO("Bug: Returns 400 instead of 100");
@@ -122,7 +123,7 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
     }
 
     SECTION("Break after first element") {
-        auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto i) -> std::optional<int> {
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 100, std::plus<>(), [&](auto i) -> std::optional<int> {
             if (i == 1)
                 return std::nullopt;
             return i;
@@ -167,25 +168,25 @@ TEST_CASE("Operations where bug doesn't manifest", "[accumulator][works]") {
 
     SECTION("Max - idempotent") {
         auto result =
-            ilp::reduce<4>(0, 0, -999, [](int a, int b) { return std::max(a, b); }, [&](auto i) { return i; });
+            ilp::transform_reduce<4>(std::views::iota(0, 0), -999, [](int a, int b) { return std::max(a, b); }, [&](auto i) { return i; });
         // max(-999, -999, -999, -999) = -999 - works!
         REQUIRE(result == -999);
     }
 
     SECTION("Min - idempotent") {
-        auto result = ilp::reduce<4>(0, 0, 999, [](int a, int b) { return std::min(a, b); }, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 999, [](int a, int b) { return std::min(a, b); }, [&](auto i) { return i; });
         // min(999, 999, 999, 999) = 999 - works!
         REQUIRE(result == 999);
     }
 
     SECTION("AND with all 1s") {
-        auto result = ilp::reduce<4>(0, 0, 0xFF, [](int a, int b) { return a & b; }, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 0xFF, [](int a, int b) { return a & b; }, [&](auto i) { return i; });
         // 0xFF & 0xFF & 0xFF & 0xFF = 0xFF - works!
         REQUIRE(result == 0xFF);
     }
 
     SECTION("OR with 0") {
-        auto result = ilp::reduce<4>(0, 0, 0, [](int a, int b) { return a | b; }, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 0, [](int a, int b) { return a | b; }, [&](auto i) { return i; });
         // 0 | 0 | 0 | 0 = 0 - works!
         REQUIRE(result == 0);
     }
@@ -199,17 +200,17 @@ TEST_CASE("Sum with zero init - correct behavior", "[accumulator][correct]") {
     // Sum with init=0 works correctly because 0+0+0+0 = 0
 
     SECTION("Empty range") {
-        auto result = ilp::reduce<4>(0, 0, 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
         REQUIRE(result == 0);
     }
 
     SECTION("Single element") {
-        auto result = ilp::reduce<4>(0, 1, 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 1), 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
         REQUIRE(result == 0);
     }
 
     SECTION("Multiple elements") {
-        auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 10), 0, std::plus<>{}, [&](auto i) { return static_cast<int64_t>(i); });
         REQUIRE(result == 45);
     }
 }
@@ -222,12 +223,12 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
     // Product with init=1 also works correctly because 1*1*1*1 = 1
 
     SECTION("Empty range") {
-        auto result = ilp::reduce<4>(0, 0, 1, std::multiplies<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 1, std::multiplies<>(), [&](auto i) { return i; });
         REQUIRE(result == 1);
     }
 
     SECTION("Factorial 5") {
-        auto result = ilp::reduce<4>(1, 6, 1, std::multiplies<>(), [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(1, 6), 1, std::multiplies<>(), [&](auto i) { return i; });
         REQUIRE(result == 120);
     }
 }
@@ -239,7 +240,7 @@ TEST_CASE("Product with one init - correct behavior", "[accumulator][correct]") 
 TEST_CASE("Bug severity demonstration", "[bug][severity]") {
     SECTION("Off-by-huge-amount for counting") {
         // Trying to count with init offset
-        auto result = ilp::reduce<4>(0, 5, 1000, std::plus<>(), [&](auto) {
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 5), 1000, std::plus<>(), [&](auto) {
             return 1; // Add 1 for each element
         });
         // EXPECTED: 1000 + 5 = 1005
@@ -287,7 +288,7 @@ TEST_CASE("reduce_sum uses correct zero init", "[accumulator][correct]") {
     // reduce_sum defaults to R{} which is 0 for numeric types
 
     SECTION("Empty range") {
-        auto result = ilp::reduce<4>(0, 0, 0, std::plus<>{}, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 0), 0, std::plus<>{}, [&](auto i) { return i; });
         // 0 + 0 + 0 + 0 = 0 - correct!
         REQUIRE(result == 0);
     }

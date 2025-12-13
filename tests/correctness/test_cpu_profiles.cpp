@@ -2,6 +2,7 @@
 #include "ilp_for.hpp"
 #include <cstdint>
 #include <numeric>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -190,7 +191,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::iota(data.begin(), data.end(), 1);
 
         auto sum =
-            ilp::reduce<4>(0, 100, int64_t{}, std::plus<>{}, [&](int i) { return static_cast<int64_t>(data[i]); });
+            ilp::transform_reduce<4>(std::views::iota(0, 100), int64_t{}, std::plus<>{}, [&](int i) { return static_cast<int64_t>(data[i]); });
 
         REQUIRE(sum == 5050);
     }
@@ -200,7 +201,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         for (int i = 0; i < 100; ++i)
             data[i] = static_cast<short>(i + 1);
 
-        auto sum = ilp::reduce<4>(short(0), short(100), int64_t{}, std::plus<>{},
+        auto sum = ilp::transform_reduce<4>(std::views::iota(short(0), short(100)), int64_t{}, std::plus<>{},
                                   [&](short i) { return static_cast<int64_t>(data[i]); });
 
         REQUIRE(sum == 5050);

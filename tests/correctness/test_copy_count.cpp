@@ -7,6 +7,9 @@
 
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
+#include <numeric>
+#include <ranges>
+#include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
 
@@ -111,7 +114,9 @@ TEST_CASE("Move-only type works with for_loop", "[copy_count][compile-time]") {
 TEST_CASE("No copies in find with optional return", "[copy_count]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::find<4>(0, 10, [](int i, int) -> std::optional<CopyMoveCounter> {
+    std::vector<int> indices(10);
+    std::iota(indices.begin(), indices.end(), 0);
+    auto result = ilp::find<4>(indices, [](int i) -> std::optional<CopyMoveCounter> {
         if (i == 5) {
             return CopyMoveCounter(i * 10);
         }
@@ -125,7 +130,9 @@ TEST_CASE("No copies in find with optional return", "[copy_count]") {
 }
 
 TEST_CASE("Move-only type works with find", "[copy_count][compile-time]") {
-    auto result = ilp::find<4>(0, 10, [](int i, int) -> std::optional<MoveOnly> {
+    std::vector<int> indices(10);
+    std::iota(indices.begin(), indices.end(), 0);
+    auto result = ilp::find<4>(indices, [](int i) -> std::optional<MoveOnly> {
         if (i == 5) {
             return std::make_optional(MoveOnly(i * 10));
         }
@@ -150,7 +157,7 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
     // - R result = init in final fold
     // Total: ~7 copies for N=4
 
-    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, add_counters, [](int i) { return CopyMoveCounter(i); });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 4), CopyMoveCounter{0}, add_counters, [](int i) { return CopyMoveCounter(i); });
 
     // 0 + 1 + 2 + 3 = 6
     CHECK(result.value == 6);
@@ -162,7 +169,7 @@ TEST_CASE("Minimal copies in reduce with ctrl", "[copy_count][reduce]") {
 TEST_CASE("Minimal copies in reduce without ctrl", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, add_counters, [](int i) { return CopyMoveCounter(i); });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 4), CopyMoveCounter{0}, add_counters, [](int i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -270,7 +277,7 @@ TEST_CASE("Move-only type works with ILP_FOR macro", "[copy_count][macro][compil
 TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 4, CopyMoveCounter{0}, add_counters,
+    auto result = ilp::transform_reduce_auto<ilp::LoopType::Sum>(std::views::iota(0, 4), CopyMoveCounter{0}, add_counters,
                                                        [&](auto i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6); // 0+1+2+3
@@ -281,7 +288,7 @@ TEST_CASE("Plain return reduce has minimal copy overhead", "[copy_count][reduce]
 TEST_CASE("std::optional reduce has minimal copy overhead", "[copy_count][reduce]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 10, CopyMoveCounter{0}, add_counters,
+    auto result = ilp::transform_reduce_auto<ilp::LoopType::Sum>(std::views::iota(0, 10), CopyMoveCounter{0}, add_counters,
                                                        [&](auto i) -> std::optional<CopyMoveCounter> {
                                                            if (i >= 4)
                                                                return std::nullopt;
@@ -320,7 +327,7 @@ TEST_CASE("Zero copies with std::plus<> known identity", "[copy_count][reduce][z
 
     // std::plus<> is a known operation with compile-time identity (T{} = 0)
     // Accumulators are directly initialized via make_identity, skipping fill
-    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, std::plus<>{}, [](int i) { return CopyMoveCounter(i); });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 4), CopyMoveCounter{0}, std::plus<>{}, [](int i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6); // 0+1+2+3
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -331,7 +338,7 @@ TEST_CASE("Zero copies with std::plus<> known identity", "[copy_count][reduce][z
 TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_copy]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce<4>(0, 4, CopyMoveCounter{0}, std::plus<>{}, [](int i) { return CopyMoveCounter(i); });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 4), CopyMoveCounter{0}, std::plus<>{}, [](int i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -341,7 +348,7 @@ TEST_CASE("Zero copies with std::plus<> and ctrl", "[copy_count][reduce][zero_co
 TEST_CASE("Zero copies with plain return and std::plus<>", "[copy_count][reduce][zero_copy]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::reduce_auto<ilp::LoopType::Sum>(0, 4, CopyMoveCounter{0}, std::plus<>{},
+    auto result = ilp::transform_reduce_auto<ilp::LoopType::Sum>(std::views::iota(0, 4), CopyMoveCounter{0}, std::plus<>{},
                                                        [&](auto i) { return CopyMoveCounter(i); });
 
     CHECK(result.value == 6);
@@ -364,7 +371,7 @@ TEST_CASE("Zero copies with range-based reduce and std::plus<>", "[copy_count][r
 TEST_CASE("Move-only type works with std::plus<> reduce", "[copy_count][reduce][zero_copy][compile-time]") {
     // This compiles because std::plus<> uses make_identity (zero copies)
     // instead of accs.fill() which would require copy constructor
-    auto result = ilp::reduce<4>(0, 4, MoveOnly{0}, std::plus<>{}, [](int i) { return MoveOnly(i); });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 4), MoveOnly{0}, std::plus<>{}, [](int i) { return MoveOnly(i); });
 
     CHECK(result.value == 6);
 }

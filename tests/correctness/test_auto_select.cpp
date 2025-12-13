@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <climits>
 #include <numeric>
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -15,7 +16,7 @@ TEST_CASE("Auto-selecting reduce sum", "[auto][reduce]") {
 
     SECTION("Index-based sum") {
         int sum =
-            ilp::reduce_auto<ilp::LoopType::Sum>(0, (int)data.size(), 0, std::plus<>{}, [&](int i) { return data[i]; });
+            ilp::transform_reduce_auto<ilp::LoopType::Sum>(std::views::iota(0, (int)data.size()), 0, std::plus<>{}, [&](int i) { return data[i]; });
         REQUIRE(sum == expected);
     }
 }
@@ -36,8 +37,8 @@ TEST_CASE("Auto-selecting reduce for min", "[auto][reduce][min]") {
     int expected = *std::min_element(data.begin(), data.end());
 
     SECTION("Function version") {
-        int min_val = ilp::reduce_auto<ilp::LoopType::MinMax>(
-            0, (int)data.size(), INT_MAX, [](int a, int b) { return std::min(a, b); }, [&](int i) { return data[i]; });
+        int min_val = ilp::transform_reduce_auto<ilp::LoopType::MinMax>(
+            std::views::iota(0, (int)data.size()), INT_MAX, [](int a, int b) { return std::min(a, b); }, [&](int i) { return data[i]; });
         REQUIRE(min_val == expected);
     }
 }
