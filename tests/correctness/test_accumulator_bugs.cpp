@@ -143,14 +143,14 @@ TEST_CASE("Early break - init multiplication", "[bug][accumulator]") {
 TEST_CASE("Range reduce - init multiplication", "[bug][accumulator][range]") {
     SECTION("Empty vector") {
         std::vector<int> empty;
-        auto result = ilp::reduce_range<4>(empty, 100, std::plus<>(), [&](auto&& val) { return val; });
+        auto result = ilp::transform_reduce<4>(empty, 100, std::plus<>(), [&](auto&& val) { return val; });
         INFO("Bug: Empty vector returns 400");
         REQUIRE(result == 100); // Will FAIL with 400
     }
 
     SECTION("Single element vector") {
         std::vector<int> single = {5};
-        auto result = ilp::reduce_range<4>(single, 100, std::plus<>(), [&](auto&& val) { return val; });
+        auto result = ilp::transform_reduce<4>(single, 100, std::plus<>(), [&](auto&& val) { return val; });
         INFO("Bug: Single element returns 405 instead of 105");
         // EXPECTED: 100 + 5 = 105
         // ACTUAL: (100+5) + 100 + 100 + 100 = 405
@@ -254,7 +254,7 @@ TEST_CASE("Bug severity demonstration", "[bug][severity]") {
         std::vector<int> transactions = {}; // No transactions yet
 
         auto final_balance =
-            ilp::reduce_range<4>(transactions, starting_balance, std::plus<>(), [&](auto&& txn) { return txn; });
+            ilp::transform_reduce<4>(transactions, starting_balance, std::plus<>(), [&](auto&& txn) { return txn; });
 
         INFO("Empty transactions should return starting balance 10000, not 40000");
         REQUIRE(final_balance == 10000); // Will FAIL with 40000
@@ -273,7 +273,7 @@ TEST_CASE("Workaround: Handle empty separately", "[workaround]") {
     if (empty.empty()) {
         result = 100; // Handle empty case manually
     } else {
-        result = ilp::reduce_range<4>(empty, 100, std::plus<>(), [&](auto&& val) { return val; });
+        result = ilp::transform_reduce<4>(empty, 100, std::plus<>(), [&](auto&& val) { return val; });
     }
 
     REQUIRE(result == 100); // Works with workaround

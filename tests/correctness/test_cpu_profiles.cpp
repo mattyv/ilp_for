@@ -211,7 +211,7 @@ TEST_CASE("Reduce functions with optimal unrolling", "[cpu][auto]") {
         std::iota(data.begin(), data.end(), 1);
 
         auto sum =
-            ilp::reduce_range<4>(data, int64_t{}, std::plus<>{}, [&](int val) { return static_cast<int64_t>(val); });
+            ilp::transform_reduce<4>(data, int64_t{}, std::plus<>{}, [&](int val) { return static_cast<int64_t>(val); });
 
         REQUIRE(sum == 5050);
     }

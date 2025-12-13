@@ -10,6 +10,7 @@
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
 #include <cstdint>
+#include <numeric>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -31,7 +32,7 @@ TEST_CASE("Safe: int64_t accumulator for int32_t elements", "[overflow][safe]") 
 
     // No warning - accumulator (8 bytes) > element (4 bytes)
     auto result =
-        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
+        ilp::transform_reduce<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 15);
 }
@@ -40,7 +41,7 @@ TEST_CASE("Safe: double accumulator for int elements", "[overflow][safe]") {
     std::vector<int> data = {10, 20, 30, 40};
 
     // No warning - floating point (not checked)
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>{}, [](auto&& val) { return static_cast<double>(val); });
+    auto result = ilp::transform_reduce<4>(data, 0.0, std::plus<>{}, [](auto&& val) { return static_cast<double>(val); });
 
     REQUIRE(result == 100.0);
 }
@@ -50,7 +51,7 @@ TEST_CASE("Safe: int64_t accumulator for int16_t elements", "[overflow][safe]") 
 
     // No warning - accumulator (8 bytes) > element (2 bytes)
     auto result =
-        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
+        ilp::transform_reduce<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 1500);
 }
@@ -60,7 +61,7 @@ TEST_CASE("Safe: int32_t accumulator for int8_t elements", "[overflow][safe]") {
 
     // No warning - accumulator (4 bytes) > element (1 byte)
     auto result =
-        ilp::reduce_range<4>(data, int32_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int32_t>(val); });
+        ilp::transform_reduce<4>(data, int32_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int32_t>(val); });
 
     REQUIRE(result == 200);
 }
@@ -74,7 +75,7 @@ TEST_CASE("Same-size: int accumulator for int elements", "[overflow][same-size]"
     std::vector<int> data = {1, 2, 3, 4, 5};
 
     // No warning - same size is allowed, user knows their data
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -84,7 +85,7 @@ TEST_CASE("Same-size: int8_t accumulator for int8_t elements", "[overflow][same-
 
     // No warning - same size is allowed
     // (overflow IS possible with more elements, but user is responsible)
-    auto result = ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -93,7 +94,7 @@ TEST_CASE("Same-size: uint32_t accumulator for uint32_t elements", "[overflow][s
     std::vector<uint32_t> data = {1000000, 2000000, 3000000};
 
     // No warning - same size is allowed
-    auto result = ilp::reduce_range<4>(data, uint32_t{0}, std::plus<>{}, [](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, uint32_t{0}, std::plus<>{}, [](auto&& val) { return val; });
 
     REQUIRE(result == 6000000);
 }
@@ -105,7 +106,9 @@ TEST_CASE("Same-size: uint32_t accumulator for uint32_t elements", "[overflow][s
 
 TEST_CASE("Unsafe: int16_t accumulator with int index", "[overflow][unsafe]") {
     // WARNING: accumulator (int16_t, 2 bytes) < index type (int, 4 bytes)
-    auto result = ilp::reduce<4>(0, 10, int16_t{0}, std::plus<>{}, [](auto i) { return static_cast<int16_t>(i); });
+    std::vector<int> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    auto result = ilp::transform_reduce<4>(data, int16_t{0}, std::plus<>{}, [](auto val) { return static_cast<int16_t>(val); });
 
     REQUIRE(result == 45);
 }
@@ -115,14 +118,16 @@ TEST_CASE("Unsafe: int8_t accumulator with int16_t elements", "[overflow][unsafe
 
     // WARNING: accumulator (int8_t, 1 byte) < element type (int16_t, 2 bytes)
     auto result =
-        ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int8_t>(val); });
+        ilp::transform_reduce<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int8_t>(val); });
 
     REQUIRE(result == 15);
 }
 
 TEST_CASE("Unsafe: int8_t accumulator with int index", "[overflow][unsafe]") {
     // WARNING: accumulator (int8_t, 1 byte) < index type (int, 4 bytes)
-    auto result = ilp::reduce<4>(0, 10, int8_t{0}, std::plus<>{}, [](auto i) { return static_cast<int8_t>(i); });
+    std::vector<int> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    auto result = ilp::transform_reduce<4>(data, int8_t{0}, std::plus<>{}, [](auto val) { return static_cast<int8_t>(val); });
 
     REQUIRE(result == 45);
 }
@@ -136,7 +141,7 @@ TEST_CASE("Demo: int8_t overflow with many elements (no warning)", "[overflow][d
 
     // No warning (same-size allowed), but WILL overflow at runtime!
     // int8_t can only hold -128 to 127
-    auto result = ilp::reduce_range<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, int8_t{0}, std::plus<>{}, [](auto&& val) { return val; });
 
     // Result is wrong due to overflow
     INFO("Result with overflow: " << static_cast<int>(result));
@@ -152,7 +157,7 @@ TEST_CASE("Workaround: Explicit init with larger type", "[overflow][workaround]"
 
     // Using reduce with explicit int64_t init
     auto result =
-        ilp::reduce_range<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
+        ilp::transform_reduce<4>(data, int64_t{0}, std::plus<>{}, [](auto&& val) { return static_cast<int64_t>(val); });
 
     REQUIRE(result == 15);
 }

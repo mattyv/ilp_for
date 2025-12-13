@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -124,19 +125,19 @@ TEST_CASE("Exactly 2N+1 elements", "[evil][boundary]") {
 
 TEST_CASE("Reduce with zero init for product", "[evil][reduce]") {
     // Product with 0 init - always 0
-    auto result = ilp::reduce<4>(1, 10, 0, std::multiplies<>(), [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 10), 0, std::multiplies<>(), [&](auto i) { return i; });
     REQUIRE(result == 0); // 0 * anything = 0
 }
 
 TEST_CASE("Reduce with negative init", "[evil][reduce]") {
-    auto result = ilp::reduce<4>(0, 10, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 10), 0, std::plus<>{}, [&](auto i) { return i; });
     // Wait, reduce_sum doesn't take init... default is 0
     REQUIRE(result == 45);
 }
 
 TEST_CASE("Reduce with max int init", "[evil][reduce]") {
-    auto result = ilp::reduce<4>(
-        0, 100, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
+    auto result = ilp::transform_reduce<4>(
+        std::views::iota(0, 100), std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
         [&](auto i) { return i; });
     REQUIRE(result == 0);
 }
@@ -224,7 +225,7 @@ TEST_CASE("int16_t accumulator with int iteration", "[evil][types]") {
 
 TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
     // Breaking returns nullopt from body, but what about accumulated values?
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>(), [&](auto i) -> std::optional<int> {
         if (i == 10)
             return std::nullopt;
         return i;
@@ -236,7 +237,7 @@ TEST_CASE("Reduce break returns init value behavior", "[evil][reduce]") {
 
 TEST_CASE("Reduce break at first in each block", "[evil][reduce]") {
     // Break at position 0, 4, 8 (first of each unroll block)
-    auto result = ilp::reduce<4>(0, 12, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 12), 0, std::plus<>(), [&](auto i) -> std::optional<int> {
         if (i % 4 == 0)
             return std::nullopt;
         return i;
@@ -278,26 +279,26 @@ TEST_CASE("Vector exactly N elements", "[evil][vector]") {
 
 TEST_CASE("Find with multiple potential matches", "[evil][find]") {
     // All elements match - should return first
-    auto result = ilp::find<4>(0, 100, [&](auto, auto) {
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+
+    auto it = ilp::find_if<4>(data, [&](auto) {
         return true; // All match
     });
 
-    REQUIRE(result != 100); // Found (not sentinel)
-    REQUIRE(result == 0);   // First match
+    REQUIRE(it != data.end()); // Found
+    REQUIRE(*it == 0);         // First match
 }
 
 TEST_CASE("Find matches in every unroll position", "[evil][find]") {
     // Match at positions 0, 1, 2, 3 (all within first block)
-    std::vector<int> results;
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
 
     for (int target = 0; target < 4; ++target) {
-        auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == target; });
-        results.push_back(result);
-    }
-
-    for (int j = 0; j < 4; ++j) {
-        REQUIRE(results[j] != 100); // Found
-        REQUIRE(results[j] == j);
+        auto it = ilp::find_if<4>(data, [&](auto val) { return val == target; });
+        REQUIRE(it != data.end()); // Found
+        REQUIRE(*it == target);
     }
 }
 
@@ -341,14 +342,14 @@ TEST_CASE("Range iteration order verification", "[evil][order]") {
 
 TEST_CASE("Reduce accumulator order - associative", "[evil][accumulator]") {
     // For associative ops, order shouldn't matter
-    auto result = ilp::reduce<4>(0, 20, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 20), 0, std::plus<>{}, [&](auto i) { return i; });
     REQUIRE(result == 190); // Always correct for sum
 }
 
 TEST_CASE("Reduce accumulator - max operation", "[evil][accumulator]") {
     std::vector<int> data = {5, 3, 9, 1, 8, 2, 7, 4, 6, 0};
 
-    auto result = ilp::reduce_range<4>(
+    auto result = ilp::transform_reduce<4>(
         data, std::numeric_limits<int>::min(), [](int a, int b) { return std::max(a, b); },
         [&](auto&& val) { return val; });
 
@@ -363,11 +364,11 @@ TEST_CASE("Reduce of empty with identity ops", "[evil][empty]") {
     std::vector<int> empty;
 
     // Sum of empty = 0
-    auto sum = ilp::reduce_range<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto sum = ilp::transform_reduce<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
     REQUIRE(sum == 0);
 
     // Product of empty with init 1 = 1
-    auto product = ilp::reduce_range<4>(empty, 1, std::multiplies<>(), [&](auto&& val) { return val; });
+    auto product = ilp::transform_reduce<4>(empty, 1, std::multiplies<>(), [&](auto&& val) { return val; });
     REQUIRE(product == 1);
 }
 
@@ -376,7 +377,7 @@ TEST_CASE("Reduce of empty with identity ops", "[evil][empty]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("100000 iterations", "[evil][stress]") {
-    int64_t result = ilp::reduce<4>((int64_t)0, (int64_t)100000, 0LL, std::plus<>{}, [&](auto i) { return i; });
+    int64_t result = ilp::transform_reduce<4>(std::views::iota((int64_t)0, (int64_t)100000), 0LL, std::plus<>{}, [&](auto i) { return i; });
 
     REQUIRE(result == 4999950000LL);
 }
@@ -388,7 +389,7 @@ TEST_CASE("100000 iterations", "[evil][stress]") {
 TEST_CASE("No double evaluation of body", "[evil][evaluation]") {
     int eval_count = 0;
 
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
         eval_count++;
         return i;
     });
@@ -404,7 +405,7 @@ TEST_CASE("No double evaluation of body", "[evil][evaluation]") {
 TEST_CASE("Const vector reduce", "[evil][const]") {
     const std::vector<int> data = {1, 2, 3, 4, 5};
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 15);
 }
@@ -414,28 +415,43 @@ TEST_CASE("Const vector reduce", "[evil][const]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Find at N-1", "[evil][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 3; });
-    REQUIRE(result == 3);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 3; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 3);
 }
 
 TEST_CASE("Find at N", "[evil][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 4; });
-    REQUIRE(result == 4);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 4; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 4);
 }
 
 TEST_CASE("Find at N+1", "[evil][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 5; });
-    REQUIRE(result == 5);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 5; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 5);
 }
 
 TEST_CASE("Find at 2N-1", "[evil][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 7; });
-    REQUIRE(result == 7);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 7; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 7);
 }
 
 TEST_CASE("Find at 2N", "[evil][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 8; });
-    REQUIRE(result == 8);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 8; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 8);
 }
 
 // -----------------------------------------------------------------------------
@@ -444,13 +460,14 @@ TEST_CASE("Find at 2N", "[evil][find]") {
 
 TEST_CASE("Ret-simple returns valid sentinel", "[evil][ret]") {
     // When not found, should return exactly end
-    auto result = ilp::find<4>(0, 42, [&](auto i, auto end) {
-        if (i == 999)
-            return i; // Never found
-        return end;
+    std::vector<int> data(42);
+    std::iota(data.begin(), data.end(), 0);
+
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val == 999; // Never found
     });
 
-    REQUIRE(result == 42); // End sentinel
+    REQUIRE(it == data.end()); // End iterator
 }
 
 TEST_CASE("Range-ret returns valid end iterator", "[evil][ret]") {
@@ -474,8 +491,9 @@ TEST_CASE("Nested reduce", "[evil][nested]") {
     int total = 0;
 
     ILP_FOR(auto i, 0, 5, 4) {
-        auto inner_sum = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto j) { return j; });
+        auto inner_sum = ilp::transform_reduce<4>(std::views::iota(0, 5), 0, std::plus<>{}, [&](auto j) { return j; });
         total += inner_sum;
+        (void)i;
     }
     ILP_END;
 

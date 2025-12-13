@@ -26,7 +26,7 @@ TEST_CASE("Auto-selecting reduce range sum", "[auto][reduce][range]") {
     int expected = std::accumulate(data.begin(), data.end(), 0);
 
     SECTION("Function version") {
-        int sum = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](int val) { return val; });
+        int sum = ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](int val) { return val; });
         REQUIRE(sum == expected);
     }
 }
@@ -47,21 +47,21 @@ TEST_CASE("Auto-selecting reduce range", "[auto][reduce][range]") {
 
     SECTION("Min") {
         int expected = *std::min_element(data.begin(), data.end());
-        int min_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
+        int min_val = ilp::transform_reduce_auto<ilp::LoopType::MinMax>(
             data, INT_MAX, [](int a, int b) { return std::min(a, b); }, [](auto&& val) { return val; });
         REQUIRE(min_val == expected);
     }
 
     SECTION("Max") {
         int expected = *std::max_element(data.begin(), data.end());
-        int max_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
+        int max_val = ilp::transform_reduce_auto<ilp::LoopType::MinMax>(
             data, INT_MIN, [](int a, int b) { return std::max(a, b); }, [](auto&& val) { return val; });
         REQUIRE(max_val == expected);
     }
 
     SECTION("Count") {
         int expected = std::count_if(data.begin(), data.end(), [](int x) { return x > 5; });
-        int count = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{},
+        int count = ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{},
                                                                [](auto&& val) { return (val > 5) ? 1 : 0; });
         REQUIRE(count == expected);
     }
@@ -76,33 +76,33 @@ TEST_CASE("Range reduce without ctrl uses transform_reduce", "[reduce][range][tr
     SECTION("Sum with std::plus") {
         int expected = std::accumulate(data.begin(), data.end(), 0);
         // No ctrl in lambda -> transform_reduce path
-        int sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](int val) { return val; });
+        int sum = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [](int val) { return val; });
         REQUIRE(sum == expected);
     }
 
     SECTION("Sum with auto N selection") {
         int expected = std::accumulate(data.begin(), data.end(), 0);
-        int sum = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](int val) { return val; });
+        int sum = ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, 0, std::plus<>{}, [](int val) { return val; });
         REQUIRE(sum == expected);
     }
 
     SECTION("Product") {
         std::vector<int> small_data = {1, 2, 3, 4, 5};
         int expected = 1 * 2 * 3 * 4 * 5;
-        int product = ilp::reduce_range<4>(small_data, 1, std::multiplies<>{}, [](int val) { return val; });
+        int product = ilp::transform_reduce<4>(small_data, 1, std::multiplies<>{}, [](int val) { return val; });
         REQUIRE(product == expected);
     }
 
     SECTION("Min with custom op") {
         int expected = *std::min_element(data.begin(), data.end());
-        int min_val = ilp::reduce_range<4>(
+        int min_val = ilp::transform_reduce<4>(
             data, INT_MAX, [](int a, int b) { return std::min(a, b); }, [](int val) { return val; });
         REQUIRE(min_val == expected);
     }
 
     SECTION("Max with custom op") {
         int expected = *std::max_element(data.begin(), data.end());
-        int max_val = ilp::reduce_range<4>(
+        int max_val = ilp::transform_reduce<4>(
             data, INT_MIN, [](int a, int b) { return std::max(a, b); }, [](int val) { return val; });
         REQUIRE(max_val == expected);
     }
@@ -113,13 +113,13 @@ TEST_CASE("Range reduce without ctrl uses transform_reduce", "[reduce][range][tr
         for (int v : data)
             expected += v * v;
 
-        int sum_sq = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](int val) { return val * val; });
+        int sum_sq = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [](int val) { return val * val; });
         REQUIRE(sum_sq == expected);
     }
 
     SECTION("Count elements matching predicate") {
         int expected = std::count_if(data.begin(), data.end(), [](int x) { return x % 2 == 0; });
-        int count = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](int val) { return (val % 2 == 0) ? 1 : 0; });
+        int count = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [](int val) { return (val % 2 == 0) ? 1 : 0; });
         REQUIRE(count == expected);
     }
 
@@ -127,7 +127,7 @@ TEST_CASE("Range reduce without ctrl uses transform_reduce", "[reduce][range][tr
         // std::span
         std::span<int> span_data(data);
         int expected = std::accumulate(data.begin(), data.end(), 0);
-        int sum = ilp::reduce_range<4>(span_data, 0, std::plus<>{}, [](int val) { return val; });
+        int sum = ilp::transform_reduce<4>(span_data, 0, std::plus<>{}, [](int val) { return val; });
         REQUIRE(sum == expected);
     }
 }
@@ -138,28 +138,28 @@ TEST_CASE("Different element sizes use different N", "[auto][optimal_N]") {
     SECTION("int8") {
         std::vector<int8_t> data(100, 1);
         int8_t sum =
-            ilp::reduce_range_auto<ilp::LoopType::Sum>(data, int8_t{0}, std::plus<>{}, [](int8_t x) { return x; });
+            ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, int8_t{0}, std::plus<>{}, [](int8_t x) { return x; });
         REQUIRE(sum == 100);
     }
 
     SECTION("int16") {
         std::vector<int16_t> data(100, 1);
         int16_t sum =
-            ilp::reduce_range_auto<ilp::LoopType::Sum>(data, int16_t{0}, std::plus<>{}, [](int16_t x) { return x; });
+            ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, int16_t{0}, std::plus<>{}, [](int16_t x) { return x; });
         REQUIRE(sum == 100);
     }
 
     SECTION("int32") {
         std::vector<int32_t> data(100, 1);
         int32_t sum =
-            ilp::reduce_range_auto<ilp::LoopType::Sum>(data, int32_t{0}, std::plus<>{}, [](int32_t x) { return x; });
+            ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, int32_t{0}, std::plus<>{}, [](int32_t x) { return x; });
         REQUIRE(sum == 100);
     }
 
     SECTION("int64") {
         std::vector<int64_t> data(100, 1);
         int64_t sum =
-            ilp::reduce_range_auto<ilp::LoopType::Sum>(data, int64_t{0}, std::plus<>{}, [](int64_t x) { return x; });
+            ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, int64_t{0}, std::plus<>{}, [](int64_t x) { return x; });
         REQUIRE(sum == 100);
     }
 }

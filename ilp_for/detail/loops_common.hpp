@@ -107,6 +107,25 @@ namespace ilp {
         template<typename F, typename Ref>
         concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
 
+        // For direct reduce (no transform) - element directly usable with BinaryOp
+        template<typename BinaryOp, typename T, typename Elem>
+        concept DirectReducible = std::invocable<BinaryOp, T, Elem> &&
+                                  std::convertible_to<std::invoke_result_t<BinaryOp, T, Elem>, T>;
+
+        // Helper to get value type from T or std::optional<T>
+        template<typename T>
+        struct unwrap_optional { using type = T; };
+        template<typename T>
+        struct unwrap_optional<std::optional<T>> { using type = T; };
+        template<typename T>
+        using unwrap_optional_t = typename unwrap_optional<T>::type;
+
+        // For transform_reduce - transform result usable with BinaryOp
+        // Supports both direct returns and std::optional<T> returns (for early exit)
+        template<typename UnaryOp, typename BinaryOp, typename T, typename Elem>
+        concept TransformReducible = std::invocable<UnaryOp, Elem> &&
+                                     DirectReducible<BinaryOp, T, unwrap_optional_t<std::invoke_result_t<UnaryOp, Elem>>>;
+
         template<typename F, typename T>
         concept FindBody = std::invocable<F, T, T>;
 

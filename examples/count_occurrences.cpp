@@ -5,7 +5,7 @@
 #include <vector>
 
 size_t count_value(const std::vector<int>& data, int target) {
-    return ilp::reduce_range_auto<ilp::LoopType::Sum>(data, 0uz, std::plus<>{},
+    return ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, 0uz, std::plus<>{},
                                                       [&](auto&& val) { return val == target ? 1uz : 0uz; });
 }
 

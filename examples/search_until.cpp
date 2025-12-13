@@ -1,4 +1,4 @@
-// search with find_range_auto
+// search with find_if_auto
 
 #include "../ilp_for.hpp"
 #include <iostream>
@@ -13,13 +13,13 @@ struct Record {
 
 // Find first active record
 std::optional<size_t> find_first_active(const std::vector<Record>& records) {
-    auto it = ilp::find_range_auto(records, [&](auto&& rec) { return rec.active; });
+    auto it = ilp::find_if_auto(records, [&](auto&& rec) { return rec.active; });
     return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 
 // Find record by name
 std::optional<size_t> find_by_name(const std::vector<Record>& records, const std::string& target) {
-    auto it = ilp::find_range_auto(records, [&](auto&& rec) { return rec.name == target; });
+    auto it = ilp::find_if_auto(records, [&](auto&& rec) { return rec.name == target; });
     return (it != records.end()) ? std::optional(static_cast<size_t>(it - records.begin())) : std::nullopt;
 }
 

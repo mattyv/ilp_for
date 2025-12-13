@@ -15,7 +15,7 @@ MinMax find_min_max(const std::vector<int>& data) {
 
     auto op = [](MinMax a, MinMax b) { return MinMax{std::min(a.min, b.min), std::max(a.max, b.max)}; };
 
-    return ilp::reduce_range_auto<ilp::LoopType::MinMax>(data, init, op, [&](auto&& val) { return MinMax{val, val}; });
+    return ilp::transform_reduce_auto<ilp::LoopType::MinMax>(data, init, op, [&](auto&& val) { return MinMax{val, val}; });
 }
 
 int main() {

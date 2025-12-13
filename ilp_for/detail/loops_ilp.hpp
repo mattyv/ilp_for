@@ -451,6 +451,36 @@ namespace ilp {
             return end_it;
         }
 
+        // Value-based find - returns iterator (like std::find)
+        template<std::size_t N, std::ranges::random_access_range Range, typename T>
+            requires std::equality_comparable_with<std::ranges::range_reference_t<Range>, const T&>
+        auto find_value_impl(Range&& range, const T& value) {
+            validate_unroll_factor<N>();
+
+            auto it = std::ranges::begin(range);
+            auto end_it = std::ranges::end(range);
+            auto size = std::ranges::size(range);
+            std::size_t i = 0;
+
+            for (; i + N <= size; i += N) {
+                std::array<bool, N> matches;
+                for (std::size_t j = 0; j < N; ++j) {
+                    matches[j] = (it[i + j] == value);
+                }
+                for (std::size_t j = 0; j < N; ++j) {
+                    if (matches[j])
+                        return it + static_cast<std::ptrdiff_t>(i + j);
+                }
+            }
+
+            for (; i < size; ++i) {
+                if (it[i] == value)
+                    return it + static_cast<std::ptrdiff_t>(i);
+            }
+
+            return end_it;
+        }
+
         template<std::size_t N, std::integral T, typename Init, typename BinaryOp, typename F>
             requires ReduceBody<F, T>
         auto reduce_impl(T start, T end, Init&& init, BinaryOp op, F&& body) {
@@ -609,6 +639,72 @@ namespace ilp {
             }
         }
 
+        // Direct reduce (no transform) - like std::reduce
+        // Contiguous range version
+        template<std::size_t N, std::ranges::contiguous_range Range, typename T, typename BinaryOp>
+            requires DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+        T reduce_direct_impl(Range&& range, T init, BinaryOp op) {
+            validate_unroll_factor<N>();
+
+            auto* ptr = std::ranges::data(range);
+            auto size = std::ranges::size(range);
+
+            // Use N accumulators for ILP
+            auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+
+            std::size_t i = 0;
+            for (; i + N <= size; i += N) {
+                for (std::size_t j = 0; j < N; ++j) {
+                    accs[j] = op(accs[j], ptr[i + j]);
+                }
+            }
+
+            // Cleanup remaining elements
+            for (; i < size; ++i) {
+                accs[0] = op(accs[0], ptr[i]);
+            }
+
+            // Combine all accumulators
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                T out = init;
+                ((out = op(out, accs[Is])), ...);
+                return out;
+            }(std::make_index_sequence<N>{});
+        }
+
+        // Direct reduce - non-contiguous range version
+        template<std::size_t N, std::ranges::random_access_range Range, typename T, typename BinaryOp>
+            requires(!std::ranges::contiguous_range<Range>) &&
+                    DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+        T reduce_direct_impl(Range&& range, T init, BinaryOp op) {
+            validate_unroll_factor<N>();
+
+            auto it = std::ranges::begin(range);
+            auto size = std::ranges::size(range);
+
+            // Use N accumulators for ILP
+            auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+
+            std::size_t i = 0;
+            for (; i + N <= size; i += N) {
+                for (std::size_t j = 0; j < N; ++j) {
+                    accs[j] = op(accs[j], it[i + j]);
+                }
+            }
+
+            // Cleanup remaining elements
+            for (; i < size; ++i) {
+                accs[0] = op(accs[0], it[i]);
+            }
+
+            // Combine all accumulators
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                T out = init;
+                ((out = op(out, accs[Is])), ...);
+                return out;
+            }(std::make_index_sequence<N>{});
+        }
+
     } // namespace detail
 
     template<std::size_t N = 4, std::integral T, typename F>
@@ -623,10 +719,19 @@ namespace ilp {
         return detail::for_loop_typed_impl<R, N>(start, end, std::forward<F>(body));
     }
 
-    template<std::size_t N = 4, std::integral T, typename F>
-        requires std::invocable<F, T, T>
-    auto find(T start, T end, F&& body) {
-        return detail::find_impl<N>(start, end, std::forward<F>(body));
+    // Value-based find - returns iterator (like std::find)
+    template<std::size_t N = 4, std::ranges::random_access_range Range, typename T>
+        requires std::equality_comparable_with<std::ranges::range_reference_t<Range>, const T&>
+    auto find(Range&& range, const T& value) {
+        return detail::find_value_impl<N>(std::forward<Range>(range), value);
+    }
+
+    // Auto-selecting N for value-based find
+    template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename T>
+        requires std::equality_comparable_with<std::ranges::range_reference_t<Range>, const T&>
+    auto find_auto(Range&& range, const T& value) {
+        using ElemT = std::ranges::range_value_t<Range>;
+        return detail::find_value_impl<optimal_N<LT, ElemT>>(std::forward<Range>(range), value);
     }
 
     template<std::size_t N = 4, std::ranges::random_access_range Range, typename F>
@@ -651,34 +756,51 @@ namespace ilp {
         return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    // Simple bool-predicate find - returns iterator (end() if not found)
+    // Predicate-based find_if - returns iterator (like std::find_if)
     template<std::size_t N = 4, std::ranges::random_access_range Range, typename Pred>
-        requires std::invocable<Pred, std::ranges::range_reference_t<Range>> &&
-                 std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
-    auto find_range(Range&& range, Pred&& pred) {
+        requires std::predicate<Pred, std::ranges::range_reference_t<Range>>
+    auto find_if(Range&& range, Pred&& pred) {
         return detail::find_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
 
-    // Auto-selecting N based on CPU profile
+    // Auto-selecting N for predicate-based find_if
     template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename Pred>
-        requires std::invocable<Pred, std::ranges::range_reference_t<Range>> &&
-                 std::same_as<std::invoke_result_t<Pred, std::ranges::range_reference_t<Range>>, bool>
-    auto find_range_auto(Range&& range, Pred&& pred) {
+        requires std::predicate<Pred, std::ranges::range_reference_t<Range>>
+    auto find_if_auto(Range&& range, Pred&& pred) {
         using T = std::ranges::range_value_t<Range>;
         return detail::find_range_impl<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
 
-    template<std::size_t N = 4, std::integral T, typename Init, typename BinaryOp, typename F>
-        requires detail::ReduceBody<F, T>
-    auto reduce(T start, T end, Init&& init, BinaryOp op, F&& body) {
-        return detail::reduce_impl<N>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
+    // Direct reduce (no transform) - like std::reduce
+    template<std::size_t N = 4, std::ranges::random_access_range Range, typename T, typename BinaryOp = std::plus<>>
+        requires detail::DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+    T reduce(Range&& range, T init, BinaryOp op = {}) {
+        return detail::reduce_direct_impl<N>(std::forward<Range>(range), std::move(init), op);
     }
 
-    template<std::size_t N = 4, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
-        requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
-    auto reduce_range(Range&& range, Init&& init, BinaryOp op, F&& body) {
-        return detail::reduce_range_impl<N>(std::forward<Range>(range), std::forward<Init>(init), op,
-                                            std::forward<F>(body));
+    // Auto-selecting N for direct reduce
+    template<LoopType LT, std::ranges::random_access_range Range, typename T, typename BinaryOp = std::plus<>>
+        requires detail::DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+    T reduce_auto(Range&& range, T init, BinaryOp op = {}) {
+        using ElemT = std::ranges::range_value_t<Range>;
+        return detail::reduce_direct_impl<optimal_N<LT, ElemT>>(std::forward<Range>(range), std::move(init), op);
+    }
+
+    // Transform then reduce - like std::transform_reduce
+    template<std::size_t N = 4, std::ranges::random_access_range Range, typename T, typename BinaryOp, typename UnaryOp>
+        requires detail::TransformReducible<UnaryOp, BinaryOp, T, std::ranges::range_reference_t<Range>>
+    T transform_reduce(Range&& range, T init, BinaryOp reduce_op, UnaryOp transform) {
+        return detail::reduce_range_impl<N>(std::forward<Range>(range), std::move(init), reduce_op,
+                                            std::forward<UnaryOp>(transform));
+    }
+
+    // Auto-selecting N for transform_reduce
+    template<LoopType LT, std::ranges::random_access_range Range, typename T, typename BinaryOp, typename UnaryOp>
+        requires detail::TransformReducible<UnaryOp, BinaryOp, T, std::ranges::range_reference_t<Range>>
+    T transform_reduce_auto(Range&& range, T init, BinaryOp reduce_op, UnaryOp transform) {
+        using ElemT = std::ranges::range_value_t<Range>;
+        return detail::reduce_range_impl<optimal_N<LT, ElemT>>(std::forward<Range>(range), std::move(init), reduce_op,
+                                                               std::forward<UnaryOp>(transform));
     }
 
     template<LoopType LT, std::integral T, typename F>
@@ -707,25 +829,6 @@ namespace ilp {
         return for_loop_range_typed<R, optimal_N<LT, T>>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    template<LoopType LT = LoopType::Search, std::integral T, typename F>
-        requires std::invocable<F, T, T>
-    auto find_auto(T start, T end, F&& body) {
-        return detail::find_impl<optimal_N<LT, T>>(start, end, std::forward<F>(body));
-    }
-
-    template<LoopType LT, std::integral T, typename Init, typename BinaryOp, typename F>
-        requires detail::ReduceBody<F, T>
-    auto reduce_auto(T start, T end, Init&& init, BinaryOp op, F&& body) {
-        return reduce<optimal_N<LT, T>>(start, end, std::forward<Init>(init), op, std::forward<F>(body));
-    }
-
-    template<LoopType LT, std::ranges::random_access_range Range, typename Init, typename BinaryOp, typename F>
-        requires detail::ReduceRangeBody<F, std::ranges::range_reference_t<Range>>
-    auto reduce_range_auto(Range&& range, Init&& init, BinaryOp op, F&& body) {
-        using T = std::ranges::range_value_t<Range>;
-        return reduce_range<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<Init>(init), op,
-                                              std::forward<F>(body));
-    }
 
     template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename F>
         requires std::invocable<F, std::ranges::range_reference_t<Range>, std::size_t,

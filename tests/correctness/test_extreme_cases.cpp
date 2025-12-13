@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -21,13 +22,15 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
     // The init value should NOT be 4x when reduction completes
 
     SECTION("Empty range - should return init unchanged") {
-        auto result = ilp::reduce<4>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
+        std::vector<int> empty;
+        auto result = ilp::transform_reduce<4>(empty, 100, std::plus<>(), [&](auto i) { return i; });
         // Critical: Should be 100, not 400!
         REQUIRE(result == 100);
     }
 
     SECTION("Single element with init") {
-        auto result = ilp::reduce<4>(0, 1, 100, std::plus<>(), [&](auto i) { return i; });
+        std::vector<int> single = {0};
+        auto result = ilp::transform_reduce<4>(single, 100, std::plus<>(), [&](auto i) { return i; });
         // 100 + 0 = 100 (not 400 + 0)
         REQUIRE(result == 100);
     }
@@ -36,7 +39,7 @@ TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]")
 #if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 100, std::plus<>(), [&](auto) -> std::optional<int> {
         return std::nullopt; // Immediately break
     });
     // Should be 100, NOT 400
@@ -90,7 +93,7 @@ TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativit
     // Sequential: ((((100 - 1) - 2) - 3) - 4) - 5) = 85
     // But parallel accumulators might give different result
 
-    auto result = ilp::reduce<4>(1, 6, 100, std::minus<>(), [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 6), 100, std::minus<>(), [&](auto i) { return i; });
 
     // Note: This is implementation-defined behavior with multi-accumulator
     // Just verify it doesn't crash and returns something
@@ -105,7 +108,7 @@ TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativit
 TEST_CASE("Float reduce accumulation", "[extreme][float]") {
     std::vector<float> data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f};
 
-    auto result = ilp::reduce_range<4>(data, 0.0f, std::plus<>(), [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0.0f, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(result == Approx(1.5f).epsilon(0.001f));
 }
@@ -113,7 +116,7 @@ TEST_CASE("Float reduce accumulation", "[extreme][float]") {
 TEST_CASE("Double precision edge case", "[extreme][float]") {
     std::vector<double> data(100, 0.1);
 
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(result == Approx(10.0).epsilon(0.001));
 }
@@ -169,7 +172,7 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 TEST_CASE("std::array iteration", "[extreme][container]") {
     std::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
 
-    auto result = ilp::reduce_range<4>(arr, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(arr, 0, std::plus<>{}, [&](auto&& val) { return val; });
 
     REQUIRE(result == 28);
 }
@@ -220,11 +223,14 @@ TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Find at positions 0 through 15", "[extreme][find]") {
-    for (int target = 0; target <= 15; ++target) {
-        auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == target; });
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
 
-        REQUIRE(result != 100); // Found
-        REQUIRE(result == target);
+    for (int target = 0; target <= 15; ++target) {
+        auto it = ilp::find_if<4>(data, [&](auto val) { return val == target; });
+
+        REQUIRE(it != data.end()); // Found
+        REQUIRE(*it == target);
     }
 }
 
@@ -233,7 +239,7 @@ TEST_CASE("Find at positions 0 through 15", "[extreme][find]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("XOR reduction", "[extreme][reduce]") {
-    auto result = ilp::reduce<4>(0, 16, 0, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 16), 0, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
 
     int expected = 0;
     for (int i = 0; i < 16; ++i)
@@ -244,7 +250,7 @@ TEST_CASE("XOR reduction", "[extreme][reduce]") {
 TEST_CASE("AND reduction", "[extreme][reduce]") {
     std::vector<int> data = {0xFF, 0xF0, 0x0F, 0xFF};
 
-    auto result = ilp::reduce_range<4>(data, 0xFF, [](int a, int b) { return a & b; }, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0xFF, [](int a, int b) { return a & b; }, [&](auto&& val) { return val; });
 
     REQUIRE(result == 0x00); // 0xFF & 0xF0 & 0x0F & 0xFF = 0
 }
@@ -252,7 +258,7 @@ TEST_CASE("AND reduction", "[extreme][reduce]") {
 TEST_CASE("OR reduction", "[extreme][reduce]") {
     std::vector<int> data = {0x01, 0x02, 0x04, 0x08};
 
-    auto result = ilp::reduce_range<4>(data, 0, [](int a, int b) { return a | b; }, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, [](int a, int b) { return a | b; }, [&](auto&& val) { return val; });
 
     REQUIRE(result == 0x0F);
 }
@@ -261,14 +267,16 @@ TEST_CASE("OR reduction", "[extreme][reduce]") {
 // Ret-Simple Various Find Patterns
 // -----------------------------------------------------------------------------
 
-TEST_CASE("Find first negative", "[extreme][find]") {
-    auto result = ilp::find<4>(-10, 10, [&](auto i, auto end) {
-        if (i >= 0)
-            return i;
-        return end;
+TEST_CASE("Find first non-negative", "[extreme][find]") {
+    std::vector<int> data(20);
+    std::iota(data.begin(), data.end(), -10);
+
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val >= 0;
     });
 
-    REQUIRE(result == 0);
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 0);
 }
 
 // -----------------------------------------------------------------------------
@@ -277,17 +285,17 @@ TEST_CASE("Find first negative", "[extreme][find]") {
 
 TEST_CASE("Auto-select with various sizes", "[extreme][auto]") {
     SECTION("Small range") {
-        auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 5), 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 10);
     }
 
     SECTION("Medium range") {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 4950);
     }
 
     SECTION("Large range") {
-        auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 10000), 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 49995000);
     }
 }
@@ -337,7 +345,7 @@ TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Complex math in reduce", "[extreme][math]") {
-    auto result = ilp::reduce<4>(1, 11, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 11), 0, std::plus<>{}, [&](auto i) {
         return i * i; // Sum of squares
     });
 
@@ -345,7 +353,7 @@ TEST_CASE("Complex math in reduce", "[extreme][math]") {
 }
 
 TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
         if (i % 5 == 0)
             return i;
         return 0;

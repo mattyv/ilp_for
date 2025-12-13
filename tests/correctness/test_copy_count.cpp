@@ -200,7 +200,7 @@ TEST_CASE("Minimal copies in reduce_range return path - plain return (transform_
 
     // Plain return: uses transform_reduce path (SIMD optimized)
     auto result =
-        ilp::reduce_range<4>(data, CopyMoveCounter{0}, add_counters, [](int val) { return CopyMoveCounter(val); });
+        ilp::transform_reduce<4>(data, CopyMoveCounter{0}, add_counters, [](int val) { return CopyMoveCounter(val); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
@@ -213,7 +213,7 @@ TEST_CASE("Minimal copies in reduce_range return path - std::optional (nested lo
     std::vector<int> data = {0, 1, 2, 3};
 
     // std::optional return: uses nested loops path (supports early break)
-    auto result = ilp::reduce_range<4>(data, CopyMoveCounter{0}, add_counters,
+    auto result = ilp::transform_reduce<4>(data, CopyMoveCounter{0}, add_counters,
                                        [](int val) -> std::optional<CopyMoveCounter> { return CopyMoveCounter(val); });
 
     CHECK(result.value == 6);
@@ -302,7 +302,7 @@ TEST_CASE("Range-based reduce copy count with plain return", "[copy_count][reduc
     std::vector<int> data = {0, 1, 2, 3};
 
     // Plain return uses transform_reduce → 0 copies
-    auto result = ilp::reduce_range_auto<ilp::LoopType::Sum>(data, CopyMoveCounter{0}, add_counters,
+    auto result = ilp::transform_reduce_auto<ilp::LoopType::Sum>(data, CopyMoveCounter{0}, add_counters,
                                                              [&](auto val) { return CopyMoveCounter(val); });
 
     CHECK(result.value == 6);
@@ -354,7 +354,7 @@ TEST_CASE("Zero copies with range-based reduce and std::plus<>", "[copy_count][r
     std::vector<int> data = {0, 1, 2, 3};
 
     auto result =
-        ilp::reduce_range<4>(data, CopyMoveCounter{0}, std::plus<>{}, [](int val) { return CopyMoveCounter(val); });
+        ilp::transform_reduce<4>(data, CopyMoveCounter{0}, std::plus<>{}, [](int val) { return CopyMoveCounter(val); });
 
     CHECK(result.value == 6);
     INFO("Copies: " << CopyMoveCounter::copies << ", Moves: " << CopyMoveCounter::moves);
