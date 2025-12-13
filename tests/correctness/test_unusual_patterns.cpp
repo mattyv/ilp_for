@@ -3,6 +3,7 @@
 #include <bit>
 #include <exception>
 #include <limits>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -34,7 +35,7 @@ TEST_CASE("Exception thrown in loop body", "[unusual][exception]") {
 
 TEST_CASE("Exception in reduce body", "[unusual][exception]") {
     try {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
             if (i == 50)
                 throw std::runtime_error("test");
             return i;
@@ -93,14 +94,14 @@ TEST_CASE("All_of pattern (inverted)", "[unusual][pattern]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Reduce always returns zero", "[unusual][reduce]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto) {
         return 0; // Always zero
     });
     REQUIRE(result == 0);
 }
 
 TEST_CASE("Reduce always returns same value", "[unusual][reduce]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) {
         (void)i;
         return 42;
     });
@@ -191,7 +192,7 @@ TEST_CASE("Pointer arithmetic", "[unusual][pointer]") {
 TEST_CASE("Float NaN propagation", "[unusual][float]") {
     std::vector<double> data = {1.0, 2.0, std::nan(""), 4.0};
 
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(std::isnan(result));
 }
@@ -199,7 +200,7 @@ TEST_CASE("Float NaN propagation", "[unusual][float]") {
 TEST_CASE("Float infinity", "[unusual][float]") {
     std::vector<double> data = {1.0, 2.0, std::numeric_limits<double>::infinity()};
 
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
 
     REQUIRE(std::isinf(result));
 }
@@ -228,7 +229,7 @@ TEST_CASE("Returning multiple values", "[unusual][multiret]") {
 
 TEST_CASE("Bit counting", "[unusual][bits]") {
     auto popcount =
-        ilp::reduce<4>(0, 256, 0, std::plus<>{}, [&](auto i) { return std::popcount(static_cast<unsigned>(i)); });
+        ilp::transform_reduce<4>(std::views::iota(0, 256), 0, std::plus<>{}, [&](auto i) { return std::popcount(static_cast<unsigned>(i)); });
 
     // Sum of popcount for 0-255
     // Each bit position 0-7 is set in exactly 128 numbers
@@ -317,7 +318,7 @@ TEST_CASE("Large capture set", "[unusual][capture]") {
     int f = 6, g = 7, h = 8, i_outer = 9, j = 10;
 
     auto result =
-        ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) { return a + b + c + d + e + f + g + h + i_outer + j + i; });
+        ilp::transform_reduce<4>(std::views::iota(0, 5), 0, std::plus<>{}, [&](auto i) { return a + b + c + d + e + f + g + h + i_outer + j + i; });
 
     // (1+2+3+4+5+6+7+8+9+10) = 55 for each, plus 0+1+2+3+4 = 10
     REQUIRE(result == 55 * 5 + 10);
@@ -359,7 +360,7 @@ TEST_CASE("Reduce to pair", "[unusual][nonnum]") {
     auto op = [](Pair a, Pair b) { return Pair{std::min(a.first, b.first), std::max(a.second, b.second)}; };
     auto init = Pair{std::numeric_limits<int>::max(), std::numeric_limits<int>::min()};
 
-    auto result = ilp::reduce<4>(0, 100, init, op, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), init, op, [&](auto i) {
         return Pair{i, i}; // Both min and max candidate is i
     });
 
