@@ -338,36 +338,45 @@ TEST_CASE("Alternating continue pattern", "[edge][control]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Find returns sentinel when nothing found", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) {
-        return i == 999; // Never true
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val == 999; // Never true
     });
-    REQUIRE(result == 100); // Sentinel (end)
+    REQUIRE(it == data.end()); // Not found
 }
 
 TEST_CASE("Find first element", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 0; });
-    REQUIRE(result != 100);
-    REQUIRE(result == 0);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 0; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 0);
 }
 
 TEST_CASE("Find last element", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 99; });
-    REQUIRE(result != 100);
-    REQUIRE(result == 99);
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 99; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 99);
 }
 
 TEST_CASE("Find in remainder", "[edge][find]") {
     // N=4, range 0-10, find 9 (in remainder)
-    auto result = ilp::find<4>(0, 10, [&](auto i, auto) { return i == 9; });
-    REQUIRE(result != 10);
-    REQUIRE(result == 9);
+    std::vector<int> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) { return val == 9; });
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 9);
 }
 
 TEST_CASE("Find in empty range", "[edge][find]") {
-    auto result = ilp::find<4>(0, 0, [&](auto, auto) {
+    std::vector<int> empty;
+    auto it = ilp::find_if<4>(empty, [](auto) {
         return true; // Would find immediately, but empty
     });
-    REQUIRE(result == 0); // Sentinel (end of empty range)
+    REQUIRE(it == empty.end()); // Not found (empty)
 }
 
 TEST_CASE("Find range idx - empty vector", "[edge][find]") {
@@ -385,28 +394,30 @@ TEST_CASE("Find range idx - empty vector", "[edge][find]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("For-ret-simple finds value", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
-        if (i == 42)
-            return i;
-        return _ilp_end_;
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val == 42;
     });
-    REQUIRE(result == 42);
+    REQUIRE(it != data.end());
+    REQUIRE(*it == 42);
 }
 
 TEST_CASE("For-ret-simple finds nothing", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
-        if (i == 999)
-            return i;
-        return _ilp_end_;
+    std::vector<int> data(100);
+    std::iota(data.begin(), data.end(), 0);
+    auto it = ilp::find_if<4>(data, [](auto val) {
+        return val == 999;
     });
-    REQUIRE(result == 100); // Sentinel value
+    REQUIRE(it == data.end()); // Not found
 }
 
 TEST_CASE("For-ret-simple empty range", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 0, [&](auto i, auto) {
-        return i; // Would return immediately, but empty
+    std::vector<int> empty;
+    auto it = ilp::find_if<4>(empty, [](auto) {
+        return true; // Would return immediately, but empty
     });
-    REQUIRE(result == 0); // Returns end (sentinel)
+    REQUIRE(it == empty.end()); // Returns end
 }
 
 // -----------------------------------------------------------------------------
@@ -569,7 +580,7 @@ TEST_CASE("Vector of vectors - inner sum", "[edge][nested]") {
 
 TEST_CASE("Large range sum", "[edge][large]") {
     // Sum 0..9999
-    auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 10000), 0, std::plus<>{}, [](auto i) { return i; });
     REQUIRE(result == 49995000);
 }
 
@@ -578,7 +589,7 @@ TEST_CASE("Large vector sum", "[edge][large]") {
     for (int i = 0; i < 1000; ++i)
         data[i] = i;
 
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
     REQUIRE(result == 499500);
 }
 
@@ -611,7 +622,7 @@ TEST_CASE("Large offset range", "[edge][offset]") {
 #if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>(), [](auto i) -> std::optional<int> {
         if (i >= 10)
             return std::nullopt;
         return i;
@@ -620,7 +631,7 @@ TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
 }
 
 TEST_CASE("Reduce breaks on first", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> { return std::nullopt; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 100, std::plus<>(), [](auto) -> std::optional<int> { return std::nullopt; });
     REQUIRE(result == 100); // Initial value
 }
 
@@ -657,7 +668,7 @@ TEST_CASE("Vector push_back in loop", "[edge][state]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Sum with modulo filter", "[edge][mixed]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [](auto i) {
         if (i % 3 == 0)
             return i;
         return 0;
@@ -667,7 +678,7 @@ TEST_CASE("Sum with modulo filter", "[edge][mixed]") {
 }
 
 TEST_CASE("Product of range", "[edge][mixed]") {
-    auto result = ilp::reduce<4>(1, 6, 1, std::multiplies<>(), [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 6), 1, std::multiplies<>(), [](auto i) { return i; });
     REQUIRE(result == 120); // 5!
 }
 
@@ -710,13 +721,13 @@ TEST_CASE("N+1 elements", "[edge][boundary]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Auto-select reduce sum", "[edge][auto]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [](auto i) { return i; });
     REQUIRE(result == 4950);
 }
 
 TEST_CASE("Auto-select range sum", "[edge][auto]") {
     std::vector<int> data = {1, 2, 3, 4, 5};
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
     REQUIRE(result == 15);
 }
 
@@ -777,7 +788,7 @@ TEST_CASE("Sum near max int", "[edge][overflow]") {
                              std::numeric_limits<int>::max() / 4, std::numeric_limits<int>::max() / 4};
 
     // Just verify it doesn't crash - overflow behavior is defined by int
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
+    auto result = ilp::transform_reduce<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
     (void)result; // Just checking it runs
 }
 
@@ -815,7 +826,7 @@ TEST_CASE("Range iteration order preserved", "[edge][order]") {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("Complex arithmetic in body", "[edge][complex]") {
-    auto result = ilp::reduce<4>(1, 11, 0, std::plus<>{}, [&](auto i) { return (i * i - i + 1) * 2 - i; });
+    auto result = ilp::transform_reduce<4>(std::views::iota(1, 11), 0, std::plus<>{}, [](auto i) { return (i * i - i + 1) * 2 - i; });
 
     int expected = 0;
     for (int i = 1; i < 11; ++i) {
