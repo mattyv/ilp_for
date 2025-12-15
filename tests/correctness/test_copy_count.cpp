@@ -116,7 +116,7 @@ TEST_CASE("No copies in find with optional return", "[copy_count]") {
 
     std::vector<int> indices(10);
     std::iota(indices.begin(), indices.end(), 0);
-    auto result = ilp::find<4>(indices, [](int i) -> std::optional<CopyMoveCounter> {
+    auto result = ilp::find_if<4>(indices, [](int i) -> std::optional<CopyMoveCounter> {
         if (i == 5) {
             return CopyMoveCounter(i * 10);
         }
@@ -132,7 +132,7 @@ TEST_CASE("No copies in find with optional return", "[copy_count]") {
 TEST_CASE("Move-only type works with find", "[copy_count][compile-time]") {
     std::vector<int> indices(10);
     std::iota(indices.begin(), indices.end(), 0);
-    auto result = ilp::find<4>(indices, [](int i) -> std::optional<MoveOnly> {
+    auto result = ilp::find_if<4>(indices, [](int i) -> std::optional<MoveOnly> {
         if (i == 5) {
             return std::make_optional(MoveOnly(i * 10));
         }

@@ -21,7 +21,7 @@ size_t to_index(std::span<const int> arr, auto it) {
     return static_cast<size_t>(it - arr.begin());
 }
 
-TEST_CASE("ilp::find_if basic functionality", "[find_if][basic]") {
+TEST_CASE("ilp::find_if basic functionality (range)", "[find_if][basic][range]") {
     std::vector<int> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23};
     std::span<const int> arr(data);
 
@@ -52,7 +52,7 @@ TEST_CASE("ilp::find_if basic functionality", "[find_if][basic]") {
     }
 }
 
-TEST_CASE("ilp::find_if edge cases", "[find_if][edge]") {
+TEST_CASE("ilp::find_if edge cases (range)", "[find_if][edge][range]") {
     SECTION("empty range") {
         std::vector<int> empty;
         std::span<const int> arr(empty);
@@ -224,7 +224,7 @@ TEST_CASE("ilp::find_if finds first match when duplicates exist", "[find_if][dup
     REQUIRE(to_index(arr, it) == 1); // First occurrence
 }
 
-TEST_CASE("ilp::find_if with complex predicate", "[find_if][predicate]") {
+TEST_CASE("ilp::find_if with complex predicate (range)", "[find_if][predicate][range]") {
     std::vector<int> data = {1, 4, 9, 16, 25, 36, 49, 64}; // Squares
     std::span<const int> arr(data);
 

@@ -35,16 +35,17 @@ std::optional<std::size_t> handrolled_find(std::span<const int> arr, int target)
 
 // ILP find using bool mode (returns index)
 std::size_t ilp_find_bool(std::span<const int> arr, int target) {
-    return ilp::find<4>(size_t(0), arr.size(), [&](auto i, auto) {
-        return arr[i] == target; // bool mode
+    auto it = ilp::find_if<4>(arr, [&](auto val) {
+        return val == target; // bool predicate
     });
+    return it != arr.end() ? static_cast<std::size_t>(it - arr.begin()) : arr.size();
 }
 
 // ILP find using optional mode (returns value)
 std::optional<int> ilp_find_optional(std::span<const int> arr, int target) {
-    return ilp::find<4>(size_t(0), arr.size(), [&](auto i, auto) -> std::optional<int> {
-        if (arr[i] == target)
-            return arr[i] * 2; // return computed value
+    return ilp::find_if<4>(arr, [&](auto val) -> std::optional<int> {
+        if (val == target)
+            return val * 2; // return computed value
         return std::nullopt;
     });
 }

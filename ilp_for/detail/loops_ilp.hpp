@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <concepts>
 #include <cstddef>
@@ -421,34 +422,48 @@ namespace ilp {
             }
         }
 
-        // Range-based find with simple bool predicate - returns iterator
+        // Range-based find with predicate - supports bool or optional<T> return
+        // If predicate returns bool: returns iterator (like std::find_if)
+        // If predicate returns optional<T>: returns optional<T> (find with transform)
         template<std::size_t N, std::ranges::random_access_range Range, typename Pred>
-            requires PredicateRangeBody<Pred, std::ranges::range_reference_t<Range>>
+            requires PredicateOrOptional<Pred, std::ranges::range_reference_t<Range>>
         auto find_range_impl(Range&& range, Pred&& pred) {
             validate_unroll_factor<N>();
+
+            using Elem = std::ranges::range_reference_t<Range>;
+            using PredResult = std::invoke_result_t<Pred, Elem>;
 
             auto it = std::ranges::begin(range);
             auto end_it = std::ranges::end(range);
             auto size = std::ranges::size(range);
-            std::size_t i = 0;
 
-            for (; i + N <= size; i += N) {
-                std::array<bool, N> matches;
-                for (std::size_t j = 0; j < N; ++j) {
-                    matches[j] = pred(it[i + j]);
+            if constexpr (is_optional_v<PredResult>) {
+                // Predicate returns optional<T> - "find with transform" pattern
+                // Returns the first non-nullopt result
+                std::size_t i = 0;
+
+                for (; i + N <= size; i += N) {
+                    std::array<PredResult, N> results;
+                    for (std::size_t j = 0; j < N; ++j) {
+                        results[j] = pred(it[i + j]);
+                    }
+                    for (std::size_t j = 0; j < N; ++j) {
+                        if (results[j].has_value())
+                            return std::move(results[j]);
+                    }
                 }
-                for (std::size_t j = 0; j < N; ++j) {
-                    if (matches[j])
-                        return it + static_cast<std::ptrdiff_t>(i + j);
+
+                for (; i < size; ++i) {
+                    auto result = pred(it[i]);
+                    if (result.has_value())
+                        return result;
                 }
-            }
 
-            for (; i < size; ++i) {
-                if (pred(it[i]))
-                    return it + static_cast<std::ptrdiff_t>(i);
+                return PredResult{std::nullopt};
+            } else {
+                // Predicate returns bool - delegate to std::find_if for best performance
+                return std::find_if(it, end_it, std::forward<Pred>(pred));
             }
-
-            return end_it;
         }
 
         // Value-based find - returns iterator (like std::find)
@@ -586,7 +601,25 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                return std::transform_reduce(ptr, ptr + size, std::forward<Init>(init), op, body);
+                // Use ILP implementation - std::transform_reduce doesn't vectorize with lambdas
+                auto accs = make_accumulators<N, BinaryOp, ResultT>(op, std::forward<Init>(init));
+
+                std::size_t i = 0;
+                for (; i + N <= size; i += N) {
+                    for (std::size_t j = 0; j < N; ++j) {
+                        accs[j] = op(accs[j], body(ptr[i + j]));
+                    }
+                }
+
+                for (; i < size; ++i) {
+                    accs[0] = op(accs[0], body(ptr[i]));
+                }
+
+                return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                    ResultT out = std::forward<Init>(init);
+                    ((out = op(out, accs[Is])), ...);
+                    return out;
+                }(std::make_index_sequence<N>{});
             }
         }
 
@@ -634,75 +667,134 @@ namespace ilp {
                     return out;
                 }(std::make_index_sequence<N>{});
             } else {
-                return std::transform_reduce(std::ranges::begin(range), std::ranges::end(range),
-                                             std::forward<Init>(init), op, body);
+                // Use ILP implementation - std::transform_reduce doesn't vectorize with lambdas
+                auto accs = make_accumulators<N, BinaryOp, ResultT>(op, std::forward<Init>(init));
+
+                std::size_t i = 0;
+                for (; i + N <= size; i += N) {
+                    for (std::size_t j = 0; j < N; ++j) {
+                        accs[j] = op(accs[j], body(it[i + j]));
+                    }
+                }
+
+                for (; i < size; ++i) {
+                    accs[0] = op(accs[0], body(it[i]));
+                }
+
+                return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                    ResultT out = std::forward<Init>(init);
+                    ((out = op(out, accs[Is])), ...);
+                    return out;
+                }(std::make_index_sequence<N>{});
             }
         }
 
-        // Direct reduce (no transform) - like std::reduce
+        // Direct reduce (no transform) - like std::reduce, but with optional early exit support
         // Contiguous range version
         template<std::size_t N, std::ranges::contiguous_range Range, typename T, typename BinaryOp>
-            requires DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+            requires DirectReducibleOrOptional<BinaryOp, T, std::ranges::range_reference_t<Range>>
         T reduce_direct_impl(Range&& range, T init, BinaryOp op) {
             validate_unroll_factor<N>();
 
-            auto* ptr = std::ranges::data(range);
-            auto size = std::ranges::size(range);
+            using Elem = std::ranges::range_reference_t<Range>;
+            using OpResult = std::invoke_result_t<BinaryOp, T, Elem>;
 
-            // Use N accumulators for ILP
-            auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+            if constexpr (is_optional_v<OpResult>) {
+                // ILP early-exit implementation
+                auto* ptr = std::ranges::data(range);
+                auto size = std::ranges::size(range);
 
-            std::size_t i = 0;
-            for (; i + N <= size; i += N) {
-                for (std::size_t j = 0; j < N; ++j) {
-                    accs[j] = op(accs[j], ptr[i + j]);
+                auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+
+                std::size_t i = 0;
+                bool should_break = false;
+
+                for (; i + N <= size && !should_break; i += N) {
+                    for (std::size_t j = 0; j < N && !should_break; ++j) {
+                        auto result = op(accs[j], ptr[i + j]);
+                        if (!result) {
+                            should_break = true;
+                        } else {
+                            accs[j] = *result;
+                        }
+                    }
                 }
-            }
 
-            // Cleanup remaining elements
-            for (; i < size; ++i) {
-                accs[0] = op(accs[0], ptr[i]);
-            }
+                for (; i < size && !should_break; ++i) {
+                    auto result = op(accs[0], ptr[i]);
+                    if (!result) {
+                        should_break = true;
+                    } else {
+                        accs[0] = *result;
+                    }
+                }
 
-            // Combine all accumulators
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                // Combine all accumulators - use a non-optional combiner
                 T out = init;
-                ((out = op(out, accs[Is])), ...);
+                for (std::size_t j = 0; j < N; ++j) {
+                    // For combining, we need to call op but handle the optional
+                    // Since we're just combining accumulators, use the values directly
+                    auto combined = op(out, accs[j]);
+                    if (combined) out = *combined;
+                }
                 return out;
-            }(std::make_index_sequence<N>{});
+            } else {
+                // No early exit - delegate to std::reduce for best performance
+                return std::reduce(std::ranges::begin(range), std::ranges::end(range), init, op);
+            }
         }
 
         // Direct reduce - non-contiguous range version
         template<std::size_t N, std::ranges::random_access_range Range, typename T, typename BinaryOp>
             requires(!std::ranges::contiguous_range<Range>) &&
-                    DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+                    DirectReducibleOrOptional<BinaryOp, T, std::ranges::range_reference_t<Range>>
         T reduce_direct_impl(Range&& range, T init, BinaryOp op) {
             validate_unroll_factor<N>();
 
-            auto it = std::ranges::begin(range);
-            auto size = std::ranges::size(range);
+            using Elem = std::ranges::range_reference_t<Range>;
+            using OpResult = std::invoke_result_t<BinaryOp, T, Elem>;
 
-            // Use N accumulators for ILP
-            auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+            if constexpr (is_optional_v<OpResult>) {
+                // ILP early-exit implementation
+                auto it = std::ranges::begin(range);
+                auto size = std::ranges::size(range);
 
-            std::size_t i = 0;
-            for (; i + N <= size; i += N) {
-                for (std::size_t j = 0; j < N; ++j) {
-                    accs[j] = op(accs[j], it[i + j]);
+                auto accs = make_accumulators<N, BinaryOp, T>(op, init);
+
+                std::size_t i = 0;
+                bool should_break = false;
+
+                for (; i + N <= size && !should_break; i += N) {
+                    for (std::size_t j = 0; j < N && !should_break; ++j) {
+                        auto result = op(accs[j], it[i + j]);
+                        if (!result) {
+                            should_break = true;
+                        } else {
+                            accs[j] = *result;
+                        }
+                    }
                 }
-            }
 
-            // Cleanup remaining elements
-            for (; i < size; ++i) {
-                accs[0] = op(accs[0], it[i]);
-            }
+                for (; i < size && !should_break; ++i) {
+                    auto result = op(accs[0], it[i]);
+                    if (!result) {
+                        should_break = true;
+                    } else {
+                        accs[0] = *result;
+                    }
+                }
 
-            // Combine all accumulators
-            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                // Combine all accumulators
                 T out = init;
-                ((out = op(out, accs[Is])), ...);
+                for (std::size_t j = 0; j < N; ++j) {
+                    auto combined = op(out, accs[j]);
+                    if (combined) out = *combined;
+                }
                 return out;
-            }(std::make_index_sequence<N>{});
+            } else {
+                // No early exit - delegate to std::reduce for best performance
+                return std::reduce(std::ranges::begin(range), std::ranges::end(range), init, op);
+            }
         }
 
     } // namespace detail
@@ -756,31 +848,35 @@ namespace ilp {
         return detail::find_range_idx_impl<N>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    // Predicate-based find_if - returns iterator (like std::find_if)
+    // Predicate-based find_if - supports bool or optional<T> return
+    // If Pred returns bool: returns iterator (like std::find_if), delegates to std::find_if
+    // If Pred returns optional<T>: returns optional<T> (find with transform), uses ILP impl
     template<std::size_t N = 4, std::ranges::random_access_range Range, typename Pred>
-        requires std::predicate<Pred, std::ranges::range_reference_t<Range>>
+        requires detail::PredicateOrOptional<Pred, std::ranges::range_reference_t<Range>>
     auto find_if(Range&& range, Pred&& pred) {
         return detail::find_range_impl<N>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
 
     // Auto-selecting N for predicate-based find_if
     template<LoopType LT = LoopType::Search, std::ranges::random_access_range Range, typename Pred>
-        requires std::predicate<Pred, std::ranges::range_reference_t<Range>>
+        requires detail::PredicateOrOptional<Pred, std::ranges::range_reference_t<Range>>
     auto find_if_auto(Range&& range, Pred&& pred) {
         using T = std::ranges::range_value_t<Range>;
         return detail::find_range_impl<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<Pred>(pred));
     }
 
-    // Direct reduce (no transform) - like std::reduce
+    // Direct reduce (no transform) - like std::reduce, but with optional early exit support
+    // If BinaryOp returns T: delegates to std::reduce for best performance
+    // If BinaryOp returns std::optional<T>: uses ILP early-exit implementation
     template<std::size_t N = 4, std::ranges::random_access_range Range, typename T, typename BinaryOp = std::plus<>>
-        requires detail::DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+        requires detail::DirectReducibleOrOptional<BinaryOp, T, std::ranges::range_reference_t<Range>>
     T reduce(Range&& range, T init, BinaryOp op = {}) {
         return detail::reduce_direct_impl<N>(std::forward<Range>(range), std::move(init), op);
     }
 
     // Auto-selecting N for direct reduce
     template<LoopType LT, std::ranges::random_access_range Range, typename T, typename BinaryOp = std::plus<>>
-        requires detail::DirectReducible<BinaryOp, T, std::ranges::range_reference_t<Range>>
+        requires detail::DirectReducibleOrOptional<BinaryOp, T, std::ranges::range_reference_t<Range>>
     T reduce_auto(Range&& range, T init, BinaryOp op = {}) {
         using ElemT = std::ranges::range_value_t<Range>;
         return detail::reduce_direct_impl<optimal_N<LT, ElemT>>(std::forward<Range>(range), std::move(init), op);

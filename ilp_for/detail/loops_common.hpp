@@ -112,6 +112,12 @@ namespace ilp {
         concept DirectReducible = std::invocable<BinaryOp, T, Elem> &&
                                   std::convertible_to<std::invoke_result_t<BinaryOp, T, Elem>, T>;
 
+        // For direct reduce with optional early exit - BinaryOp can return T or std::optional<T>
+        template<typename BinaryOp, typename T, typename Elem>
+        concept DirectReducibleOrOptional = std::invocable<BinaryOp, T, Elem> &&
+            (std::convertible_to<std::invoke_result_t<BinaryOp, T, Elem>, T> ||
+             std::same_as<std::invoke_result_t<BinaryOp, T, Elem>, std::optional<T>>);
+
         // Helper to get value type from T or std::optional<T>
         template<typename T>
         struct unwrap_optional { using type = T; };
@@ -134,6 +140,12 @@ namespace ilp {
 
         template<typename F, typename Ref>
         concept PredicateRangeBody = std::invocable<F, Ref> && std::same_as<std::invoke_result_t<F, Ref>, bool>;
+
+        // For find_if with optional support - predicate can return bool or std::optional<T>
+        template<typename F, typename Ref>
+        concept PredicateOrOptional = std::invocable<F, Ref> &&
+            (std::same_as<std::invoke_result_t<F, Ref>, bool> ||
+             is_optional_v<std::invoke_result_t<F, Ref>>);
 
         template<typename F, typename Ref, typename Iter>
         concept FindRangeIdxBody = std::invocable<F, Ref, std::size_t, Iter>;

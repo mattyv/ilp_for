@@ -294,7 +294,7 @@ TEST_CASE("reduce_sum uses correct zero init", "[accumulator][correct]") {
     }
 
     SECTION("Range sum") {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
+        auto result = ilp::transform_reduce<4>(std::views::iota(0, 100), 0, std::plus<>{}, [&](auto i) { return i; });
         REQUIRE(result == 4950);
     }
 }
