@@ -101,54 +101,5 @@ namespace ilp {
         template<typename F, typename Ref, typename R>
         concept ForRangeTypedCtrlBody = std::invocable<F, Ref, ForCtrlTyped<R>&>;
 
-        template<typename F, typename T>
-        concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
-
-        template<typename F, typename Ref>
-        concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
-
-        // For direct reduce (no transform) - element directly usable with BinaryOp
-        template<typename BinaryOp, typename T, typename Elem>
-        concept DirectReducible = std::invocable<BinaryOp, T, Elem> &&
-                                  std::convertible_to<std::invoke_result_t<BinaryOp, T, Elem>, T>;
-
-        // For direct reduce with optional early exit - BinaryOp can return T or std::optional<T>
-        template<typename BinaryOp, typename T, typename Elem>
-        concept DirectReducibleOrOptional = std::invocable<BinaryOp, T, Elem> &&
-            (std::convertible_to<std::invoke_result_t<BinaryOp, T, Elem>, T> ||
-             std::same_as<std::invoke_result_t<BinaryOp, T, Elem>, std::optional<T>>);
-
-        // Helper to get value type from T or std::optional<T>
-        template<typename T>
-        struct unwrap_optional { using type = T; };
-        template<typename T>
-        struct unwrap_optional<std::optional<T>> { using type = T; };
-        template<typename T>
-        using unwrap_optional_t = typename unwrap_optional<T>::type;
-
-        // For transform_reduce - transform result usable with BinaryOp
-        // Supports both direct returns and std::optional<T> returns (for early exit)
-        template<typename UnaryOp, typename BinaryOp, typename T, typename Elem>
-        concept TransformReducible = std::invocable<UnaryOp, Elem> &&
-                                     DirectReducible<BinaryOp, T, unwrap_optional_t<std::invoke_result_t<UnaryOp, Elem>>>;
-
-        template<typename F, typename T>
-        concept FindBody = std::invocable<F, T, T>;
-
-        template<typename F, typename T>
-        concept PredicateBody = std::invocable<F, T> && std::same_as<std::invoke_result_t<F, T>, bool>;
-
-        template<typename F, typename Ref>
-        concept PredicateRangeBody = std::invocable<F, Ref> && std::same_as<std::invoke_result_t<F, Ref>, bool>;
-
-        // For find_if with optional support - predicate can return bool or std::optional<T>
-        template<typename F, typename Ref>
-        concept PredicateOrOptional = std::invocable<F, Ref> &&
-            (std::same_as<std::invoke_result_t<F, Ref>, bool> ||
-             is_optional_v<std::invoke_result_t<F, Ref>>);
-
-        template<typename F, typename Ref, typename Iter>
-        concept FindRangeIdxBody = std::invocable<F, Ref, std::size_t, Iter>;
-
     } // namespace detail
 } // namespace ilp

@@ -202,38 +202,8 @@ TEST_CASE("Range outer, index inner", "[nesting][mixed]") {
 }
 
 // -----------------------------------------------------------------------------
-// Nested Reduce Operations
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Nested reduce - sum of products", "[nesting][reduce]") {
-    int total = 0;
-
-    ILP_FOR(auto i, 1, 5, 4) {
-        auto product = ilp::transform_reduce<4>(std::views::iota(1, 4), 1, std::multiplies<>{}, [](auto j) { return j; });
-        total += product * i;
-    }
-    ILP_END;
-
-    // product = 1*2*3 = 6 for each i
-    // total = 6*1 + 6*2 + 6*3 + 6*4 = 60
-    REQUIRE(total == 60);
-}
-
-TEST_CASE("Nested reduce - matrix sum", "[nesting][reduce]") {
-    std::vector<std::vector<int>> matrix = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-
-    auto result = ilp::transform_reduce<4>(matrix, 0, std::plus<>{}, [](auto&& row) {
-        return ilp::transform_reduce<4>(row, 0, std::plus<>{}, [](auto&& val) { return val; });
-    });
-
-    REQUIRE(result == 45);
-}
-
-// -----------------------------------------------------------------------------
 // Nested with Control Flow
 // -----------------------------------------------------------------------------
-
-#if !defined(ILP_MODE_SIMPLE)
 
 TEST_CASE("Nested loops - break inner", "[nesting][control]") {
     int count = 0;
@@ -267,8 +237,6 @@ TEST_CASE("Nested loops - continue inner", "[nesting][control]") {
     // 1+3+5+7+9 = 25, done 3 times = 75
     REQUIRE(sum == 75);
 }
-
-#endif
 
 // -----------------------------------------------------------------------------
 // Stress: Many Iterations in Nested Loops
@@ -333,27 +301,6 @@ TEST_CASE("Different N at each nesting level", "[nesting][varied]") {
     ILP_END;
 
     REQUIRE(count == 625); // 5^4
-}
-
-// -----------------------------------------------------------------------------
-// Nested with Reductions at Each Level
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Reduce at each nesting level", "[nesting][reduce]") {
-    auto level4 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
-        auto level3 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
-            auto level2 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto) {
-                auto level1 = ilp::transform_reduce<4>(std::views::iota(0, 3), 0, std::plus<>{}, [](auto l) { return l; });
-                return level1;
-            });
-            return level2;
-        });
-        return level3;
-    });
-
-    // Sum 0..2 = 3 at each level, multiplied by number of iterations
-    // 3 * 3 * 3 * 3 = 81
-    REQUIRE(level4 == 81);
 }
 
 // -----------------------------------------------------------------------------

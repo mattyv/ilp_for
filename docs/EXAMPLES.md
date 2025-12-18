@@ -53,41 +53,6 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 
 ---
 
-# Function API
-
-Alternative `std::`-style functions with early exit support.
-
-## Find First Match
-
-ilp::find for early-exit search (std::find alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/rM16zfvW1) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
-
-[Source code](../godbolt_examples/find_first_match.cpp)
-
----
-
-## Parallel Minimum
-
-ilp::reduce breaking dependency chains (std::min_element alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/ffWb68TYs) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
-
-[Source code](../godbolt_examples/parallel_min.cpp)
-
----
-
-## Sum with Early Exit
-
-ilp::reduce with early termination (std::accumulate alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/bMhKqf1Kh) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
-
-[Source code](../godbolt_examples/sum_with_break.cpp)
-
----
-
-
 ## How to Use
 
 1. Click a Godbolt link for your target architecture
