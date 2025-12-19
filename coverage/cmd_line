@@ -1,1 +1,1 @@
-genhtml coverage.info --output-directory coverage_html
+genhtml /home/mvarendorff/Documents/Code/cpp/ilp_for/tests/build/coverage.info --output-directory /home/mvarendorff/Documents/Code/cpp/ilp_for/tests/build/coverage_html
