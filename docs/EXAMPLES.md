@@ -9,10 +9,6 @@ Each example shows three versions:
 
 ---
 
-# ILP_FOR Macro
-
-The primary API for loops with `break`, `continue`, or `return`.
-
 ## Loop with Break
 
 ILP_FOR with ILP_BREAK showing early exit from unrolled loop
@@ -27,7 +23,7 @@ ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
 Why #pragma unroll doesn't help for early-exit loops - look for per-iteration bounds checks
 
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/Mh4aTP5j7) | [x86-64 GCC](https://godbolt.org/z/6najPjd3a) | [ARM64](https://godbolt.org/z/7dnxEoWbc)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/Eenb8P83T) | [x86-64 GCC](https://godbolt.org/z/7nhsh4W8z) | [ARM64](https://godbolt.org/z/PbfceW1P6)
 
 [Source code](../godbolt_examples/pragma_vs_ilp.cpp)
 
@@ -52,6 +48,7 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 [Source code](../godbolt_examples/loop_with_return_typed.cpp)
 
 ---
+
 
 ## How to Use
 
