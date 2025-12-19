@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -11,40 +12,6 @@
 // =============================================================================
 // EXTREME TESTS: Push boundaries even further
 // =============================================================================
-
-// -----------------------------------------------------------------------------
-// Accumulator Init Value Multiplication Issue
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Reduce init value is NOT multiplied by N", "[critical][accumulator]") {
-    // With N=4, there are 4 accumulators
-    // The init value should NOT be 4x when reduction completes
-
-    SECTION("Empty range - should return init unchanged") {
-        auto result = ilp::reduce<4>(0, 0, 100, std::plus<>(), [&](auto i) { return i; });
-        // Critical: Should be 100, not 400!
-        REQUIRE(result == 100);
-    }
-
-    SECTION("Single element with init") {
-        auto result = ilp::reduce<4>(0, 1, 100, std::plus<>(), [&](auto i) { return i; });
-        // 100 + 0 = 100 (not 400 + 0)
-        REQUIRE(result == 100);
-    }
-}
-
-#if !defined(ILP_MODE_SIMPLE)
-
-TEST_CASE("Reduce break on first returns init correctly", "[critical][accumulator]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> {
-        return std::nullopt; // Immediately break
-    });
-    // Should be 100, NOT 400
-    INFO("Result should be init value (100), not N*init (400)");
-    REQUIRE(result == 100);
-}
-
-#endif
 
 // -----------------------------------------------------------------------------
 // Zero and One Element Edge Cases
@@ -79,43 +46,6 @@ TEST_CASE("Zero elements with various N values", "[extreme][zero]") {
     REQUIRE(count2 == 0);
     REQUIRE(count4 == 0);
     REQUIRE(count8 == 0);
-}
-
-// -----------------------------------------------------------------------------
-// Non-Associative Operation Results
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Subtraction reduce - parallel vs sequential", "[extreme][associativity]") {
-    // With parallel accumulators, subtraction behaves differently
-    // Sequential: ((((100 - 1) - 2) - 3) - 4) - 5) = 85
-    // But parallel accumulators might give different result
-
-    auto result = ilp::reduce<4>(1, 6, 100, std::minus<>(), [&](auto i) { return i; });
-
-    // Note: This is implementation-defined behavior with multi-accumulator
-    // Just verify it doesn't crash and returns something
-    INFO("Non-associative ops have implementation-defined results");
-    (void)result; // Don't assert specific value
-}
-
-// -----------------------------------------------------------------------------
-// Floating Point Edge Cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Float reduce accumulation", "[extreme][float]") {
-    std::vector<float> data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f};
-
-    auto result = ilp::reduce_range<4>(data, 0.0f, std::plus<>(), [&](auto&& val) { return val; });
-
-    REQUIRE(result == Approx(1.5f).epsilon(0.001f));
-}
-
-TEST_CASE("Double precision edge case", "[extreme][float]") {
-    std::vector<double> data(100, 0.1);
-
-    auto result = ilp::reduce_range<4>(data, 0.0, std::plus<>(), [&](auto&& val) { return val; });
-
-    REQUIRE(result == Approx(10.0).epsilon(0.001));
 }
 
 // -----------------------------------------------------------------------------
@@ -163,18 +93,6 @@ TEST_CASE("Array indices at boundaries", "[extreme][boundary]") {
 }
 
 // -----------------------------------------------------------------------------
-// Mixed Container Types
-// -----------------------------------------------------------------------------
-
-TEST_CASE("std::array iteration", "[extreme][container]") {
-    std::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
-
-    auto result = ilp::reduce_range<4>(arr, 0, std::plus<>{}, [&](auto&& val) { return val; });
-
-    REQUIRE(result == 28);
-}
-
-// -----------------------------------------------------------------------------
 // Nested Loops Stress
 // -----------------------------------------------------------------------------
 
@@ -216,109 +134,6 @@ TEST_CASE("Nested loops with outer variable capture", "[extreme][nested]") {
 }
 
 // -----------------------------------------------------------------------------
-// For-Until in Every Position
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Find at positions 0 through 15", "[extreme][find]") {
-    for (int target = 0; target <= 15; ++target) {
-        auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == target; });
-
-        REQUIRE(result != 100); // Found
-        REQUIRE(result == target);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Reduce with Different Binary Operations
-// -----------------------------------------------------------------------------
-
-TEST_CASE("XOR reduction", "[extreme][reduce]") {
-    auto result = ilp::reduce<4>(0, 16, 0, [](int a, int b) { return a ^ b; }, [&](auto i) { return i; });
-
-    int expected = 0;
-    for (int i = 0; i < 16; ++i)
-        expected ^= i;
-    REQUIRE(result == expected);
-}
-
-TEST_CASE("AND reduction", "[extreme][reduce]") {
-    std::vector<int> data = {0xFF, 0xF0, 0x0F, 0xFF};
-
-    auto result = ilp::reduce_range<4>(data, 0xFF, [](int a, int b) { return a & b; }, [&](auto&& val) { return val; });
-
-    REQUIRE(result == 0x00); // 0xFF & 0xF0 & 0x0F & 0xFF = 0
-}
-
-TEST_CASE("OR reduction", "[extreme][reduce]") {
-    std::vector<int> data = {0x01, 0x02, 0x04, 0x08};
-
-    auto result = ilp::reduce_range<4>(data, 0, [](int a, int b) { return a | b; }, [&](auto&& val) { return val; });
-
-    REQUIRE(result == 0x0F);
-}
-
-// -----------------------------------------------------------------------------
-// Ret-Simple Various Find Patterns
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Find first negative", "[extreme][find]") {
-    auto result = ilp::find<4>(-10, 10, [&](auto i, auto end) {
-        if (i >= 0)
-            return i;
-        return end;
-    });
-
-    REQUIRE(result == 0);
-}
-
-// -----------------------------------------------------------------------------
-// Auto-Select Stress
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Auto-select with various sizes", "[extreme][auto]") {
-    SECTION("Small range") {
-        auto result = ilp::reduce<4>(0, 5, 0, std::plus<>{}, [&](auto i) { return i; });
-        REQUIRE(result == 10);
-    }
-
-    SECTION("Medium range") {
-        auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
-        REQUIRE(result == 4950);
-    }
-
-    SECTION("Large range") {
-        auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) { return i; });
-        REQUIRE(result == 49995000);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Range with Index - Stress Test
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Range-idx finds each index", "[extreme][rangeidx]") {
-    std::vector<int> data = {10, 20, 30, 40, 50};
-
-    for (size_t target_idx = 0; target_idx < data.size(); ++target_idx) {
-        int found_val = -1;
-        size_t found_idx = SIZE_MAX;
-
-        auto it = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
-            if (idx == target_idx) {
-                found_val = val;
-                found_idx = idx;
-                return std::ranges::begin(data) + idx;
-            }
-            return end;
-        });
-
-        REQUIRE(it != data.end());
-        REQUIRE(found_idx == target_idx);
-        REQUIRE(found_val == data[target_idx]);
-    }
-}
-
-// -----------------------------------------------------------------------------
 // Boundary Crossing Tests
 // -----------------------------------------------------------------------------
 
@@ -330,32 +145,6 @@ TEST_CASE("Signed integer boundary", "[extreme][boundary]") {
     }
     ILP_END;
     REQUIRE(sum == -5); // -5 + -4 + -3 + -2 + -1 + 0 + 1 + 2 + 3 + 4 = -5
-}
-
-// -----------------------------------------------------------------------------
-// Verify Correct Calculation of Complex Expressions
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Complex math in reduce", "[extreme][math]") {
-    auto result = ilp::reduce<4>(1, 11, 0, std::plus<>{}, [&](auto i) {
-        return i * i; // Sum of squares
-    });
-
-    REQUIRE(result == 385); // 1+4+9+16+25+36+49+64+81+100
-}
-
-TEST_CASE("Conditional accumulation in reduce", "[extreme][math]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
-        if (i % 5 == 0)
-            return i;
-        return 0;
-    });
-
-    // Sum of multiples of 5 from 0-99
-    int expected = 0;
-    for (int i = 0; i < 100; i += 5)
-        expected += i;
-    REQUIRE(result == expected);
 }
 
 // -----------------------------------------------------------------------------

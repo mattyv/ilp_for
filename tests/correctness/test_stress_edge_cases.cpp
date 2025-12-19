@@ -12,6 +12,8 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <numeric>
+#include <ranges>
 #include <vector>
 
 #if !defined(ILP_MODE_SIMPLE)
@@ -145,34 +147,6 @@ TEST_CASE("Single element vector", "[edge][single]") {
 }
 
 // -----------------------------------------------------------------------------
-// Section 3: Reduce Edge Cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Reduce empty range", "[edge][reduce]") {
-    auto result = ilp::reduce<4>(0, 0, 0, std::plus<>{}, [&](auto i) { return i; });
-    REQUIRE(result == 0);
-}
-
-TEST_CASE("Reduce single element", "[edge][reduce]") {
-    auto result = ilp::reduce<4>(0, 1, 0, std::plus<>{}, [&](auto i) { return i; });
-    REQUIRE(result == 0);
-}
-
-TEST_CASE("Reduce with custom operation - min", "[edge][reduce]") {
-    std::vector<int> data = {5, 3, 8, 1, 9, 2};
-    auto result = ilp::reduce_range<4>(
-        data, std::numeric_limits<int>::max(), [](int a, int b) { return std::min(a, b); },
-        [&](auto&& val) { return val; });
-    REQUIRE(result == 1);
-}
-
-TEST_CASE("Reduce empty vector", "[edge][reduce]") {
-    std::vector<int> empty;
-    auto result = ilp::reduce_range<4>(empty, 0, std::plus<>{}, [&](auto&& val) { return val; });
-    REQUIRE(result == 0);
-}
-
-// -----------------------------------------------------------------------------
 // Section 4: Signed Integer Edge Cases
 // -----------------------------------------------------------------------------
 
@@ -270,8 +244,6 @@ TEST_CASE("Different element types in vector", "[edge][types]") {
 // Section 7: Control Flow Edge Cases
 // -----------------------------------------------------------------------------
 
-#if !defined(ILP_MODE_SIMPLE)
-
 TEST_CASE("Break on first iteration", "[edge][control]") {
     int count = 0;
     ILP_FOR(auto i, 0, 100, 4) {
@@ -325,109 +297,6 @@ TEST_CASE("Alternating continue pattern", "[edge][control]") {
     }
     ILP_END;
     REQUIRE(sum == 25); // 1+3+5+7+9
-}
-
-#endif
-
-// -----------------------------------------------------------------------------
-// Section 8: For-Until Edge Cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Find returns sentinel when nothing found", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) {
-        return i == 999; // Never true
-    });
-    REQUIRE(result == 100); // Sentinel (end)
-}
-
-TEST_CASE("Find first element", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 0; });
-    REQUIRE(result != 100);
-    REQUIRE(result == 0);
-}
-
-TEST_CASE("Find last element", "[edge][find]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto) { return i == 99; });
-    REQUIRE(result != 100);
-    REQUIRE(result == 99);
-}
-
-TEST_CASE("Find in remainder", "[edge][find]") {
-    // N=4, range 0-10, find 9 (in remainder)
-    auto result = ilp::find<4>(0, 10, [&](auto i, auto) { return i == 9; });
-    REQUIRE(result != 10);
-    REQUIRE(result == 9);
-}
-
-TEST_CASE("Find in empty range", "[edge][find]") {
-    auto result = ilp::find<4>(0, 0, [&](auto, auto) {
-        return true; // Would find immediately, but empty
-    });
-    REQUIRE(result == 0); // Sentinel (end of empty range)
-}
-
-TEST_CASE("Find range idx - empty vector", "[edge][find]") {
-    std::vector<int> empty;
-    auto result = ilp::find_range_idx<4>(empty, [&](auto&& val, auto idx, auto end) {
-        (void)val;
-        (void)idx;
-        return end; // Can't find
-    });
-    REQUIRE(result == empty.end());
-}
-
-// -----------------------------------------------------------------------------
-// Section 9: Return Value Edge Cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("For-ret-simple finds value", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
-        if (i == 42)
-            return i;
-        return _ilp_end_;
-    });
-    REQUIRE(result == 42);
-}
-
-TEST_CASE("For-ret-simple finds nothing", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 100, [&](auto i, auto _ilp_end_) {
-        if (i == 999)
-            return i;
-        return _ilp_end_;
-    });
-    REQUIRE(result == 100); // Sentinel value
-}
-
-TEST_CASE("For-ret-simple empty range", "[edge][ret]") {
-    auto result = ilp::find<4>(0, 0, [&](auto i, auto) {
-        return i; // Would return immediately, but empty
-    });
-    REQUIRE(result == 0); // Returns end (sentinel)
-}
-
-// -----------------------------------------------------------------------------
-// Section 10: Range with Index Edge Cases
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Range-idx finds index", "[edge][rangeidx]") {
-    std::vector<int> data = {10, 20, 30, 40, 50};
-    auto it = ilp::find_range_idx<4>(data, [&](auto&& val, auto idx, auto end) {
-        if (val == 30)
-            return std::ranges::begin(data) + idx;
-        return end;
-    });
-    REQUIRE(it != data.end());
-    REQUIRE(*it == 30);
-}
-
-TEST_CASE("Range-idx empty vector", "[edge][rangeidx]") {
-    std::vector<int> empty;
-    auto it = ilp::find_range_idx<4>(empty, [&](auto&& val, auto idx, auto end) {
-        (void)val;
-        (void)idx;
-        return end;
-    });
-    REQUIRE(it == empty.end());
 }
 
 // -----------------------------------------------------------------------------
@@ -560,25 +429,6 @@ TEST_CASE("Vector of vectors - inner sum", "[edge][nested]") {
 }
 
 // -----------------------------------------------------------------------------
-// Section 16: Large Range Tests
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Large range sum", "[edge][large]") {
-    // Sum 0..9999
-    auto result = ilp::reduce<4>(0, 10000, 0, std::plus<>{}, [&](auto i) { return i; });
-    REQUIRE(result == 49995000);
-}
-
-TEST_CASE("Large vector sum", "[edge][large]") {
-    std::vector<int> data(1000);
-    for (int i = 0; i < 1000; ++i)
-        data[i] = i;
-
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
-    REQUIRE(result == 499500);
-}
-
-// -----------------------------------------------------------------------------
 // Section 17: Non-Starting-At-Zero Ranges
 // -----------------------------------------------------------------------------
 
@@ -599,28 +449,6 @@ TEST_CASE("Large offset range", "[edge][offset]") {
     ILP_END;
     REQUIRE(sum == 10000045);
 }
-
-// -----------------------------------------------------------------------------
-// Section 18: Reduce with Break
-// -----------------------------------------------------------------------------
-
-#if !defined(ILP_MODE_SIMPLE)
-
-TEST_CASE("Reduce with early break", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>(), [&](auto i) -> std::optional<int> {
-        if (i >= 10)
-            return std::nullopt;
-        return i;
-    });
-    REQUIRE(result == 45); // 0+1+...+9
-}
-
-TEST_CASE("Reduce breaks on first", "[edge][reduce][control]") {
-    auto result = ilp::reduce<4>(0, 100, 100, std::plus<>(), [&](auto) -> std::optional<int> { return std::nullopt; });
-    REQUIRE(result == 100); // Initial value
-}
-
-#endif
 
 // -----------------------------------------------------------------------------
 // Section 19: Modifying External State
@@ -646,25 +474,6 @@ TEST_CASE("Vector push_back in loop", "[edge][state]") {
     REQUIRE(collected.size() == 10);
     REQUIRE(collected[0] == 0);
     REQUIRE(collected[9] == 9);
-}
-
-// -----------------------------------------------------------------------------
-// Section 20: Mixed Operations
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Sum with modulo filter", "[edge][mixed]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) {
-        if (i % 3 == 0)
-            return i;
-        return 0;
-    });
-    // Sum of multiples of 3 from 0-99
-    REQUIRE(result == 1683);
-}
-
-TEST_CASE("Product of range", "[edge][mixed]") {
-    auto result = ilp::reduce<4>(1, 6, 1, std::multiplies<>(), [&](auto i) { return i; });
-    REQUIRE(result == 120); // 5!
 }
 
 // -----------------------------------------------------------------------------
@@ -699,21 +508,6 @@ TEST_CASE("N+1 elements", "[edge][boundary]") {
     }
     ILP_END;
     REQUIRE(sum == 60); // 10+11+12+13+14
-}
-
-// -----------------------------------------------------------------------------
-// Section 22: Auto-selecting variants
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Auto-select reduce sum", "[edge][auto]") {
-    auto result = ilp::reduce<4>(0, 100, 0, std::plus<>{}, [&](auto i) { return i; });
-    REQUIRE(result == 4950);
-}
-
-TEST_CASE("Auto-select range sum", "[edge][auto]") {
-    std::vector<int> data = {1, 2, 3, 4, 5};
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
-    REQUIRE(result == 15);
 }
 
 // -----------------------------------------------------------------------------
@@ -764,20 +558,6 @@ TEST_CASE("Single element with large N", "[edge][combo]") {
 }
 
 // -----------------------------------------------------------------------------
-// Section 25: Potential Integer Overflow Scenarios
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Sum near max int", "[edge][overflow]") {
-    // This tests accumulator overflow handling
-    std::vector<int> data = {std::numeric_limits<int>::max() / 4, std::numeric_limits<int>::max() / 4,
-                             std::numeric_limits<int>::max() / 4, std::numeric_limits<int>::max() / 4};
-
-    // Just verify it doesn't crash - overflow behavior is defined by int
-    auto result = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) { return val; });
-    (void)result; // Just checking it runs
-}
-
-// -----------------------------------------------------------------------------
 // Section 26: Verifying iteration order
 // -----------------------------------------------------------------------------
 
@@ -804,20 +584,6 @@ TEST_CASE("Range iteration order preserved", "[edge][order]") {
     ILP_END;
 
     REQUIRE(order == data);
-}
-
-// -----------------------------------------------------------------------------
-// Section 28: Complex expression in loop body
-// -----------------------------------------------------------------------------
-
-TEST_CASE("Complex arithmetic in body", "[edge][complex]") {
-    auto result = ilp::reduce<4>(1, 11, 0, std::plus<>{}, [&](auto i) { return (i * i - i + 1) * 2 - i; });
-
-    int expected = 0;
-    for (int i = 1; i < 11; ++i) {
-        expected += (i * i - i + 1) * 2 - i;
-    }
-    REQUIRE(result == expected);
 }
 
 // -----------------------------------------------------------------------------

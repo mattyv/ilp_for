@@ -31,19 +31,6 @@ bool b3 = data[i+3] == target;  // parallel
 // then sequential check and return
 ```
 
-## Function API Benchmarks
-
-For `ilp::find` and `ilp::reduce` (alternative API):
-
-| Operation | std | ILP | Speedup |
-|-----------|-----|-----|---------|
-| Min (`ilp::reduce`) | 3.47ms | 0.60ms | **5.8x** |
-| Sum with break | 1.81ms | 1.11ms | **1.6x** |
-| Any-of | 1.99ms | 0.93ms | **2.1x** |
-| Find | 0.93ms | 0.93ms | ~1.0x |
-
-The 5.8x speedup on min comes from breaking the dependency chain - `std::min_element` must compare sequentially, while `ilp::reduce` maintains N independent accumulators.
-
 ## When ILP Helps
 
 **Good candidates:**

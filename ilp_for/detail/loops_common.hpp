@@ -101,23 +101,5 @@ namespace ilp {
         template<typename F, typename Ref, typename R>
         concept ForRangeTypedCtrlBody = std::invocable<F, Ref, ForCtrlTyped<R>&>;
 
-        template<typename F, typename T>
-        concept ReduceBody = std::invocable<F, T> && !std::same_as<std::invoke_result_t<F, T>, void>;
-
-        template<typename F, typename Ref>
-        concept ReduceRangeBody = std::invocable<F, Ref> && !std::same_as<std::invoke_result_t<F, Ref>, void>;
-
-        template<typename F, typename T>
-        concept FindBody = std::invocable<F, T, T>;
-
-        template<typename F, typename T>
-        concept PredicateBody = std::invocable<F, T> && std::same_as<std::invoke_result_t<F, T>, bool>;
-
-        template<typename F, typename Ref>
-        concept PredicateRangeBody = std::invocable<F, Ref> && std::same_as<std::invoke_result_t<F, Ref>, bool>;
-
-        template<typename F, typename Ref, typename Iter>
-        concept FindRangeIdxBody = std::invocable<F, Ref, std::size_t, Iter>;
-
     } // namespace detail
 } // namespace ilp

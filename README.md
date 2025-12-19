@@ -172,34 +172,6 @@ Result find_result(const std::vector<int>& data, int target) {
 }
 ```
 
-### Function API 
-
-After implementing the ILP_FOR api, I figured there may be some value in implementing early return alternatives to some other std functions. So take from it what you will. 
-Some std functions unroll very badly or cannot easily accomodate early return easily and still retain any unrolling.
-The library provides `ilp::find` and `ilp::reduce`:
-
-```cpp
-// Find - returns index (or end if not found)
-auto idx = ilp::find<4>(0, data.size(), [&](auto i, auto) {
-    return data[i] == target;
-});
-
-// Reduce with early exit via std::optional
-int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
-    [&](auto i) -> std::optional<int> {
-        if (data[i] < 0) return std::nullopt;  // Stop
-        return data[i];
-    });
-
-// Parallel min (breaks dependency chain)
-int min_val = ilp::reduce_range<4>(
-    data,
-    std::numeric_limits<int>::max(),
-    [](int a, int b) { return std::min(a, b); },
-    [&](auto&& val) { return val; }
-);
-```
-
 ---
 
 ## API Reference
@@ -223,26 +195,11 @@ Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ### Control Flow
 
-| Macro/Function | Use In | Description |
-|----------------|--------|-------------|
+| Macro | Use In | Description |
+|-------|--------|-------------|
 | `ILP_CONTINUE` | Any loop | Skip to next iteration |
 | `ILP_BREAK` | Loops | Exit loop |
 | `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
-| `-> std::optional<T>` | Reduce body | Return type for early exit support |
-| `return std::nullopt` | Reduce body | Exit early from reduction |
-
-### Function API 
-
-| Function | Description |
-|----------|-------------|
-| `ilp::find<N>(start, end, body)` | Find first match, returns index |
-| `ilp::find_range<N>(range, body)` | Find in range, returns iterator |
-| `ilp::reduce<N>(start, end, init, op, body)` | Reduce with optional early exit |
-| `ilp::reduce_range<N>(range, init, op, body)` | Range reduce |
-
-Auto variants select optimal N based on [LoopType](#looptype-reference):
-- `ilp::find_auto`, `ilp::find_range_auto` - defaults to `Search`
-- `ilp::reduce_auto<LoopType>`, `ilp::reduce_range_auto<LoopType>` - requires LoopType (e.g., `Sum`, `MinMax`)
 
 ---
 
@@ -250,102 +207,35 @@ Auto variants select optimal N based on [LoopType](#looptype-reference):
 
 ### Use `auto&&` for Range Loops
 
-When using range-based functions, you should use `auto&&` to avoid copying each element:
+When using `ILP_FOR_RANGE`, you should use `auto&&` to avoid copying each element:
 
 ```cpp
 // Good - uses forwarding reference (zero copies)
-auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto&& val) {
-    return val;
-});
+ILP_FOR_RANGE(auto&& val, strings, 4) {
+    process(val);
+} ILP_END;
 
 // Bad - copies each element into 'val' (slow for large types!)
-auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [&](auto val) {
-    return val;
-});
+ILP_FOR_RANGE(auto val, strings, 4) {
+    process(val);
+} ILP_END;
 ```
 
 ...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. For a `std::vector<std::string>`, using `auto` would copy every string!
 
-For index-based functions, just use `auto` since indices are just integers:
+For index-based loops, just use `auto` since indices are just integers:
 
 ```cpp
-ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) { return data[i]; });
-```
-
-### Find Returns Index or Iterator
-
-`ilp::find` returns the index directly (or the end value if not found):
-
-```cpp
-auto idx = ilp::find<4>(0, n, [&](auto i, auto) {
-    return data[i] == target;
-});
-
-if (idx != n) {  // Found
-    std::cout << "Found at " << idx << "\n";
-}
-```
-
-Range versions return iterators:
-
-```cpp
-auto it = ilp::find_range<4>(data, [&](auto&& val) {
-    return val == target;
-});
-
-if (it != data.end()) {
-    std::cout << "Found: " << *it << "\n";
-}
-```
-
-### Reduce with Early Exit
-
-If you need to exit a reduction early, use `std::optional` as your return type and return `std::nullopt` to stop:
-
-```cpp
-int sum = ilp::reduce<4>(size_t{0}, data.size(), 0, std::plus<>{},
-    [&](auto i) -> std::optional<int> {
-        if (data[i] < 0) return std::nullopt;  // Stop reduction
-        return data[i];
-    });
-```
-
-For simple reductions without early exit, just return the value directly:
-
-```cpp
-int sum = ilp::reduce<4>(0, n, 0, std::plus<>{}, [&](auto i) {
-    return data[i];
-});
-```
-
-### Associativity and Evaluation Order
-
-For consistent results matching sequential evaluation, use associative operations: `+`, `*`, `min`, `max`, `&`, `|`, `^`
-
-Non-associative operations will still execute, but results may differ due to parallel evaluation order. IEEE floating-point is technically non-associative due to rounding - parallel reduction may differ by a few ULPs from sequential. With `-ffast-math` you probably don't care. 
-
-### Init Values
-
-For custom operations, `init` must be the identity element for your operation:
-
-```cpp
-// For addition, init = 0
-ilp::reduce<4>(0, n, 0, std::plus<>{}, ...)
-
-// For min, init = INT_MAX
-ilp::reduce<4>(0, n, INT_MAX, [](int a, int b) { return std::min(a,b); }, ...)
-
-// For multiplication, init = 1
-ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
+ILP_FOR(auto i, 0, n, 4) {
+    process(data[i]);
+} ILP_END;
 ```
 
 ---
 
 ## When to Use ILP
 
-**Use ILP_FOR for loops with early exit** (`break`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
-
-**Use `ilp::reduce` for reductions with dependency chains** (min, max). Multiple independent accumulators break the dependency chain (~5.8x speedup).
+**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
 
 **Skip ILP for simple loops without early exit.** Compilers produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) compile to the same assembly.
 
@@ -354,10 +244,6 @@ ilp::reduce<4>(0, n, 1, std::multiplies<>{}, ...)
 ILP_FOR_AUTO(auto i, 0, n, Search) {
     if (data[i] == target) ILP_BREAK;
 } ILP_END;
-
-// Use ilp::reduce - breaks dependency chain for parallel min
-int min_val = ilp::reduce_range_auto<ilp::LoopType::MinMax>(
-    data, INT_MAX, [](int a, int b) { return std::min(a, b); }, [](auto&& v) { return v; });
 
 // Skip ILP - compiler auto-vectorizes loops without break
 int sum = std::accumulate(data.begin(), data.end(), 0);

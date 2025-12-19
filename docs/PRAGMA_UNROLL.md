@@ -165,34 +165,7 @@ Or just use `ILP_FOR` which works everywhere.
 |---------|------------------|---------|--------|
 | Simple sum (no break) | SIMD | SIMD | Either |
 | Early exit (`break`/`return`) | Bounds check per element | Bounds check per block | **ILP_FOR (~1.29x)** |
-| Min/max reduction | Keeps dependency chain | Breaks chain | **ILP_FOR (5.8x)** |
 | Loops without early exit | SIMD | SIMD | Either |
-
----
-
-## Multi-Accumulator Reductions
-
-For reductions like min/max, the benefit is different. `#pragma unroll` keeps one accumulator:
-
-```cpp
-// Pragma unroll - serial dependency chain:
-min_val = std::min(min_val, data[i]);      // depends on min_val
-min_val = std::min(min_val, data[i+1]);    // waits for previous
-min_val = std::min(min_val, data[i+2]);    // waits for previous
-min_val = std::min(min_val, data[i+3]);    // waits for previous
-```
-
-`ilp::reduce` uses multiple independent accumulators:
-```cpp
-// Multiple accumulators - parallel execution:
-min0 = std::min(min0, data[i+0]);  // independent
-min1 = std::min(min1, data[i+1]);  // independent
-min2 = std::min(min2, data[i+2]);  // independent
-min3 = std::min(min3, data[i+3]);  // independent
-// combine at end: min(min0, min1, min2, min3)
-```
-
-This breaks the dependency chain. **5.8x speedup** on min/max (see [PERFORMANCE.md](PERFORMANCE.md)).
 
 ---
 
@@ -202,13 +175,11 @@ This breaks the dependency chain. **5.8x speedup** on min/max (see [PERFORMANCE.
 |-------|---------------|---------|
 | Bounds checks | Per element | Per block |
 | Trip count needed? | No (but costly) | No |
-| Dependency chains | Preserved | Broken |
 | Portability | Compiler-specific | Universal |
 | SIMD for simple loops | Yes | Yes |
 
 **Use ILP_FOR for:**
 - Loops with `break`, `continue`, or `return`
-- Reductions where you want parallel accumulators
 
 **Skip ILP_FOR for:**
 - Simple loops without early exit (compilers handle these well)
