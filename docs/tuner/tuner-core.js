@@ -78,7 +78,7 @@ const TunerCore = (function() {
      */
     function getDefaultCompiler(arch) {
         if (isArmArch(arch)) {
-            return 'llvmasarm64_trunk';
+            return 'arm64gtrunk';
         }
         return 'clang_trunk';
     }
@@ -91,10 +91,10 @@ const TunerCore = (function() {
     function getCompilersForArch(arch) {
         if (isArmArch(arch)) {
             return [
-                { id: 'llvmasarm64_trunk', name: 'AArch64 Clang (trunk)' },
-                { id: 'llvmasarm64_2110', name: 'AArch64 Clang 21.1.0' },
-                { id: 'llvmasarm64_1900', name: 'AArch64 Clang 19.0.0' },
-                { id: 'llvmasarm64_1801', name: 'AArch64 Clang 18.0.1' }
+                { id: 'arm64gtrunk', name: 'AArch64 GCC (trunk)' },
+                { id: 'arm64g1420', name: 'AArch64 GCC 14.2.0' },
+                { id: 'arm64g1340', name: 'AArch64 GCC 13.4.0' },
+                { id: 'arm64g1250', name: 'AArch64 GCC 12.5.0' }
             ];
         }
         return [
@@ -537,9 +537,10 @@ const TunerCore = (function() {
      * Default regex pattern for compute (ILP-able) instructions
      * Covers arithmetic/FP/shift/compare ops for x86 and ARM matching ilp::LoopType
      * Sum(add), DotProduct(fma), Multiply(mul), Divide(div), Sqrt(sqrt),
-     * MinMax(min/max), Bitwise(and/or/xor), Shift(shl/shr/lsl/lsr), Search(fcmp/comis)
+     * MinMax(min/max), Bitwise(and/or/xor), Shift(shl/shr/lsl/lsr),
+     * Search: x86(cmp/test/comis), ARM(cmp/tst/fcmp/ccmp)
      */
-    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor|sll|srl|sra|ps[lr]l|u?comis)|f(add|sub|mul|div|ma|ms|nma|nms|sqrt|min|max|mla|mls|cmp|ccmp)|madd|msub|[su]mul|mla|mls|imul|idiv|s[ah][lr]|lsl|lsr|asr)';
+    const DEFAULT_COMPUTE_PATTERN = '^(v?(add|sub|mul|div|fma|sqrt|min|max|and|or|xor|sll|srl|sra|ps[lr]l|u?comis)|f(add|sub|mul|div|ma|ms|nma|nms|sqrt|min|max|mla|mls|cmp|ccmp)|madd|msub|[su]mul|mla|mls|imul|idiv|s[ah][lr]|lsl|lsr|asr|cmp|test|tst)';
 
     /**
      * Check if an instruction is a compute (ILP-able) instruction

@@ -9,10 +9,6 @@ Each example shows three versions:
 
 ---
 
-# ILP_FOR Macro
-
-The primary API for loops with `break`, `continue`, or `return`.
-
 ## Loop with Break
 
 ILP_FOR with ILP_BREAK showing early exit from unrolled loop
@@ -27,7 +23,7 @@ ILP_FOR with ILP_BREAK showing early exit from unrolled loop
 
 Why #pragma unroll doesn't help for early-exit loops - look for per-iteration bounds checks
 
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/Mh4aTP5j7) | [x86-64 GCC](https://godbolt.org/z/6najPjd3a) | [ARM64](https://godbolt.org/z/7dnxEoWbc)
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/Eenb8P83T) | [x86-64 GCC](https://godbolt.org/z/7nhsh4W8z) | [ARM64](https://godbolt.org/z/PbfceW1P6)
 
 [Source code](../godbolt_examples/pragma_vs_ilp.cpp)
 
@@ -50,40 +46,6 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 **View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/K6EPf58v5) | [x86-64 GCC](https://godbolt.org/z/3exGvo9Yr) | [ARM64](https://godbolt.org/z/P3vjbTdEG)
 
 [Source code](../godbolt_examples/loop_with_return_typed.cpp)
-
----
-
-# Function API
-
-Alternative `std::`-style functions with early exit support.
-
-## Find First Match
-
-ilp::find for early-exit search (std::find alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/rM16zfvW1) | [x86-64 GCC](https://godbolt.org/z/GbhM5njcv) | [ARM64](https://godbolt.org/z/hfPhvKjKd)
-
-[Source code](../godbolt_examples/find_first_match.cpp)
-
----
-
-## Parallel Minimum
-
-ilp::reduce breaking dependency chains (std::min_element alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/ffWb68TYs) | [x86-64 GCC](https://godbolt.org/z/vsjMddvWo) | [ARM64](https://godbolt.org/z/7c9oe1bjM)
-
-[Source code](../godbolt_examples/parallel_min.cpp)
-
----
-
-## Sum with Early Exit
-
-ilp::reduce with early termination (std::accumulate alternative)
-
-**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/bMhKqf1Kh) | [x86-64 GCC](https://godbolt.org/z/cqMerK4hG) | [ARM64](https://godbolt.org/z/K716KaYd5)
-
-[Source code](../godbolt_examples/sum_with_break.cpp)
 
 ---
 

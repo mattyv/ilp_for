@@ -16,7 +16,7 @@ TEST_CASE("ILP_FOR basic accumulation", "[for][basic]") {
 
     SECTION("size_t indices") {
         std::size_t sum = 0;
-        ILP_FOR(auto i, 0uz, 100uz, 8) {
+        ILP_FOR(auto i, size_t(0), size_t(100), 8) {
             sum += i;
         }
         ILP_END;
@@ -228,6 +228,52 @@ TEST_CASE("ILP_FOR with ILP_RETURN", "[for][return]") {
             return -1;
         };
         REQUIRE(find_first_even() == 2);
+    }
+}
+
+TEST_CASE("ILP_FOR_RANGE_T basic", "[for_range_t][basic]") {
+    SECTION("typed return from range loop") {
+        auto find_double = [](const std::vector<int>& data, int target) -> int {
+            ILP_FOR_RANGE_T(int, auto val, data, 4) {
+                if (val == target)
+                    ILP_RETURN(val * 2);
+            }
+            ILP_END_RETURN;
+            return -1;
+        };
+        std::vector<int> data = {1, 2, 3, 42, 5};
+        REQUIRE(find_double(data, 42) == 84);
+        REQUIRE(find_double(data, 99) == -1);
+    }
+}
+
+TEST_CASE("ILP_FOR_T_AUTO basic", "[for_t_auto][basic]") {
+    SECTION("typed return with auto N") {
+        auto find_square = []() -> int {
+            ILP_FOR_T_AUTO(int, auto i, 1, 20, Search) {
+                if (i * i == 49)
+                    ILP_RETURN(i);
+            }
+            ILP_END_RETURN;
+            return -1;
+        };
+        REQUIRE(find_square() == 7);
+    }
+}
+
+TEST_CASE("ILP_FOR_RANGE_T_AUTO basic", "[for_range_t_auto][basic]") {
+    SECTION("typed return with auto N and range") {
+        auto find_triple = [](const std::vector<int>& data, int target) -> int {
+            ILP_FOR_RANGE_T_AUTO(int, auto val, data, Search) {
+                if (val == target)
+                    ILP_RETURN(val * 3);
+            }
+            ILP_END_RETURN;
+            return -1;
+        };
+        std::vector<int> data = {10, 20, 30, 40, 50};
+        REQUIRE(find_triple(data, 30) == 90);
+        REQUIRE(find_triple(data, 99) == -1);
     }
 }
 #endif

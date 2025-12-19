@@ -276,7 +276,7 @@ float weighted_sum_until(const float* values, const float* weights,
                 <div class="row">
                     <div>
                         <label for="args">Compiler Arguments</label>
-                        <input type="text" id="args" autocapitalize="off" autocorrect="off" spellcheck="false" value="-std=c++2b -O3">
+                        <input type="text" id="args" autocapitalize="off" autocorrect="off" spellcheck="false" value="-std=c++20 -O3">
                     </div>
                 </div>
 
@@ -548,11 +548,7 @@ float weighted_sum_until(const float* values, const float* weights,
 
                     // Show recommendation
                     document.getElementById('rec-content').innerHTML = `
-                        <p><strong>Suggested N:</strong> <code>${suggestedN}</code></p>
-                        <p><strong>Usage:</strong></p>
-                        <pre style="background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">ILP_FOR(auto i, 0, n, ${suggestedN}) {
-    // your loop body
-} ILP_END;</pre>
+                        <p><strong>Suggested unroll factor:</strong> <code>N = ${suggestedN}</code></p>
                     `;
                     document.getElementById('recommendation').classList.remove('hidden');
                 } else if (TunerCore.isArmArch(arch)) {
