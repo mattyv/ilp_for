@@ -67,12 +67,16 @@ clang-tidy \
 
 Before:
 ```cpp
-ILP_FOR(data, [&](auto i) { sum += data[i]; });
+ILP_FOR(auto i, 0uz, n, 4) {
+    sum += data[i];
+} ILP_END;
 ```
 
 After:
 ```cpp
-ILP_FOR_AUTO(data, LoopType::Sum, [&](auto i) { sum += data[i]; });
+ILP_FOR_AUTO(auto i, 0uz, n, Sum) {
+    sum += data[i];
+} ILP_END;
 ```
 
 ### VSCode Integration
@@ -104,10 +108,12 @@ Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent 
 | Sum | `acc += val` | Sum |
 | FMA | `acc += a * b` | DotProduct |
 | Product | `acc *= val` | Multiply |
-| Early Exit | `if (...) break` | Search |
+| Early Exit | `if (...) return` | Search |
 | Copy | `dst[i] = src[i]` | Copy |
 | Transform | `dst[i] = f(src[i])` | Transform |
 | Division | `x / y` | Divide |
+| Sqrt | `std::sqrt(x)` | Sqrt |
+| Min/Max | `std::min(a, b)` | MinMax |
 | Bitwise | `acc &= x`, `\|=`, `^=` | Bitwise |
 | Shift | `x << n`, `x >> n` | Shift |
 
@@ -137,9 +143,9 @@ The check emits warnings with a fix hint:
 
 ```
 file.cpp:42:5: warning: Loop body contains DotProduct pattern [ilp-loop-analysis]
-    ILP_FOR(data, [&](auto i) { sum += a[i] * b[i]; });
-    ^~~~~~~
-    ILP_FOR_AUTO(data, LoopType::DotProduct,
+    ILP_FOR(auto i, 0uz, n, 4) {
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct)
 file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::DotProduct
 file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=8
 ```
