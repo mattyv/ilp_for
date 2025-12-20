@@ -14,6 +14,16 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::ilp {
 
+    namespace {
+        // Helper to check if a type is double (compatible across Clang versions)
+        bool isDoubleType(const Type* Ty) {
+            if (const auto* BT = Ty->getAs<BuiltinType>()) {
+                return BT->getKind() == BuiltinType::Double;
+            }
+            return false;
+        }
+    } // namespace
+
     // CPU profile N values - replicates ilp_for/cpu_profiles/ilp_cpu_skylake.hpp
     // TODO: Make configurable per target CPU
     namespace cpu_profiles {
@@ -362,7 +372,8 @@ namespace clang::tidy::ilp {
             Analysis.hasDivision = true;
             QualType Ty = BO->getType();
             Analysis.accumulatorType = Ty;
-            Analysis.typeSize = Ty->isFloatingType() ? (Ty->isFloat128Type() ? 16 : (Ty->isDoubleType() ? 8 : 4)) : 4;
+            Analysis.typeSize =
+                Ty->isFloatingType() ? (Ty->isFloat128Type() ? 16 : (isDoubleType(Ty.getTypePtr()) ? 8 : 4)) : 4;
             Analysis.isFloatingPoint = Ty->isFloatingType();
         }
 
@@ -468,7 +479,7 @@ namespace clang::tidy::ilp {
             if (FD) {
                 QualType RetTy = FD->getReturnType();
                 Analysis.accumulatorType = RetTy;
-                Analysis.typeSize = RetTy->isDoubleType() ? 8 : 4;
+                Analysis.typeSize = isDoubleType(RetTy.getTypePtr()) ? 8 : 4;
             } else {
                 Analysis.typeSize = 4; // Default to float
             }
@@ -483,7 +494,7 @@ namespace clang::tidy::ilp {
                 QualType ArgTy = CE->getArg(0)->getType();
                 Analysis.accumulatorType = ArgTy;
                 Analysis.isFloatingPoint = ArgTy->isFloatingType();
-                Analysis.typeSize = ArgTy->isDoubleType() ? 8 : 4;
+                Analysis.typeSize = isDoubleType(ArgTy.getTypePtr()) ? 8 : 4;
             }
         }
     }
