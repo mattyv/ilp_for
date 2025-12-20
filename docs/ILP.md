@@ -67,26 +67,40 @@ Now the CPU can execute all 4 adds in parallel, achieving ~4x throughput.
 
 With 4-cycle latency and 2/cycle throughput, you need **8 independent operations** in flight to saturate the FP units.
 
-## Why ILP_FOR Works
+## How ILP_FOR Works
 
-This library automatically generates the multi-accumulator pattern:
+The library unrolls loops by factor N, enabling the compiler to vectorize or interleave operations:
 
 ```cpp
 // You write:
-float sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
-    sum += data[i];
+    dst[i] = src[i] * 2.0f;
 } ILP_END;
 
 // Library generates (conceptually):
-std::array<float, 4> accs = {0, 0, 0, 0};
 for (i = 0; i + 4 <= n; i += 4) {
-    accs[0] += data[i];
-    accs[1] += data[i+1];
-    accs[2] += data[i+2];
-    accs[3] += data[i+3];
+    dst[i]   = src[i]   * 2.0f;  // Independent
+    dst[i+1] = src[i+1] * 2.0f;  // Independent
+    dst[i+2] = src[i+2] * 2.0f;  // Independent
+    dst[i+3] = src[i+3] * 2.0f;  // Independent
 }
-sum = accs[0] + accs[1] + accs[2] + accs[3];
+// + remainder loop
+```
+
+For **copy** and **transform** patterns, each iteration is independent—the compiler can vectorize or execute them in parallel.
+
+For **accumulation** patterns with a single variable (`sum += x`), you must use multiple accumulators manually to break the dependency chain:
+
+```cpp
+float sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
+ILP_FOR(auto i, 0uz, n, 4) {
+    sum0 += data[i];
+    sum1 += data[i + 1];
+    sum2 += data[i + 2];
+    sum3 += data[i + 3];
+    i += 3;  // ILP_FOR increments by 1, we handle 4
+} ILP_END;
+float sum = sum0 + sum1 + sum2 + sum3;
 ```
 
 ## Further Reading
