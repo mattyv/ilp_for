@@ -186,7 +186,7 @@ jobs:
             -load build/ILPTidyModule.so \
             -checks='-*,ilp-*' \
             test/loop_patterns.cpp \
-            -- -std=c++20 2>&1 | tee output.txt
+            -- -std=c++20 -I../.. 2>&1 | tee output.txt
           # Verify expected patterns are detected
           grep -q "Sum pattern" output.txt
           grep -q "DotProduct pattern" output.txt
