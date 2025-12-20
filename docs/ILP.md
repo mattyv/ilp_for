@@ -73,30 +73,21 @@ This library automatically generates the multi-accumulator pattern:
 
 ```cpp
 // You write:
-auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](auto&& val) {
-    return val;
-});
+float sum = 0;
+ILP_FOR(auto i, 0uz, n, 4) {
+    sum += data[i];
+} ILP_END;
 
 // Library generates (conceptually):
-std::array<T, 4> accs = {0, 0, 0, 0};
+std::array<float, 4> accs = {0, 0, 0, 0};
 for (i = 0; i + 4 <= n; i += 4) {
-    accs[0] += body(data[i]);
-    accs[1] += body(data[i+1]);
-    accs[2] += body(data[i+2]);
-    accs[3] += body(data[i+3]);
+    accs[0] += data[i];
+    accs[1] += data[i+1];
+    accs[2] += data[i+2];
+    accs[3] += data[i+3];
 }
-return accs[0] + accs[1] + accs[2] + accs[3];
+sum = accs[0] + accs[1] + accs[2] + accs[3];
 ```
-
-## Choosing N (Unroll Factor)
-
-| Type | Recommended N | Rationale |
-|------|---------------|-----------|
-| Integer ops | 4-8 | 4 ALU ports, 1-cycle latency |
-| FP add/mul | 8-16 | 4-cycle latency × 2 throughput |
-| Memory bound | 4 | Limited by load ports |
-
-The `_AUTO` macros select optimal N based on the operation type and CPU profile.
 
 ## Further Reading
 
