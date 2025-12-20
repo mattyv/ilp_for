@@ -131,11 +131,6 @@ When a loop contains multiple patterns, the highest-priority pattern determines 
 
 For example, a loop with both FMA (`sum += a[i] * b[i]`) and a transform (`dst[i] = f(src[i])`) is classified as DotProduct because FMA has higher priority.
 
-### Known Limitations (v0.5)
-
-- `std::sqrt` in generic lambdas detected as Transform (template instantiation issue)
-- `std::min`/`std::max` in generic lambdas not detected (template instantiation issue)
-
 ## Output
 
 The check emits warnings with a fix hint:

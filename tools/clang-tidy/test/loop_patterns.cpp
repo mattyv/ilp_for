@@ -5,11 +5,6 @@
 
 // Test file for ilp-loop-analysis clang-tidy check
 // Each function demonstrates a different LoopType pattern
-//
-// KNOWN LIMITATIONS (v0.5):
-// - Sqrt: std::sqrt in generic lambdas detected as Transform (template instantiation issue)
-// - MinMax: std::min/max in generic lambdas not detected (template instantiation issue)
-// These will be addressed in a future version by matching instantiated templates.
 
 #include "ilp_for.hpp"
 #include <algorithm>

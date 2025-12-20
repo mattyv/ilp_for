@@ -470,6 +470,59 @@ void test_empty(std::size_t n) {
     }
 }
 
+// Test inputs for generic lambda detection (v0.5 known limitations)
+const char* TEST_INPUT_SQRT_GENERIC = R"(
+#include "ilp_for.hpp"
+#include <cmath>
+
+void test_sqrt_generic(const float* data, float* result, std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 2) {
+        result[i] = std::sqrt(data[i]);
+    } ILP_END;
+}
+)";
+
+const char* TEST_INPUT_MINMAX_GENERIC = R"(
+#include "ilp_for.hpp"
+#include <algorithm>
+
+void test_min_generic(const float* data, std::size_t n) {
+    float min_val = data[0];
+    ILP_FOR(auto i, 1uz, n, 8) {
+        min_val = std::min(min_val, data[i]);
+    } ILP_END;
+}
+
+void test_max_generic(const int* data, std::size_t n) {
+    int max_val = data[0];
+    ILP_FOR(auto i, 1uz, n, 2) {
+        max_val = std::max(max_val, data[i]);
+    } ILP_END;
+}
+)";
+
+// Generic lambda pattern detection tests
+TEST_CASE("Generic lambda pattern detection", "[clang-tidy][detection][generic-lambda]") {
+    std::string tmpFile = "/tmp/ilp_generic_lambda_test.cpp";
+
+    SECTION("std::sqrt in generic lambda detected as Sqrt") {
+        writeFile(tmpFile, TEST_INPUT_SQRT_GENERIC);
+        auto result = runClangTidy(tmpFile);
+        // Should detect Sqrt, NOT Transform
+        REQUIRE(result.output.find("Sqrt pattern") != std::string::npos);
+        REQUIRE(result.output.find("Transform pattern") == std::string::npos);
+    }
+
+    SECTION("std::min in generic lambda detected as MinMax") {
+        writeFile(tmpFile, TEST_INPUT_MINMAX_GENERIC);
+        auto result = runClangTidy(tmpFile);
+        // Should detect MinMax
+        REQUIRE(result.output.find("MinMax pattern") != std::string::npos);
+    }
+
+    fs::remove(tmpFile);
+}
+
 // Test pointer arithmetic access patterns
 TEST_CASE("Pointer arithmetic patterns", "[clang-tidy][detection][pointer]") {
     std::string tmpFile = "/tmp/ilp_pointer_test.cpp";

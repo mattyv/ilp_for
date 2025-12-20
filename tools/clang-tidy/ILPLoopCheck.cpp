@@ -5,6 +5,7 @@
 
 #include "ILPLoopCheck.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
@@ -501,8 +502,20 @@ namespace clang::tidy::ilp {
             Name = FD->getNameAsString();
             QualifiedName = FD->getQualifiedNameAsString();
         } else {
-            // For unresolved calls (e.g., templates), try to get name from callee expr
-            if (const auto* DRE = dyn_cast<DeclRefExpr>(CE->getCallee()->IgnoreParenImpCasts())) {
+            // For unresolved calls (e.g., templates in generic lambdas), try to get name from callee expr
+            const Expr* Callee = CE->getCallee()->IgnoreParenImpCasts();
+
+            if (const auto* ULE = dyn_cast<UnresolvedLookupExpr>(Callee)) {
+                // Handle dependent name lookup in templates (e.g., std::sqrt in generic lambda)
+                Name = ULE->getName().getAsString();
+
+                // Extract qualified name from nested name specifier if present
+                if (NestedNameSpecifier* NNS = ULE->getQualifier()) {
+                    llvm::raw_string_ostream OS(QualifiedName);
+                    NNS->print(OS, PrintingPolicy(getLangOpts()));
+                    QualifiedName += Name;
+                }
+            } else if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee)) {
                 Name = DRE->getNameInfo().getAsString();
             }
         }
@@ -527,9 +540,16 @@ namespace clang::tidy::ilp {
             Analysis.hasMinMax = true;
             if (CE->getNumArgs() > 0) {
                 QualType ArgTy = CE->getArg(0)->getType();
-                Analysis.accumulatorType = ArgTy;
-                Analysis.isFloatingPoint = ArgTy->isFloatingType();
-                Analysis.typeSize = isDoubleType(ArgTy.getTypePtr()) ? 8 : 4;
+                // Handle dependent types (e.g., auto in generic lambdas)
+                if (!ArgTy->isDependentType()) {
+                    Analysis.accumulatorType = ArgTy;
+                    Analysis.isFloatingPoint = ArgTy->isFloatingType();
+                    Analysis.typeSize = isDoubleType(ArgTy.getTypePtr()) ? 8 : 4;
+                } else {
+                    // Default for dependent types
+                    Analysis.typeSize = 4;
+                    Analysis.isFloatingPoint = false;
+                }
             }
         }
     }
