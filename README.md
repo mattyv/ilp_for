@@ -24,7 +24,17 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`, but they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break`,  so you end up with something like:
+Compilers *can* unroll this with `#pragma unroll`. 
+```cpp
+int sum = 0;
+#pragma unroll(4)
+for (size_t i = 0; i < n; ++i) {
+    if (data[i] < 0) break;       // Early exit
+    if (data[i] == 0) continue;   // Skip zeros
+    sum += data[i];
+}
+```
+But they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break` so you end up with something like:
 
 ```
 loop:
@@ -52,7 +62,7 @@ loop:
 done:
 ```
 
-So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone:
+So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone and looks ghastly:
 
 ```cpp
 int sum = 0;
@@ -76,7 +86,7 @@ for (; i < n; ++i) {              // Remainder
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
 
-But using ILP_FOR all you write is the below. which expands to effectily the same code as above:
+But using ILP_FOR all you write is the below. which expands to effectily the same code as above. And despilte a bit of macro CAPITILISATION doesn't look too bad:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
@@ -86,7 +96,7 @@ ILP_FOR(auto i, 0uz, n, 4) {
 } ILP_END;
 ```
 
-The library also has `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware, making portability more manageable (see below) and probably saving you a few cycles if you want to make sure you're tuning to your hardware properly.
+I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the gues work out and make portability between architecture more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
 
 ---
 
@@ -159,7 +169,7 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 
 This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
 
-For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly:
+For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate wtih integral types. 
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
