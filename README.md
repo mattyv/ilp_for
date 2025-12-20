@@ -326,6 +326,8 @@ Doing bitwise ops?                 → Bitwise
 Unsure?                            → Search (safe default)
 ```
 
+**Static analysis:** The `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+
 ### Reading CPU Profiles
 
 The CPU profile headers in `cpu_profiles/` contain instruction timing data used to compute optimal N values. Each profile includes a reference table:

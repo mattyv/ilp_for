@@ -153,3 +153,47 @@ jobs:
           else
             ./test_runner
           fi
+
+  clang-tidy-check:
+    name: clang-tidy-check
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM/Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev libclang-18-dev clang-18 clang-tidy-18
+
+      - name: Configure clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          cmake -B build \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm \
+            -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+
+      - name: Build clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          cmake --build build
+
+      - name: Test clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          clang-tidy-18 \
+            -load build/ILPTidyModule.so \
+            -checks='-*,ilp-*' \
+            test/loop_patterns.cpp \
+            -- -std=c++20 2>&1 | tee output.txt
+          # Verify expected patterns are detected
+          grep -q "Sum pattern" output.txt
+          grep -q "DotProduct pattern" output.txt
+          grep -q "Search pattern" output.txt
+          grep -q "Copy pattern" output.txt
+          grep -q "Multiply pattern" output.txt
+          grep -q "Divide pattern" output.txt
+          grep -q "Bitwise pattern" output.txt
+          grep -q "Shift pattern" output.txt
+          echo "All expected patterns detected!"
