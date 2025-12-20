@@ -86,7 +86,7 @@ for (; i < n; ++i) {              // Remainder
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
 
-But using ILP_FOR all you write is the below. which expands to effectily the same code as above. And despilte a bit of macro CAPITILISATION doesn't look too bad:
+But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
 ```cpp
 int sum = 0;
 ILP_FOR(auto i, 0uz, n, 4) {
@@ -96,7 +96,7 @@ ILP_FOR(auto i, 0uz, n, 4) {
 } ILP_END;
 ```
 
-I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the gues work out and make portability between architecture more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
+I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
 
 ---
 
@@ -169,7 +169,7 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 
 This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
 
-For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate wtih integral types. 
+For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types. 
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
