@@ -52,6 +52,29 @@ clang-tidy \
   -- -std=c++20
 ```
 
+### Auto-Fix
+
+Add `--fix` to automatically convert `ILP_FOR` to `ILP_FOR_AUTO` with the detected pattern:
+
+```bash
+clang-tidy \
+  -load path/to/ILPTidyModule.so \
+  -checks='-*,ilp-*' \
+  --fix \
+  your_file.cpp \
+  -- -std=c++20
+```
+
+Before:
+```cpp
+ILP_FOR(data, [&](auto i) { sum += data[i]; });
+```
+
+After:
+```cpp
+ILP_FOR_AUTO(data, LoopType::Sum, [&](auto i) { sum += data[i]; });
+```
+
 ### VSCode Integration
 
 Copy the example tasks configuration:
@@ -115,13 +138,18 @@ For example, a loop with both FMA (`sum += a[i] * b[i]`) and a transform (`dst[i
 
 ## Output
 
-The check emits warnings with two fix suggestions:
+The check emits warnings with a fix hint:
 
 ```
 file.cpp:42:5: warning: Loop body contains DotProduct pattern [ilp-loop-analysis]
+    ILP_FOR(data, [&](auto i) { sum += a[i] * b[i]; });
+    ^~~~~~~
+    ILP_FOR_AUTO(data, LoopType::DotProduct,
 file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::DotProduct
 file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=8
 ```
+
+Run with `--fix` to apply the suggested change automatically.
 
 ## Configuration
 
