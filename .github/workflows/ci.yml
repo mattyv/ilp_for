@@ -22,6 +22,7 @@ jobs:
           - { os: macos-14, compiler: appleclang, cc: clang, cxx: clang++ }
           - { os: macos-14, compiler: gcc-14, cc: gcc-14, cxx: g++-14 }
           - { os: windows-latest, compiler: msvc, cc: cl, cxx: cl }
+          - { os: windows-latest, compiler: clang, cc: clang-cl, cxx: clang-cl }
 
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +47,12 @@ jobs:
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Clang (Windows)
+        if: runner.os == 'Windows' && matrix.config.compiler == 'clang'
+        run: |
+          choco install llvm --version=18.1.8 -y
+          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
 
       - name: Set ILP mode flags
         id: ilp_flags
@@ -72,7 +79,7 @@ jobs:
         run: |
           mkdir tests\build
           cd tests\build
-          cmake .. -G "NMake Makefiles" -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
+          cmake .. -G "NMake Makefiles" -DCMAKE_C_COMPILER=${{ matrix.config.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
 
       - name: Build (Unix)
         if: runner.os != 'Windows'

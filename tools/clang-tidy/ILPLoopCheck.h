@@ -81,7 +81,7 @@ namespace clang::tidy::ilp {
 
         // Analysis helpers
         LoopAnalysis analyzeLoopBody(const Stmt* Body, ASTContext& Context);
-        void analyzeStatement(const Stmt* S, LoopAnalysis& Analysis, ASTContext& Context);
+        void analyzeStatement(const Stmt* S, LoopAnalysis& Analysis, ASTContext& Context, unsigned Depth = 0);
         void analyzeBinaryOperator(const BinaryOperator* BO, LoopAnalysis& Analysis);
         void analyzeCompoundAssign(const CompoundAssignOperator* CAO, LoopAnalysis& Analysis);
         void analyzeCallExpr(const CallExpr* CE, LoopAnalysis& Analysis);

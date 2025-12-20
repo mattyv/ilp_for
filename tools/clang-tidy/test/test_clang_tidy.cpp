@@ -381,3 +381,132 @@ void test_already_fixed(const double* a, const double* b, std::size_t n) {
 
     fs::remove(tmpFile);
 }
+
+// Test patterns that should NOT be misclassified
+TEST_CASE("Pattern classification edge cases", "[clang-tidy][negative][classification]") {
+    std::string tmpFile = "/tmp/ilp_negative_test.cpp";
+
+    SECTION("Scaled sum should be Sum, not DotProduct") {
+        // sum += data[i] * 2.0 is Sum with scaling, NOT DotProduct
+        // DotProduct requires TWO indexed array accesses in the multiply
+        const char* scaledSum = R"(
+#include "ilp_for.hpp"
+
+void test_scaled_sum(const double* data, std::size_t n) {
+    double sum = 0.0;
+    ILP_FOR(auto i, 0uz, n, 8) {
+        sum += data[i] * 2.0;
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, scaledSum);
+        auto result = runClangTidy(tmpFile);
+        // Should detect as Sum, NOT DotProduct
+        REQUIRE(result.output.find("Sum pattern") != std::string::npos);
+        REQUIRE(result.output.find("DotProduct pattern") == std::string::npos);
+        fs::remove(tmpFile);
+    }
+
+    SECTION("Sum with variable multiplier should be Sum, not DotProduct") {
+        // sum += data[i] * factor is Sum with scaling, NOT DotProduct
+        const char* variableScaledSum = R"(
+#include "ilp_for.hpp"
+
+void test_variable_scaled_sum(const double* data, double factor, std::size_t n) {
+    double sum = 0.0;
+    ILP_FOR(auto i, 0uz, n, 8) {
+        sum += data[i] * factor;
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, variableScaledSum);
+        auto result = runClangTidy(tmpFile);
+        // Should detect as Sum, NOT DotProduct
+        REQUIRE(result.output.find("Sum pattern") != std::string::npos);
+        REQUIRE(result.output.find("DotProduct pattern") == std::string::npos);
+        fs::remove(tmpFile);
+    }
+}
+
+// Test loops with unrecognizable patterns (should not trigger)
+TEST_CASE("Unrecognizable patterns not detected", "[clang-tidy][negative]") {
+    std::string tmpFile = "/tmp/ilp_negative_test.cpp";
+
+    SECTION("Loop with only side-effect function call") {
+        // Just calling a function with no accumulation pattern
+        const char* sideEffectOnly = R"(
+#include "ilp_for.hpp"
+
+void process(int x);
+
+void test_side_effect(const int* data, std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 4) {
+        process(data[i]);
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, sideEffectOnly);
+        auto result = runClangTidy(tmpFile);
+        // Should not detect any pattern (Unknown type is skipped)
+        REQUIRE(result.output.find("ilp-loop-analysis") == std::string::npos);
+        fs::remove(tmpFile);
+    }
+
+    SECTION("Empty loop body") {
+        const char* emptyLoop = R"(
+#include "ilp_for.hpp"
+
+void test_empty(std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 4) {
+        // Empty body
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, emptyLoop);
+        auto result = runClangTidy(tmpFile);
+        // Should not detect any pattern
+        REQUIRE(result.output.find("ilp-loop-analysis") == std::string::npos);
+        fs::remove(tmpFile);
+    }
+}
+
+// Test pointer arithmetic access patterns
+TEST_CASE("Pointer arithmetic patterns", "[clang-tidy][detection][pointer]") {
+    std::string tmpFile = "/tmp/ilp_pointer_test.cpp";
+
+    SECTION("Pointer dereference with addition: *(arr + i)") {
+        const char* ptrArith = R"(
+#include "ilp_for.hpp"
+
+void test_ptr_arith(const double* src, double* dst, std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 4) {
+        *(dst + i) = *(src + i);
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, ptrArith);
+        auto result = runClangTidy(tmpFile);
+        // Should detect Copy pattern
+        REQUIRE(result.output.find("Copy pattern") != std::string::npos);
+        fs::remove(tmpFile);
+    }
+
+    SECTION("Reversed subscript: i[arr] syntax") {
+        // C/C++ allows i[arr] which is equivalent to arr[i]
+        const char* reversedSubscript = R"(
+#include "ilp_for.hpp"
+
+void test_reversed_subscript(const int* data, std::size_t n) {
+    int sum = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += i[data];
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, reversedSubscript);
+        auto result = runClangTidy(tmpFile);
+        // Should detect Sum pattern (i[arr] is valid C++)
+        REQUIRE(result.output.find("Sum pattern") != std::string::npos);
+        fs::remove(tmpFile);
+    }
+}

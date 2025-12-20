@@ -22,6 +22,34 @@ namespace clang::tidy::ilp {
             }
             return false;
         }
+
+        // Maximum recursion depth for AST walking to prevent stack overflow
+        constexpr unsigned MaxAnalysisDepth = 64;
+
+        // Returns true if expression represents indexed memory access
+        // Handles: arr[i], i[arr], *(arr + i), *(i + arr)
+        bool isIndexedAccess(const Expr* E) {
+            if (!E)
+                return false;
+            E = E->IgnoreParenImpCasts();
+
+            // Direct array subscript: arr[i] or i[arr]
+            if (isa<ArraySubscriptExpr>(E))
+                return true;
+
+            // Pointer dereference with addition: *(arr + i) or *(i + arr)
+            if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
+                if (UO->getOpcode() == UO_Deref) {
+                    const Expr* Sub = UO->getSubExpr()->IgnoreParenImpCasts();
+                    if (const auto* BO = dyn_cast<BinaryOperator>(Sub)) {
+                        if (BO->getOpcode() == BO_Add)
+                            return true;
+                    }
+                }
+            }
+
+            return false;
+        }
     } // namespace
 
     // CPU profile N values - replicates ilp_for/cpu_profiles/ilp_cpu_skylake.hpp
@@ -313,8 +341,8 @@ namespace clang::tidy::ilp {
         return Analysis;
     }
 
-    void ILPLoopCheck::analyzeStatement(const Stmt* S, LoopAnalysis& Analysis, ASTContext& Context) {
-        if (!S)
+    void ILPLoopCheck::analyzeStatement(const Stmt* S, LoopAnalysis& Analysis, ASTContext& Context, unsigned Depth) {
+        if (!S || Depth > MaxAnalysisDepth)
             return;
 
         // Check for early exit patterns (Search)
@@ -337,30 +365,31 @@ namespace clang::tidy::ilp {
             analyzeCallExpr(CE, Analysis);
         }
 
-        // Check for copy/transform pattern: assignment to array element
+        // Check for copy/transform pattern: assignment to indexed element
+        // Handles: arr[i], i[arr], *(arr + i), *(i + arr)
         if (const auto* BO = dyn_cast<BinaryOperator>(S)) {
             if (BO->isAssignmentOp() && !BO->isCompoundAssignmentOp()) {
-                const Expr* LHS = BO->getLHS()->IgnoreParenImpCasts();
+                const Expr* LHS = BO->getLHS();
                 const Expr* RHS = BO->getRHS()->IgnoreParenImpCasts();
 
-                // Check if LHS is an array subscript (dst[i] = ...)
-                if (isa<ArraySubscriptExpr>(LHS)) {
+                // Check if LHS is an indexed access (dst[i] = ..., *(dst + i) = ...)
+                if (isIndexedAccess(LHS)) {
                     // Check if RHS is a function call - that's Transform
                     if (isa<CallExpr>(RHS)) {
                         Analysis.hasTransform = true;
                     }
-                    // Check if RHS is also array subscript - that's Copy
-                    else if (isa<ArraySubscriptExpr>(RHS)) {
+                    // Check if RHS is also indexed access - that's Copy
+                    else if (isIndexedAccess(RHS)) {
                         Analysis.hasCopy = true;
                     }
                 }
             }
         }
 
-        // Recurse into child statements
+        // Recurse into child statements with depth limit
         for (const Stmt* Child : S->children()) {
             if (Child)
-                analyzeStatement(Child, Analysis, Context);
+                analyzeStatement(Child, Analysis, Context, Depth + 1);
         }
     }
 
@@ -430,9 +459,15 @@ namespace clang::tidy::ilp {
         case BO_SubAssign:
             Analysis.hasCompoundAdd = true;
             // Check for FMA pattern: acc += a * b
+            // Only mark as FMA/DotProduct if BOTH operands are indexed expressions
+            // This distinguishes dot product (a[i] * b[i]) from scaled sum (data[i] * 2.0)
             if (const auto* RHS = dyn_cast<BinaryOperator>(CAO->getRHS()->IgnoreParenImpCasts())) {
                 if (RHS->getOpcode() == BO_Mul) {
-                    Analysis.hasMulInAdd = true;
+                    bool lhsIndexed = isIndexedAccess(RHS->getLHS());
+                    bool rhsIndexed = isIndexedAccess(RHS->getRHS());
+                    if (lhsIndexed && rhsIndexed) {
+                        Analysis.hasMulInAdd = true;
+                    }
                 }
             }
             break;
