@@ -89,19 +89,7 @@ for (i = 0; i + 4 <= n; i += 4) {
 
 For **copy** and **transform** patterns, each iteration is independent—the compiler can vectorize or execute them in parallel.
 
-For **accumulation** patterns with a single variable (`sum += x`), you must use multiple accumulators manually to break the dependency chain:
-
-```cpp
-float sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
-ILP_FOR(auto i, 0uz, n, 4) {
-    sum0 += data[i];
-    sum1 += data[i + 1];
-    sum2 += data[i + 2];
-    sum3 += data[i + 3];
-    i += 3;  // ILP_FOR increments by 1, we handle 4
-} ILP_END;
-float sum = sum0 + sum1 + sum2 + sum3;
-```
+**Note:** ILP_FOR is optimized for loops with early exit (`break`, `return`). For pure accumulation patterns without early exit, compilers can often auto-vectorize a simple loop just as effectively.
 
 ## Further Reading
 
