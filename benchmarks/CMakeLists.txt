@@ -20,8 +20,19 @@ FetchContent_MakeAvailable(benchmark)
 # Include the main library
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-# Benchmarks can be added here as needed
-# Example:
-# add_executable(bench_name bench_name.cpp)
-# target_link_libraries(bench_name benchmark::benchmark_main)
-# target_compile_options(bench_name PRIVATE -O3 -march=native)
+# Benchmark executable
+add_executable(bench_reduce
+    bench_reduce.cpp
+)
+
+target_link_libraries(bench_reduce
+    benchmark::benchmark_main
+)
+
+target_compile_options(bench_reduce PRIVATE
+    -O3
+    -march=native
+    # Show when loop unrolling fails/is ignored
+    $<$<CXX_COMPILER_ID:Clang>:-Rpass-missed=loop-unroll>
+    $<$<CXX_COMPILER_ID:GNU>:-fopt-info-loop>
+)
