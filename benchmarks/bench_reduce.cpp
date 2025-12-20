@@ -204,4 +204,93 @@ BENCHMARK_REGISTER_F(ForRetFixture, PragmaUnroll)
     ->Arg(10000000)
     ->Unit(benchmark::kNanosecond);
 
+// ==================== ILP_FOR WITH ILP_CONTINUE BENCHMARKS ====================
+class ForContinueFixture : public benchmark::Fixture {
+  public:
+    std::vector<uint32_t> data;
+
+    void SetUp(const benchmark::State& state) override {
+        size_t size = state.range(0);
+        data.resize(size);
+        std::mt19937 rng(BENCH_SEED + 4);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = rng() % 100;
+        }
+    }
+
+    void TearDown(const benchmark::State&) override {
+        data.clear();
+        data.shrink_to_fit();
+    }
+};
+
+BENCHMARK_DEFINE_F(ForContinueFixture, Simple)(benchmark::State& state) {
+    for (auto _ : state) {
+        uint64_t sum = 0;
+        for (size_t i = 0; i < data.size(); ++i) {
+            if (data[i] % 2 == 0)
+                continue;
+            sum += data[i];
+        }
+        benchmark::DoNotOptimize(sum);
+    }
+    state.SetItemsProcessed(state.iterations() * data.size());
+}
+
+BENCHMARK_DEFINE_F(ForContinueFixture, ILP)(benchmark::State& state) {
+    for (auto _ : state) {
+        uint64_t sum = 0;
+        ILP_FOR(auto i, size_t{0}, data.size(), 4) {
+            if (data[i] % 2 == 0)
+                ILP_CONTINUE;
+            sum += data[i];
+        }
+        ILP_END;
+        benchmark::DoNotOptimize(sum);
+    }
+    state.SetItemsProcessed(state.iterations() * data.size());
+}
+
+BENCHMARK_DEFINE_F(ForContinueFixture, PragmaUnroll)(benchmark::State& state) {
+    for (auto _ : state) {
+        uint64_t sum = 0;
+#if defined(__clang__)
+#pragma clang loop unroll_count(4)
+#elif defined(__GNUC__)
+#pragma GCC unroll 4
+#endif
+        for (size_t i = 0; i < data.size(); ++i) {
+            if (data[i] % 2 == 0)
+                continue;
+            sum += data[i];
+        }
+        benchmark::DoNotOptimize(sum);
+    }
+    state.SetItemsProcessed(state.iterations() * data.size());
+}
+
+BENCHMARK_REGISTER_F(ForContinueFixture, Simple)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Arg(100000)
+    ->Arg(1000000)
+    ->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(ForContinueFixture, ILP)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Arg(100000)
+    ->Arg(1000000)
+    ->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
+BENCHMARK_REGISTER_F(ForContinueFixture, PragmaUnroll)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Arg(100000)
+    ->Arg(1000000)
+    ->Arg(10000000)
+    ->Unit(benchmark::kNanosecond);
+
 BENCHMARK_MAIN();
