@@ -48,11 +48,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install Clang (Windows)
+      - name: Setup Clang (Windows)
         if: runner.os == 'Windows' && matrix.config.compiler == 'clang'
         run: |
-          choco install llvm --version=18.1.8 -y
-          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+          # LLVM is pre-installed on Windows runners, just verify it's available
+          clang-cl --version
 
       - name: Set ILP mode flags
         id: ilp_flags
