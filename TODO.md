@@ -3,7 +3,7 @@
 ## Macros
 - [ ] ~~ILP_WHILE/ILP_DO_WHILE~~ More research needed
 
-- [ ] sbo size dependant on hardware register width 
+- [x] sbo size dependant on hardware register width 
 
 ## functions 
 - [ ] ~~change api to follow std conventions~~. functions removed
