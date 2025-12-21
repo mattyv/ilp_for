@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include "ILPLoopCheck.h"
+#include "ilp_for/cpu_profiles/ilp_cpu_profiles.hpp"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -24,7 +25,7 @@ namespace clang::tidy::ilp {
             return false;
         }
 
-        // Maximum recursion depth for AST walking to prevent stack overflow
+        // Don't blow the stack on deeply nested code
         constexpr unsigned MaxAnalysisDepth = 64;
 
         // Returns true if expression represents indexed memory access
@@ -53,166 +54,10 @@ namespace clang::tidy::ilp {
         }
     } // namespace
 
-    // CPU profile N values - replicates ilp_for/cpu_profiles/ilp_cpu_skylake.hpp
-    // TODO: Make configurable per target CPU
-    namespace cpu_profiles {
-
-        struct CPUProfile {
-            // Sum
-            int N_SUM_1, N_SUM_2, N_SUM_4I, N_SUM_8I, N_SUM_4F, N_SUM_8F;
-            // DotProduct
-            int N_DOTPRODUCT_4, N_DOTPRODUCT_8;
-            // Search
-            int N_SEARCH_1, N_SEARCH_2, N_SEARCH_4, N_SEARCH_8;
-            // Copy
-            int N_COPY_1, N_COPY_2, N_COPY_4, N_COPY_8;
-            // Transform
-            int N_TRANSFORM_1, N_TRANSFORM_2, N_TRANSFORM_4, N_TRANSFORM_8;
-            // Multiply
-            int N_MULTIPLY_4F, N_MULTIPLY_8F, N_MULTIPLY_4I, N_MULTIPLY_8I;
-            // Divide
-            int N_DIVIDE_4F, N_DIVIDE_8F;
-            // Sqrt
-            int N_SQRT_4F, N_SQRT_8F;
-            // MinMax
-            int N_MINMAX_1, N_MINMAX_2, N_MINMAX_4I, N_MINMAX_8I, N_MINMAX_4F, N_MINMAX_8F;
-            // Bitwise
-            int N_BITWISE_1, N_BITWISE_2, N_BITWISE_4, N_BITWISE_8;
-            // Shift
-            int N_SHIFT_1, N_SHIFT_2, N_SHIFT_4, N_SHIFT_8;
-        };
-
-        // Skylake profile (default)
-        constexpr CPUProfile Skylake = {
-            // Sum - Integer: L=1, TPC=3 → 3
-            .N_SUM_1 = 3,
-            .N_SUM_2 = 3,
-            .N_SUM_4I = 3,
-            .N_SUM_8I = 3,
-            // Sum - FP: L=4, TPC=2 → 8
-            .N_SUM_4F = 8,
-            .N_SUM_8F = 8,
-            // DotProduct - FMA: L=4, TPC=2 → 8
-            .N_DOTPRODUCT_4 = 8,
-            .N_DOTPRODUCT_8 = 8,
-            // Search - compare + branch
-            .N_SEARCH_1 = 4,
-            .N_SEARCH_2 = 4,
-            .N_SEARCH_4 = 4,
-            .N_SEARCH_8 = 4,
-            // Copy - memory bandwidth limited
-            .N_COPY_1 = 8,
-            .N_COPY_2 = 4,
-            .N_COPY_4 = 4,
-            .N_COPY_8 = 4,
-            // Transform - memory + compute balanced
-            .N_TRANSFORM_1 = 4,
-            .N_TRANSFORM_2 = 4,
-            .N_TRANSFORM_4 = 4,
-            .N_TRANSFORM_8 = 4,
-            // Multiply
-            .N_MULTIPLY_4F = 8,
-            .N_MULTIPLY_8F = 8,
-            .N_MULTIPLY_4I = 10,
-            .N_MULTIPLY_8I = 4,
-            // Divide - high latency
-            .N_DIVIDE_4F = 2,
-            .N_DIVIDE_8F = 2,
-            // Sqrt - high latency
-            .N_SQRT_4F = 2,
-            .N_SQRT_8F = 2,
-            // MinMax
-            .N_MINMAX_1 = 2,
-            .N_MINMAX_2 = 2,
-            .N_MINMAX_4I = 2,
-            .N_MINMAX_8I = 2,
-            .N_MINMAX_4F = 8,
-            .N_MINMAX_8F = 8,
-            // Bitwise - L=1, TPC=3 → 3
-            .N_BITWISE_1 = 3,
-            .N_BITWISE_2 = 3,
-            .N_BITWISE_4 = 3,
-            .N_BITWISE_8 = 3,
-            // Shift - L=1, TPC=2 → 2
-            .N_SHIFT_1 = 2,
-            .N_SHIFT_2 = 2,
-            .N_SHIFT_4 = 2,
-            .N_SHIFT_8 = 2,
-        };
-
-        // Apple M1 profile
-        constexpr CPUProfile AppleM1 = {
-            // Sum - Integer: L=1, TPC=4 → 4
-            .N_SUM_1 = 4,
-            .N_SUM_2 = 4,
-            .N_SUM_4I = 4,
-            .N_SUM_8I = 4,
-            // Sum - FP: L=3, TPC=4 → 12 (capped to 8)
-            .N_SUM_4F = 8,
-            .N_SUM_8F = 8,
-            // DotProduct - FMA: L=4, TPC=4 → 16 (capped to 8)
-            .N_DOTPRODUCT_4 = 8,
-            .N_DOTPRODUCT_8 = 8,
-            // Search
-            .N_SEARCH_1 = 4,
-            .N_SEARCH_2 = 4,
-            .N_SEARCH_4 = 4,
-            .N_SEARCH_8 = 4,
-            // Copy
-            .N_COPY_1 = 8,
-            .N_COPY_2 = 4,
-            .N_COPY_4 = 4,
-            .N_COPY_8 = 4,
-            // Transform
-            .N_TRANSFORM_1 = 4,
-            .N_TRANSFORM_2 = 4,
-            .N_TRANSFORM_4 = 4,
-            .N_TRANSFORM_8 = 4,
-            // Multiply
-            .N_MULTIPLY_4F = 8,
-            .N_MULTIPLY_8F = 8,
-            .N_MULTIPLY_4I = 4,
-            .N_MULTIPLY_8I = 4,
-            // Divide
-            .N_DIVIDE_4F = 2,
-            .N_DIVIDE_8F = 2,
-            // Sqrt
-            .N_SQRT_4F = 2,
-            .N_SQRT_8F = 2,
-            // MinMax
-            .N_MINMAX_1 = 4,
-            .N_MINMAX_2 = 4,
-            .N_MINMAX_4I = 4,
-            .N_MINMAX_8I = 4,
-            .N_MINMAX_4F = 8,
-            .N_MINMAX_8F = 8,
-            // Bitwise
-            .N_BITWISE_1 = 4,
-            .N_BITWISE_2 = 4,
-            .N_BITWISE_4 = 4,
-            .N_BITWISE_8 = 4,
-            // Shift
-            .N_SHIFT_1 = 4,
-            .N_SHIFT_2 = 4,
-            .N_SHIFT_4 = 4,
-            .N_SHIFT_8 = 4,
-        };
-
-        const CPUProfile& getProfile(StringRef CPU) {
-            if (CPU == "apple_m1" || CPU == "m1")
-                return AppleM1;
-            // Default to Skylake
-            return Skylake;
-        }
-
-    } // namespace cpu_profiles
-
     void LoopAnalysis::computeLoopType() {
-        // DEPRECATED: This method uses priority-based selection which is incorrect.
-        // Use ILPLoopCheck::computeOptimalN() instead, which finds the pattern
-        // requiring the highest N value (the true bottleneck).
-        //
-        // Kept for backward compatibility but not called in the normal flow.
+        // DEPRECATED: Don't use this - it picks patterns by priority which is wrong.
+        // Use computeOptimalN() instead - it finds the pattern needing the highest N.
+        // Keeping this around but it's not used anymore.
 
         if (hasEarlyExit) {
             detectedType = DetectedLoopType::Search;
@@ -443,9 +288,9 @@ namespace clang::tidy::ilp {
             QualType Ty = BO->getType();
             Analysis.accumulatorType = Ty;
 
-            // Handle dependent types (e.g., inside generic lambdas)
+            // Inside generic lambdas, types are dependent - can't know what they are
             if (Ty->isDependentType()) {
-                // Assume floating-point as a conservative choice
+                // Assume FP since higher N is safer
                 Analysis.typeSize = 4;
                 Analysis.isFloatingPoint = true;
             } else {
@@ -471,10 +316,8 @@ namespace clang::tidy::ilp {
         // Track type info
         Analysis.accumulatorType = Ty;
 
-        // Handle dependent types (e.g., inside generic lambdas)
+        // Inside generic lambdas types are dependent - just guess FP (higher N is safer)
         if (Ty->isDependentType()) {
-            // For dependent types, assume floating-point as a conservative choice
-            // (higher N is safer than lower for ILP)
             Analysis.typeSize = 4;
             Analysis.isFloatingPoint = true;
         } else if (Ty->isBuiltinType()) {
@@ -606,10 +449,9 @@ namespace clang::tidy::ilp {
                     Analysis.isFloatingPoint = ArgTy->isFloatingType();
                     Analysis.typeSize = isDoubleType(ArgTy.getTypePtr()) ? 8 : 4;
                 } else {
-                    // For dependent types, use heuristics based on function name:
-                    // - fmin/fmax/fminf/fmaxf are definitely floating-point
-                    // - std::min/std::max are commonly used with FP in numeric code
-                    // Assume FP as a conservative choice (higher N is safer than lower)
+                    // Can't know the type in a generic lambda, so guess based on name:
+                    // fmin/fmax are obviously FP, and std::min/max are likely FP in numeric code.
+                    // Assuming FP is safer anyway (higher N won't hurt, lower N might).
                     bool isFPVariant = (Name == "fmin" || Name == "fmax" || Name == "fminf" || Name == "fmaxf");
                     Analysis.typeSize = 4;
                     Analysis.isFloatingPoint = isFPVariant || Name == "min" || Name == "max";
@@ -619,126 +461,126 @@ namespace clang::tidy::ilp {
     }
 
     int ILPLoopCheck::lookupOptimalN(DetectedLoopType Type, const LoopAnalysis& Analysis) {
-        const auto& Profile = cpu_profiles::getProfile(TargetCPU);
+        const auto& P = ::ilp::cpu::get(TargetCPU);
         unsigned Size = Analysis.typeSize;
         bool FP = Analysis.isFloatingPoint;
 
         switch (Type) {
         case DetectedLoopType::Sum:
             if (Size == 1)
-                return Profile.N_SUM_1;
+                return P.sum_1;
             if (Size == 2)
-                return Profile.N_SUM_2;
+                return P.sum_2;
             if (Size == 4 && FP)
-                return Profile.N_SUM_4F;
+                return P.sum_4f;
             if (Size == 4)
-                return Profile.N_SUM_4I;
+                return P.sum_4i;
             if (Size == 8 && FP)
-                return Profile.N_SUM_8F;
+                return P.sum_8f;
             if (Size == 8)
-                return Profile.N_SUM_8I;
+                return P.sum_8i;
             return 4;
 
         case DetectedLoopType::DotProduct:
             if (Size == 4)
-                return Profile.N_DOTPRODUCT_4;
+                return P.dotproduct_4;
             if (Size == 8)
-                return Profile.N_DOTPRODUCT_8;
+                return P.dotproduct_8;
             return 8;
 
         case DetectedLoopType::Search:
             if (Size == 1)
-                return Profile.N_SEARCH_1;
+                return P.search_1;
             if (Size == 2)
-                return Profile.N_SEARCH_2;
+                return P.search_2;
             if (Size == 4)
-                return Profile.N_SEARCH_4;
+                return P.search_4;
             if (Size == 8)
-                return Profile.N_SEARCH_8;
+                return P.search_8;
             return 4;
 
         case DetectedLoopType::Copy:
             if (Size == 1)
-                return Profile.N_COPY_1;
+                return P.copy_1;
             if (Size == 2)
-                return Profile.N_COPY_2;
+                return P.copy_2;
             if (Size == 4)
-                return Profile.N_COPY_4;
+                return P.copy_4;
             if (Size == 8)
-                return Profile.N_COPY_8;
+                return P.copy_8;
             return 4;
 
         case DetectedLoopType::Transform:
             if (Size == 1)
-                return Profile.N_TRANSFORM_1;
+                return P.transform_1;
             if (Size == 2)
-                return Profile.N_TRANSFORM_2;
+                return P.transform_2;
             if (Size == 4)
-                return Profile.N_TRANSFORM_4;
+                return P.transform_4;
             if (Size == 8)
-                return Profile.N_TRANSFORM_8;
+                return P.transform_8;
             return 4;
 
         case DetectedLoopType::Multiply:
             if (Size == 4 && FP)
-                return Profile.N_MULTIPLY_4F;
+                return P.multiply_4f;
             if (Size == 4)
-                return Profile.N_MULTIPLY_4I;
+                return P.multiply_4i;
             if (Size == 8 && FP)
-                return Profile.N_MULTIPLY_8F;
+                return P.multiply_8f;
             if (Size == 8)
-                return Profile.N_MULTIPLY_8I;
+                return P.multiply_8i;
             return 4;
 
         case DetectedLoopType::Divide:
             if (Size == 4)
-                return Profile.N_DIVIDE_4F;
+                return P.divide_4f;
             if (Size == 8)
-                return Profile.N_DIVIDE_8F;
+                return P.divide_8f;
             return 2;
 
         case DetectedLoopType::Sqrt:
             if (Size == 4)
-                return Profile.N_SQRT_4F;
+                return P.sqrt_4f;
             if (Size == 8)
-                return Profile.N_SQRT_8F;
+                return P.sqrt_8f;
             return 2;
 
         case DetectedLoopType::MinMax:
             if (Size == 1)
-                return Profile.N_MINMAX_1;
+                return P.minmax_1;
             if (Size == 2)
-                return Profile.N_MINMAX_2;
+                return P.minmax_2;
             if (Size == 4 && FP)
-                return Profile.N_MINMAX_4F;
+                return P.minmax_4f;
             if (Size == 4)
-                return Profile.N_MINMAX_4I;
+                return P.minmax_4i;
             if (Size == 8 && FP)
-                return Profile.N_MINMAX_8F;
+                return P.minmax_8f;
             if (Size == 8)
-                return Profile.N_MINMAX_8I;
+                return P.minmax_8i;
             return 4;
 
         case DetectedLoopType::Bitwise:
             if (Size == 1)
-                return Profile.N_BITWISE_1;
+                return P.bitwise_1;
             if (Size == 2)
-                return Profile.N_BITWISE_2;
+                return P.bitwise_2;
             if (Size == 4)
-                return Profile.N_BITWISE_4;
+                return P.bitwise_4;
             if (Size == 8)
-                return Profile.N_BITWISE_8;
+                return P.bitwise_8;
             return 3;
 
         case DetectedLoopType::Shift:
             if (Size == 1)
-                return Profile.N_SHIFT_1;
+                return P.shift_1;
             if (Size == 2)
-                return Profile.N_SHIFT_2;
+                return P.shift_2;
             if (Size == 4)
-                return Profile.N_SHIFT_4;
+                return P.shift_4;
             if (Size == 8)
-                return Profile.N_SHIFT_8;
+                return P.shift_8;
             return 2;
 
         case DetectedLoopType::Unknown:

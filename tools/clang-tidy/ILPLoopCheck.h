@@ -90,7 +90,7 @@ namespace clang::tidy::ilp {
         // N value lookup
         int lookupOptimalN(DetectedLoopType Type, const LoopAnalysis& Analysis);
 
-        // Compute optimal N by finding pattern with max N (replaces priority-based selection)
+        // Find the pattern needing the highest N - that's the bottleneck
         std::pair<DetectedLoopType, int> computeOptimalN(const LoopAnalysis& Analysis);
 
         // Diagnostic helpers

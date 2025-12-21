@@ -268,15 +268,16 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_U
 ### CPU Architecture, Portability and _AUTO functions
 
 You can target specific CPU architectures for optimal unroll factors. You really should do this if you plan to be portable or highly optimised.
-If you don't specify anything the _AUTO function will expacd to the *default* unroll values from the default header. 
+If you don't specify anything the _AUTO function will expand to the *default* unroll values.
 
 ```bash
-clang++ -std=C++20 -DILP_CPU=skylake    # Intel Skylake
-clang++ -std=C++20 -DILP_CPU=apple_m1   # Apple M1
-clang++ -std=C++20 -DILP_CPU=zen5       # AMD Zen 5
+clang++ -std=c++20 -DILP_CPU_SKYLAKE      # Intel Skylake
+clang++ -std=c++20 -DILP_CPU_ALDERLAKE    # Intel Alder Lake
+clang++ -std=c++20 -DILP_CPU_APPLE_M1     # Apple M1
+clang++ -std=c++20 -DILP_CPU_ZEN5         # AMD Zen 4/5
 ```
 
-I source the locations where I have gathered data on the each architecture so I believe this to be accurate.
+I source the locations where I have gathered data on each architecture so I believe this to be accurate.
 If you do add a new architecture please let me know and I'll get it added.
 
 ### Debugging

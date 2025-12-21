@@ -2,7 +2,7 @@
 
 A best-effort static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
 
-> **Note:** Id really like this tool to be community-driven. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
+> **Note:** I'd really like this tool to be community-driven. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
 
 ## Building
 
@@ -36,6 +36,8 @@ cmake --build build
 
 ## Usage
 
+Once you've got it built, here's how to run it.
+
 ### Command Line
 
 ```bash
@@ -56,7 +58,7 @@ clang-tidy \
 
 ### Auto-Fix
 
-Add `--fix` to automatically convert `ILP_FOR` to `ILP_FOR_AUTO` with the detected pattern:
+Add `--fix` to automatically convert `ILP_FOR` to `ILP_FOR_AUTO` with the detected pattern (pretty handy):
 
 ```bash
 clang-tidy \
@@ -101,9 +103,11 @@ Then run via `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Linux/Windows):
 
 Warnings will appear in the Problems panel.
 
-Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent shell glob expansion.
+Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent shell glob expansion. Yeah, I know its ugly.
 
 ## Detected Patterns
+
+Here's what the tool can spot:
 
 | Pattern | Example | Detected As |
 |---------|---------|-------------|
@@ -123,7 +127,7 @@ Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent 
 
 When a loop contains multiple patterns, the check selects the pattern requiring the **highest N value** (the bottleneck). This follows Agner Fog's guidance: *"You may have multiple carried dependency chains in a loop: the speed limit is set by the longest."*
 
-**N = Latency × Throughput-per-cycle**
+The formula is pretty simple: **N = Latency × Throughput-per-cycle**
 
 | Pattern | Example N (float) | Formula |
 |---------|-------------------|---------|
@@ -142,7 +146,7 @@ For example, a loop with both `std::sqrt` and an indexed write (`result[i] = std
 
 ## Output
 
-The check emits warnings with a fix hint:
+The check spits out warnings with a fix hint:
 
 ```
 file.cpp:42:5: warning: Loop body contains DotProduct pattern [ilp-loop-analysis]
@@ -153,11 +157,11 @@ file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::DotProduct
 file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=8
 ```
 
-Run with `--fix` to apply the suggested change automatically.
+Run with `--fix` to apply the change automatically.
 
 ## Configuration
 
-Options can be set via `.clang-tidy` or command line:
+You can tweak these options via `.clang-tidy` or command line:
 
 - `TargetCPU`: CPU profile for N values (default: `skylake`, also: `apple_m1`)
 - `PreferPortableFix`: Use portable fix by default (default: `true`)
