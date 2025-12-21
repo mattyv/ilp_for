@@ -208,18 +208,11 @@ namespace clang::tidy::ilp {
     } // namespace cpu_profiles
 
     void LoopAnalysis::computeLoopType() {
-        // Priority order (from ilp_for README decision tree):
-        // 1. Early exit → Search
-        // 2. Sqrt → Sqrt
-        // 3. Division → Divide
-        // 4. FMA pattern (acc += a * b) → DotProduct
-        // 5. Compound multiply → Multiply
-        // 6. Min/Max → MinMax
-        // 7. Bitwise ops → Bitwise
-        // 8. Shift ops → Shift
-        // 9. Transform → Transform
-        // 10. Copy → Copy
-        // 11. Compound add → Sum
+        // DEPRECATED: This method uses priority-based selection which is incorrect.
+        // Use ILPLoopCheck::computeOptimalN() instead, which finds the pattern
+        // requiring the highest N value (the true bottleneck).
+        //
+        // Kept for backward compatibility but not called in the normal flow.
 
         if (hasEarlyExit) {
             detectedType = DetectedLoopType::Search;
@@ -246,6 +239,52 @@ namespace clang::tidy::ilp {
         } else {
             detectedType = DetectedLoopType::Unknown;
         }
+    }
+
+    std::pair<DetectedLoopType, int> ILPLoopCheck::computeOptimalN(const LoopAnalysis& Analysis) {
+        // Find the pattern requiring the highest N value (the bottleneck).
+        // Per Agner Fog: "You may have multiple carried dependency chains in a loop:
+        // the speed limit is set by the longest."
+        //
+        // N = Latency × Throughput-per-cycle
+        // Higher N means more parallel chains needed to saturate execution units.
+
+        int maxN = 0;
+        DetectedLoopType dominantType = DetectedLoopType::Unknown;
+
+        auto updateMax = [&](DetectedLoopType type) {
+            int n = lookupOptimalN(type, Analysis);
+            if (n > maxN) {
+                maxN = n;
+                dominantType = type;
+            }
+        };
+
+        // Check each detected pattern and find the one needing highest N
+        if (Analysis.hasEarlyExit)
+            updateMax(DetectedLoopType::Search);
+        if (Analysis.hasSqrt)
+            updateMax(DetectedLoopType::Sqrt);
+        if (Analysis.hasDivision)
+            updateMax(DetectedLoopType::Divide);
+        if (Analysis.hasMulInAdd)
+            updateMax(DetectedLoopType::DotProduct);
+        if (Analysis.hasCompoundMul)
+            updateMax(DetectedLoopType::Multiply);
+        if (Analysis.hasMinMax)
+            updateMax(DetectedLoopType::MinMax);
+        if (Analysis.hasBitwise)
+            updateMax(DetectedLoopType::Bitwise);
+        if (Analysis.hasShift)
+            updateMax(DetectedLoopType::Shift);
+        if (Analysis.hasTransform)
+            updateMax(DetectedLoopType::Transform);
+        if (Analysis.hasCopy)
+            updateMax(DetectedLoopType::Copy);
+        if (Analysis.hasCompoundAdd)
+            updateMax(DetectedLoopType::Sum);
+
+        return {dominantType, maxN};
     }
 
     ILPLoopCheck::ILPLoopCheck(StringRef Name, ClangTidyContext* Context)
@@ -287,19 +326,19 @@ namespace clang::tidy::ilp {
         // Analyze the loop body
         LoopAnalysis Analysis = analyzeLoopBody(Body, *Result.Context);
 
-        // Skip if we couldn't determine the type
-        if (Analysis.detectedType == DetectedLoopType::Unknown)
-            return;
+        // Find the pattern requiring the highest N (the bottleneck)
+        auto [DominantType, OptimalN] = computeOptimalN(Analysis);
 
-        // Get optimal N for this pattern
-        int OptimalN = lookupOptimalN(Analysis.detectedType, Analysis);
+        // Skip if we couldn't determine the type
+        if (DominantType == DetectedLoopType::Unknown)
+            return;
 
         // Get source locations
         SourceLocation Loc = LoopCall->getBeginLoc();
         const SourceManager& SM = *Result.SourceManager;
 
         // Build diagnostic message
-        std::string LoopTypeName = getLoopTypeName(Analysis.detectedType);
+        std::string LoopTypeName = getLoopTypeName(DominantType);
 
         // Try to extract macro arguments for auto-fix
         auto MaybeArgs = extractMacroArgs(LoopCall, SM, getLangOpts());
@@ -311,7 +350,7 @@ namespace clang::tidy::ilp {
 
         // Emit diagnostic with fix if we can generate one
         if (MaybeArgs) {
-            std::string FixText = buildPortableFix(*MaybeArgs, Analysis.detectedType);
+            std::string FixText = buildPortableFix(*MaybeArgs, DominantType);
             if (!FixText.empty()) {
                 diag(Loc, "Loop body contains %0 pattern")
                     << LoopTypeName << FixItHint::CreateReplacement(MaybeArgs->macroRange, FixText);
@@ -336,8 +375,9 @@ namespace clang::tidy::ilp {
         // Recursively analyze all statements in the body
         analyzeStatement(Body, Analysis, Context);
 
-        // Determine the loop type from evidence
-        Analysis.computeLoopType();
+        // Note: We don't call computeLoopType() here anymore.
+        // The caller should use computeOptimalN() to find the pattern
+        // requiring the highest N (the bottleneck).
 
         return Analysis;
     }
@@ -402,9 +442,17 @@ namespace clang::tidy::ilp {
             Analysis.hasDivision = true;
             QualType Ty = BO->getType();
             Analysis.accumulatorType = Ty;
-            Analysis.typeSize =
-                Ty->isFloatingType() ? (Ty->isFloat128Type() ? 16 : (isDoubleType(Ty.getTypePtr()) ? 8 : 4)) : 4;
-            Analysis.isFloatingPoint = Ty->isFloatingType();
+
+            // Handle dependent types (e.g., inside generic lambdas)
+            if (Ty->isDependentType()) {
+                // Assume floating-point as a conservative choice
+                Analysis.typeSize = 4;
+                Analysis.isFloatingPoint = true;
+            } else {
+                Analysis.typeSize =
+                    Ty->isFloatingType() ? (Ty->isFloat128Type() ? 16 : (isDoubleType(Ty.getTypePtr()) ? 8 : 4)) : 4;
+                Analysis.isFloatingPoint = Ty->isFloatingType();
+            }
         }
 
         // Shift operations
@@ -422,7 +470,14 @@ namespace clang::tidy::ilp {
 
         // Track type info
         Analysis.accumulatorType = Ty;
-        if (Ty->isBuiltinType()) {
+
+        // Handle dependent types (e.g., inside generic lambdas)
+        if (Ty->isDependentType()) {
+            // For dependent types, assume floating-point as a conservative choice
+            // (higher N is safer than lower for ILP)
+            Analysis.typeSize = 4;
+            Analysis.isFloatingPoint = true;
+        } else if (Ty->isBuiltinType()) {
             const auto* BT = Ty->getAs<BuiltinType>();
             if (BT) {
                 switch (BT->getKind()) {
@@ -452,8 +507,11 @@ namespace clang::tidy::ilp {
                     Analysis.typeSize = 4;
                 }
             }
+            Analysis.isFloatingPoint = Ty->isFloatingType();
+        } else {
+            Analysis.typeSize = 4;
+            Analysis.isFloatingPoint = Ty->isFloatingType();
         }
-        Analysis.isFloatingPoint = Ty->isFloatingType();
 
         switch (Op) {
         case BO_AddAssign:
@@ -535,8 +593,10 @@ namespace clang::tidy::ilp {
         }
 
         // Check for min/max (handles std::min, std::max, fmin, fmax, etc.)
-        if (Name == "min" || Name == "max" || Name == "fmin" || Name == "fmax" || Name == "fminf" || Name == "fmaxf" ||
-            QualifiedName.find("::min") != std::string::npos || QualifiedName.find("::max") != std::string::npos) {
+        bool isMinMax = Name == "min" || Name == "max" || Name == "fmin" || Name == "fmax" || Name == "fminf" ||
+                        Name == "fmaxf" || QualifiedName.find("::min") != std::string::npos ||
+                        QualifiedName.find("::max") != std::string::npos;
+        if (isMinMax) {
             Analysis.hasMinMax = true;
             if (CE->getNumArgs() > 0) {
                 QualType ArgTy = CE->getArg(0)->getType();
@@ -546,9 +606,13 @@ namespace clang::tidy::ilp {
                     Analysis.isFloatingPoint = ArgTy->isFloatingType();
                     Analysis.typeSize = isDoubleType(ArgTy.getTypePtr()) ? 8 : 4;
                 } else {
-                    // Default for dependent types
+                    // For dependent types, use heuristics based on function name:
+                    // - fmin/fmax/fminf/fmaxf are definitely floating-point
+                    // - std::min/std::max are commonly used with FP in numeric code
+                    // Assume FP as a conservative choice (higher N is safer than lower)
+                    bool isFPVariant = (Name == "fmin" || Name == "fmax" || Name == "fminf" || Name == "fmaxf");
                     Analysis.typeSize = 4;
-                    Analysis.isFloatingPoint = false;
+                    Analysis.isFloatingPoint = isFPVariant || Name == "min" || Name == "max";
                 }
             }
         }

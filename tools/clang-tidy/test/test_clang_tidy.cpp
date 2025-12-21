@@ -505,12 +505,13 @@ void test_max_generic(const int* data, std::size_t n) {
 TEST_CASE("Generic lambda pattern detection", "[clang-tidy][detection][generic-lambda]") {
     std::string tmpFile = "/tmp/ilp_generic_lambda_test.cpp";
 
-    SECTION("std::sqrt in generic lambda detected as Sqrt") {
+    SECTION("std::sqrt in generic lambda: Transform wins with N=4") {
+        // sqrt is detected but Transform (N=4) wins over Sqrt (N=2) via max-N
         writeFile(tmpFile, TEST_INPUT_SQRT_GENERIC);
         auto result = runClangTidy(tmpFile);
-        // Should detect Sqrt, NOT Transform
-        REQUIRE(result.output.find("Sqrt pattern") != std::string::npos);
-        REQUIRE(result.output.find("Transform pattern") == std::string::npos);
+        // Transform pattern wins because N=4 > N=2 (sqrt)
+        REQUIRE(result.output.find("Transform pattern") != std::string::npos);
+        REQUIRE(result.output.find("N=4") != std::string::npos);
     }
 
     SECTION("std::min in generic lambda detected as MinMax") {
@@ -518,6 +519,180 @@ TEST_CASE("Generic lambda pattern detection", "[clang-tidy][detection][generic-l
         auto result = runClangTidy(tmpFile);
         // Should detect MinMax
         REQUIRE(result.output.find("MinMax pattern") != std::string::npos);
+    }
+
+    fs::remove(tmpFile);
+}
+
+// Multi-pattern N selection tests
+TEST_CASE("Multi-pattern N selection", "[clang-tidy][detection][multi-pattern]") {
+    std::string tmpFile = "/tmp/ilp_multi_pattern_test.cpp";
+
+    SECTION("FMA + Sqrt (separate statements) uses max(N) = 8") {
+        // FMA needs N=8, Sqrt needs N=2 → bottleneck is FMA
+        const char* input = R"(
+#include "ilp_for.hpp"
+#include <cmath>
+
+void test(const float* a, const float* b, float* result, std::size_t n) {
+    float sum = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += a[i] * b[i];           // FMA: N=8
+        result[i] = std::sqrt(a[i]);  // Sqrt: N=2
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("Sqrt inside FMA expression: sum += sqrt(a) * b") {
+        // Single statement with Sqrt feeding into FMA
+        // Sqrt: N=2, FMA: N=8 → max = 8
+        const char* input = R"(
+#include "ilp_for.hpp"
+#include <cmath>
+
+void test(const float* a, const float* b, std::size_t n) {
+    float sum = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += std::sqrt(a[i]) * b[i];
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("Divide inside Sqrt: sqrt(a / b)") {
+        // Transform: N=4, Divide: N=2, Sqrt: N=2 → max = 4
+        // (indexed write with function call is Transform pattern)
+        const char* input = R"(
+#include "ilp_for.hpp"
+#include <cmath>
+
+void test(const float* a, const float* b, float* result, std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 4) {
+        result[i] = std::sqrt(a[i] / b[i]);
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=4") != std::string::npos);
+    }
+
+    SECTION("Sum + Multiply (two accumulators)") {
+        // Sum (float): N=8, Multiply (float): N=8 → max = 8
+        const char* input = R"(
+#include "ilp_for.hpp"
+
+void test(const float* a, const float* b, std::size_t n) {
+    float sum = 0;
+    float product = 1;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += a[i];
+        product *= b[i];
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("MinMax inside Sqrt: sqrt(min(a, b))") {
+        // MinMax (float): N=8, Sqrt: N=2 → max = 8
+        const char* input = R"(
+#include "ilp_for.hpp"
+#include <cmath>
+#include <algorithm>
+
+void test(const float* a, const float* b, float* result, std::size_t n) {
+    ILP_FOR(auto i, 0uz, n, 4) {
+        result[i] = std::sqrt(std::min(a[i], b[i]));
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("Sum + Divide: sum += (a * b) / c") {
+        // Sum (float): N=8, Divide: N=2 → max = 8
+        // Note: This is NOT FMA because the multiply result is divided before accumulating
+        const char* input = R"(
+#include "ilp_for.hpp"
+
+void test(const float* a, const float* b, const float* c, std::size_t n) {
+    float sum = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += (a[i] * b[i]) / c[i];
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("Search + FMA: early exit with dot product check") {
+        // Search: N=4, DotProduct: N=8 → max = 8
+        const char* input = R"(
+#include "ilp_for.hpp"
+
+void test(const float* a, const float* b, float threshold, std::size_t n) {
+    float sum = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += a[i] * b[i];
+        if (sum > threshold) return;
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
+    }
+
+    SECTION("Bitwise + Shift (both low N)") {
+        // Bitwise: N=3, Shift: N=2 → max = 3
+        const char* input = R"(
+#include "ilp_for.hpp"
+
+void test(const unsigned* a, unsigned* result, std::size_t n) {
+    unsigned acc = 0;
+    ILP_FOR(auto i, 0uz, n, 4) {
+        acc ^= a[i];
+        result[i] = a[i] << 2;
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=3") != std::string::npos);
+    }
+
+    SECTION("Integer Sum + Float MinMax") {
+        // Int Sum: N=3, Float MinMax: N=8 → max = 8
+        const char* input = R"(
+#include "ilp_for.hpp"
+#include <algorithm>
+
+void test(const int* a, const float* b, std::size_t n) {
+    int sum = 0;
+    float min_val = b[0];
+    ILP_FOR(auto i, 0uz, n, 4) {
+        sum += a[i];
+        min_val = std::min(min_val, b[i]);
+    } ILP_END;
+}
+)";
+        writeFile(tmpFile, input);
+        auto result = runClangTidy(tmpFile);
+        REQUIRE(result.output.find("N=8") != std::string::npos);
     }
 
     fs::remove(tmpFile);

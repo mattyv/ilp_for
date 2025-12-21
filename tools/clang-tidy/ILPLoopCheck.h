@@ -10,6 +10,7 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace clang::tidy::ilp {
 
@@ -88,6 +89,9 @@ namespace clang::tidy::ilp {
 
         // N value lookup
         int lookupOptimalN(DetectedLoopType Type, const LoopAnalysis& Analysis);
+
+        // Compute optimal N by finding pattern with max N (replaces priority-based selection)
+        std::pair<DetectedLoopType, int> computeOptimalN(const LoopAnalysis& Analysis);
 
         // Diagnostic helpers
         std::string getLoopTypeName(DetectedLoopType Type);

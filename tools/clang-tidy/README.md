@@ -1,6 +1,8 @@
 # ilp-loop-analysis clang-tidy Check
 
-Static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
+A best-effort static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
+
+> **Note:** This is a community-driven tool. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
 
 ## Building
 
@@ -117,25 +119,26 @@ Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent 
 | Bitwise | `acc &= x`, `\|=`, `^=` | Bitwise |
 | Shift | `x << n`, `x >> n` | Shift |
 
-### Pattern Priority
+### Pattern Selection (max-N)
 
-When a loop contains multiple patterns, the highest-priority pattern determines the LoopType:
+When a loop contains multiple patterns, the check selects the pattern requiring the **highest N value** (the bottleneck). This follows Agner Fog's guidance: *"You may have multiple carried dependency chains in a loop: the speed limit is set by the longest."*
 
-| Priority | Pattern | LoopType | Rationale |
-|----------|---------|----------|-----------|
-| 1 | Early exit | Search | Branch prediction dominates |
-| 2 | Sqrt | Sqrt | Highest latency operation |
-| 3 | Division | Divide | High latency operation |
-| 4 | FMA (`acc += a * b`) | DotProduct | FMA unit throughput |
-| 5 | Compound multiply | Multiply | Multiply throughput |
-| 6 | Min/Max | MinMax | Comparison chain |
-| 7 | Bitwise | Bitwise | ALU throughput |
-| 8 | Shift | Shift | ALU throughput |
-| 9 | Transform | Transform | Memory + compute |
-| 10 | Copy | Copy | Memory bandwidth |
-| 11 | Compound add | Sum | Default accumulator |
+**N = Latency × Throughput-per-cycle**
 
-For example, a loop with both FMA (`sum += a[i] * b[i]`) and a transform (`dst[i] = f(src[i])`) is classified as DotProduct because FMA has higher priority.
+| Pattern | Example N (float) | Formula |
+|---------|-------------------|---------|
+| DotProduct | 8 | FMA: L=4, TPC=2 |
+| Sum | 8 | FP Add: L=4, TPC=2 |
+| MinMax (FP) | 8 | L=4, TPC=2 |
+| Multiply | 8 | L=4, TPC=2 |
+| Search | 4 | Branch + compare |
+| Transform | 4 | Memory + compute |
+| Bitwise | 3 | L=1, TPC=3 |
+| Sqrt | 2 | L=12, TPC=0.17 |
+| Divide | 2 | L=11, TPC=0.2 |
+| Shift | 2 | L=1, TPC=2 |
+
+For example, a loop with both `std::sqrt` and an indexed write (`result[i] = std::sqrt(...)`) is classified as Transform (N=4) because Transform requires more parallel chains than Sqrt (N=2).
 
 ## Output
 
