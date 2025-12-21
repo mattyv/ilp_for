@@ -127,7 +127,7 @@ ILP_FOR(auto i, 0, n, 4) {
 } ILP_END;
 ```
 
-...or if you don't want to think about the unroll factor, use `ILP_FOR_AUTO` with a [LoopType](#looptype-reference):
+...or if you want something more portable, use `ILP_FOR_AUTO` with a [LoopType](#looptype-reference):
 
 ```cpp
 ILP_FOR_AUTO(auto i, 0, n, Search) {
@@ -135,6 +135,25 @@ ILP_FOR_AUTO(auto i, 0, n, Search) {
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
 } ILP_END;
+```
+
+Use the clang-tidy tool to check it suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
+
+```cpp
+ILP_FOR_AUTO(auto i, 0, n, Add) { //incorrect LoopType
+    if (data[i] < 0) ILP_BREAK;
+    if (data[i] == 0) ILP_CONTINUE;
+    process(data[i]);
+} ILP_END;
+```
+
+```bash
+ILP_FOR_AUTO(auto i, 0, n, Add) {
+^~~~~~~~~~~~~~~~~~~~~
+ILP_FOR_AUTO(auto i, 0, n, Search) 
+file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::Search
+file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=4
+
 ```
 
 ### Loop with Return
@@ -162,14 +181,19 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Large Return Types
 
-To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in an 8-byte buffer (SBO). This works for types that are:
-- **≤ 8 bytes** in size
-- **≤ 8 byte** alignment
+To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in a small buffer (SBO). The buffer size matches `sizeof(std::intmax_t)` on your target architecture (typically 8 bytes on 64-bit platforms). This works for types that are:
+- **≤ SBO size** in size (typically 8 bytes)
+- **≤ SBO size** alignment
 - **Trivially destructible** (no custom destructor)
 
 This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
 
-For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types. 
+For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types.
+
+To override the SBO size, define `ILP_SBO_SIZE` before including the header:
+```bash
+clang++ -std=c++20 -DILP_SBO_SIZE=16 mycode.cpp  # 16-byte SBO
+``` 
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes

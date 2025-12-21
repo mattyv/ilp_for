@@ -13,6 +13,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "arch.hpp"
+
 // Cross-platform always_inline attribute
 #if defined(_MSC_VER) && !defined(__clang__)
 #define ILP_ALWAYS_INLINE __forceinline
@@ -51,17 +53,20 @@ namespace ilp {
         void break_loop() { ok = false; }
     };
 
-    // Small storage for integral types (8 bytes max - covers int, size_t, pointers)
+    // Small buffer optimization for integral types.
+    // Buffer size matches the largest integral type on this architecture (typically 8 bytes).
     // Only supports trivially destructible types to avoid lifetime management complexity.
-    // Use ILP_FOR_T for non-trivial return types.
+    // Use ILP_FOR_T for non-trivial or larger return types.
     struct SmallStorage {
-        alignas(8) char buffer[8];
+        alignas(arch::sbo_size) char buffer[arch::sbo_size];
 
         template<typename T>
         ILP_ALWAYS_INLINE void set(T&& val) {
             using U = std::decay_t<T>;
-            static_assert(sizeof(U) <= 8, "Return type exceeds 8 bytes. Use ILP_FOR_T(type, ...) instead.");
-            static_assert(alignof(U) <= 8, "Return type alignment exceeds 8. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(sizeof(U) <= arch::sbo_size,
+                          "Return type exceeds SBO size. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(alignof(U) <= arch::sbo_size,
+                          "Return type alignment exceeds SBO size. Use ILP_FOR_T(type, ...) instead.");
             static_assert(std::is_trivially_destructible_v<U>,
                           "SmallStorage only supports trivially-destructible types. "
                           "Use ILP_FOR_T(type, ...) for non-trivial return types.");
