@@ -169,7 +169,7 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 
 This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
 
-For types that don't meet these requirements, use `ILP_FOR_T` to specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types. 
+For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types. 
 
 ```cpp
 struct Result { int x, y, z; double value; };  // > 8 bytes
@@ -217,7 +217,7 @@ Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ### Use `auto&&` for Range Loops
 
-When using `ILP_FOR_RANGE`, you should use `auto&&` to avoid copying each element:
+When using `ILP_FOR_RANGE`, make sure you use `auto&&` to avoid copying each element (unless thats your thing):
 
 ```cpp
 // Good - uses forwarding reference (zero copies)
@@ -231,7 +231,7 @@ ILP_FOR_RANGE(auto val, strings, 4) {
 } ILP_END;
 ```
 
-...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. For a `std::vector<std::string>`, using `auto` would copy every string!
+...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. You probably didn't need me to tell you this... but for completeness :). For a `std::vector<std::string>`, using `auto` would copy every string!
 
 For index-based loops, just use `auto` since indices are just integers:
 
@@ -247,7 +247,7 @@ ILP_FOR(auto i, 0, n, 4) {
 
 **Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
 
-**Skip ILP for simple loops without early exit.** Compilers *can* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly.
+**Skip ILP for simple loops without early exit.** Compilers *can (amost most of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
@@ -265,9 +265,10 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_U
 
 ## Advanced
 
-### CPU Architecture
+### CPU Architecture, Portability and _AUTO functions
 
-You can target specific CPU architectures for optimal unroll factors. This is highly advisable if you plan to be portable or highly optimised:
+You can target specific CPU architectures for optimal unroll factors. You really should do this if you plan to be portable or highly optimised.
+If you don't specify anything the _AUTO function will expacd to the *default* unroll values from the default header. 
 
 ```bash
 clang++ -std=C++20 -DILP_CPU=skylake    # Intel Skylake
@@ -286,11 +287,11 @@ If you need to debug your loop logic, you can disable ILP entirely:
 clang++ -std=C++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
-...all macros then expand to simple `for` loops with the same semantics.
+...bascially this just turns the macros back into simple `for` loops with the same semantics. <<insert example>>
 
 ### LoopType Reference
 
-When using `_AUTO` variants, you need to specify a 'LoopType' to auto-select the optimal unroll factor:
+When using `_AUTO` variants, you **must** to specify a 'LoopType' to auto-select the optimal unroll factor:
 
 | LoopType | Operation | Use Case |
 |----------|-----------|----------|
@@ -306,13 +307,13 @@ When using `_AUTO` variants, you need to specify a 'LoopType' to auto-select the
 | `Bitwise` | `&`, `\|`, `^` | Bitwise AND/OR/XOR |
 | `Shift` | `<<`, `>>` | Bit shifting |
 
-### Selecting LoopType
+### Selecting LoopType Guide
 
-**The principle:** Pick the LoopType for your loop's **bottleneck operation** - the slowest or most congested one.
+**The basic principle:** Pick the LoopType for your loop's **bottleneck operation** - AKA the slowest or most congested one.
 
 **Why?** The optimal unroll factor N follows `N ≈ Latency × Throughput` to keep enough operations in flight to saturate the execution unit and hide latency.
 
-**For mixed operations (e.g., adds AND multiplies):**
+**Have mixed operations??? (e.g., adds AND multiplies):**
 
 1. **Identify the critical path** - operations with dependencies form a chain; independent operations can overlap
 2. **Pick the slowest operation on that path:**
@@ -336,11 +337,11 @@ Doing bitwise ops?                 → Bitwise
 Unsure?                            → Search (safe default)
 ```
 
-**Static analysis:** The `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+**Super Secret Tooling:** If all else you can just use the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. Its pretty Beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
 
 ### Reading CPU Profiles
 
-The CPU profile headers in `cpu_profiles/` contain instruction timing data used to compute optimal N values. Each profile includes a reference table:
+The CPU profile headers are in `cpu_profiles/` and contain instruction timing data used to compute optimal N values. Each profile includes a reference table:
 
 ```
 | Instruction    | Use Case | Latency | RThr | L×TPC |
@@ -363,7 +364,7 @@ If FP add has L=4 and TPC=2, then N = 8 independent adds are needed to keep the 
 
 ### optimal_N
 
-If you want to query the optimal unroll factor directly:
+If you want to query the optimal unroll factor directly use...
 
 ```cpp
 constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, double>;
