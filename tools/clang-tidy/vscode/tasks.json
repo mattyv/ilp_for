@@ -1,0 +1,146 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "ILP Loop Analysis (current file)",
+            "type": "shell",
+            "command": "clang-tidy",
+            "args": [
+                "-load",
+                "${workspaceFolder}/tools/clang-tidy/build/ILPTidyModule.so",
+                "-checks=-\\*,ilp-\\*",
+                "${file}",
+                "--",
+                "-std=c++20",
+                "-I${workspaceFolder}"
+            ],
+            "problemMatcher": {
+                "owner": "ilp-loop-analysis",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+):(\\d+):(\\d+): (warning|error): (.+) \\[(.+)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "group": "test"
+        },
+        {
+            "label": "ILP Loop Analysis (test patterns)",
+            "type": "shell",
+            "command": "clang-tidy",
+            "args": [
+                "-load",
+                "${workspaceFolder}/tools/clang-tidy/build/ILPTidyModule.so",
+                "-checks=-\\*,ilp-\\*",
+                "${workspaceFolder}/tools/clang-tidy/test/loop_patterns.cpp",
+                "--",
+                "-std=c++20",
+                "-I${workspaceFolder}"
+            ],
+            "problemMatcher": {
+                "owner": "ilp-loop-analysis",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+):(\\d+):(\\d+): (warning|error): (.+) \\[(.+)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "group": "test"
+        },
+        {
+            "label": "ILP Loop Fix (test patterns)",
+            "type": "shell",
+            "command": "clang-tidy",
+            "args": [
+                "-load",
+                "${workspaceFolder}/tools/clang-tidy/build/ILPTidyModule.so",
+                "-checks=-\\*,ilp-\\*",
+                "--fix",
+                "${workspaceFolder}/tools/clang-tidy/test/loop_patterns.cpp",
+                "--",
+                "-std=c++20",
+                "-I${workspaceFolder}"
+            ],
+            "problemMatcher": {
+                "owner": "ilp-loop-analysis",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+):(\\d+):(\\d+): (warning|error): (.+) \\[(.+)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "group": "test"
+        },
+        {
+            "label": "ILP Loop Fix (current file)",
+            "type": "shell",
+            "command": "clang-tidy",
+            "args": [
+                "-load",
+                "${workspaceFolder}/tools/clang-tidy/build/ILPTidyModule.so",
+                "-checks=-\\*,ilp-\\*",
+                "--fix",
+                "${file}",
+                "--",
+                "-std=c++20",
+                "-I${workspaceFolder}"
+            ],
+            "problemMatcher": {
+                "owner": "ilp-loop-analysis",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+):(\\d+):(\\d+): (warning|error): (.+) \\[(.+)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "group": "test"
+        },
+        {
+            "label": "Build ILP clang-tidy module",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/tools/clang-tidy/build"
+            ],
+            "problemMatcher": "$gcc",
+            "group": "build"
+        }
+    ]
+}

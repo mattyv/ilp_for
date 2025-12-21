@@ -19,16 +19,8 @@ namespace ilp::detail {
     constexpr void check_for_end([[maybe_unused]] For_Context_USE_ILP_END) {}
 }
 
-#define ILP_STRINGIFY_(x) #x
-#define ILP_STRINGIFY(x) ILP_STRINGIFY_(x)
-#define ILP_CPU_HEADER_(cpu) ILP_STRINGIFY(ilp_for / cpu_profiles / ilp_cpu_##cpu.hpp)
-#define ILP_CPU_HEADER(cpu) ILP_CPU_HEADER_(cpu)
-
-#ifdef ILP_CPU
-#include ILP_CPU_HEADER(ILP_CPU)
-#else
-#include "ilp_for/cpu_profiles/ilp_cpu_default.hpp"
-#endif
+// CPU profile selection via -DILP_CPU_SKYLAKE, -DILP_CPU_ZEN5, etc.
+#include "ilp_for/cpu_profiles/ilp_cpu.hpp"
 
 #include "ilp_for/detail/iota.hpp"
 #include "ilp_for/detail/loops_ilp.hpp"

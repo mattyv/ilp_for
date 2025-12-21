@@ -67,36 +67,29 @@ Now the CPU can execute all 4 adds in parallel, achieving ~4x throughput.
 
 With 4-cycle latency and 2/cycle throughput, you need **8 independent operations** in flight to saturate the FP units.
 
-## Why ILP_FOR Works
+## How ILP_FOR Works
 
-This library automatically generates the multi-accumulator pattern:
+The library unrolls loops by factor N, enabling the compiler to vectorize or interleave operations:
 
 ```cpp
 // You write:
-auto sum = ilp::reduce_range<4>(data, 0, std::plus<>{}, [](auto&& val) {
-    return val;
-});
+ILP_FOR(auto i, 0uz, n, 4) {
+    dst[i] = src[i] * 2.0f;
+} ILP_END;
 
 // Library generates (conceptually):
-std::array<T, 4> accs = {0, 0, 0, 0};
 for (i = 0; i + 4 <= n; i += 4) {
-    accs[0] += body(data[i]);
-    accs[1] += body(data[i+1]);
-    accs[2] += body(data[i+2]);
-    accs[3] += body(data[i+3]);
+    dst[i]   = src[i]   * 2.0f;  // Independent
+    dst[i+1] = src[i+1] * 2.0f;  // Independent
+    dst[i+2] = src[i+2] * 2.0f;  // Independent
+    dst[i+3] = src[i+3] * 2.0f;  // Independent
 }
-return accs[0] + accs[1] + accs[2] + accs[3];
+// + remainder loop
 ```
 
-## Choosing N (Unroll Factor)
+For **copy** and **transform** patterns, each iteration is independent—the compiler can vectorize or execute them in parallel.
 
-| Type | Recommended N | Rationale |
-|------|---------------|-----------|
-| Integer ops | 4-8 | 4 ALU ports, 1-cycle latency |
-| FP add/mul | 8-16 | 4-cycle latency × 2 throughput |
-| Memory bound | 4 | Limited by load ports |
-
-The `_AUTO` macros select optimal N based on the operation type and CPU profile.
+**Note:** ILP_FOR is optimized for loops with early exit (`break`, `return`). For pure accumulation patterns without early exit, compilers can often auto-vectorize a simple loop just as effectively.
 
 ## Further Reading
 

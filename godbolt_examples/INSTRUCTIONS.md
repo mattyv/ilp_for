@@ -29,41 +29,11 @@ DO NOT:
 Use `sed` to extract exact line ranges from source files:
 
 ```bash
-# Extract is_optional trait from ctrl.hpp (lines 15-17)
-sed -n '15,17p' detail/ctrl.hpp
+# Extract ForCtrl from ctrl.hpp
+sed -n '/^struct ForCtrl/,/^};/p' ilp_for/detail/ctrl.hpp
 
-# Extract validate_unroll_factor from loops_common.hpp (lines 51-63)
-sed -n '51,63p' detail/loops_common.hpp
-
-# Extract find_impl from loops_ilp.hpp (lines 122-182)
-sed -n '122,182p' detail/loops_ilp.hpp
-
-# Extract reduce_impl from loops_ilp.hpp (lines 425-488)
-sed -n '425,488p' detail/loops_ilp.hpp
-```
-
-To build a complete godbolt example:
-
-```bash
-# Example: build find_first_match.cpp implementation section
-{
-    echo "namespace ilp {"
-    echo "namespace detail {"
-    echo ""
-    sed -n '15,17p' detail/ctrl.hpp                    # is_optional
-    echo ""
-    sed -n '51,63p' detail/loops_common.hpp            # validate_unroll_factor
-    echo ""
-    sed -n '138p' detail/loops_common.hpp              # FindBody concept
-    echo ""
-    sed -n '122,182p' detail/loops_ilp.hpp             # find_impl
-    echo ""
-    echo "} // namespace detail"
-    echo ""
-    sed -n '676,680p' detail/loops_ilp.hpp             # public ilp::find
-    echo ""
-    echo "} // namespace ilp"
-}
+# Extract for_loop from loops_ilp.hpp
+sed -n '/^template.*for_loop/,/^}/p' ilp_for/detail/loops_ilp.hpp
 ```
 
 **NEVER manually rewrite or "clean up" the extracted code.**
@@ -118,17 +88,10 @@ Copy LINE-FOR-LINE from these files:
 
 | Component | Source File | Lines |
 |-----------|-------------|-------|
-| `is_optional` trait | `detail/ctrl.hpp` | ~15-17 |
-| `validate_unroll_factor` | `detail/loops_common.hpp` | ~51-63 |
-| `ReduceBody` concept | `detail/loops_common.hpp` | ~131 |
-| `FindBody` concept | `detail/loops_common.hpp` | ~138 |
-| `has_known_identity_v` | `detail/loops_ilp.hpp` | ~26-36 |
-| `make_identity` | `detail/loops_ilp.hpp` | ~39-59 |
-| `make_accumulators` | `detail/loops_ilp.hpp` | ~74-90 |
-| `find_impl` | `detail/loops_ilp.hpp` | ~122-182 |
-| `reduce_impl` | `detail/loops_ilp.hpp` | ~425-488 |
-| Public `ilp::find` | `detail/loops_ilp.hpp` | ~676-680 |
-| Public `ilp::reduce` | `detail/loops_ilp.hpp` | ~739-743 |
+| `ForCtrl` | `ilp_for/detail/ctrl.hpp` | check file |
+| `ForResult` | `ilp_for/detail/ctrl.hpp` | check file |
+| `for_loop` | `ilp_for/detail/loops_ilp.hpp` | check file |
+| Macros | `ilp_for.hpp` | check file |
 
 ---
 
@@ -136,28 +99,20 @@ Copy LINE-FOR-LINE from these files:
 
 | Example | Components Needed |
 |---------|-------------------|
-| `find_first_match.cpp` | `is_optional`, `validate_unroll_factor`, `find_impl`, `ilp::find` |
-| `sum_with_break.cpp` | `is_optional`, `validate_unroll_factor`, `has_known_identity_v`, `make_identity`, `make_accumulators`, `ReduceBody`, `reduce_impl`, `ilp::reduce` |
-| `parallel_min.cpp` | Same as `sum_with_break.cpp` |
-| `transform_simple.cpp` | `ForCtrl`, `ForResult`, `validate_unroll_factor`, `for_loop_untyped_impl`, `ilp::for_loop`, macros from `ilp_for.hpp` |
+| `loop_with_break.cpp` | `ForCtrl`, `ForResult`, `for_loop`, `ILP_FOR` macros |
+| `loop_with_return.cpp` | `ForCtrl`, `ForResult`, `for_loop`, `ILP_FOR` + `ILP_RETURN` macros |
+| `loop_with_return_typed.cpp` | `ForCtrlTyped`, `ForResultTyped`, `for_loop_typed`, `ILP_FOR_T` macros |
+| `pragma_vs_ilp.cpp` | Full `ILP_FOR` implementation for pragma comparison |
 
 ---
 
 ## Verification
 
-After updating, verify with diff:
-
-```bash
-# Example: verify find_impl is exact copy
-diff <(sed -n '/^template.*find_impl/,/^}$/p' detail/loops_ilp.hpp) \
-     <(sed -n '/^template.*find_impl/,/^}$/p' godbolt_examples/find_first_match.cpp)
-```
-
 Test compilation:
 ```bash
 for f in godbolt_examples/*.cpp; do
     echo "Testing $f"
-    clang++ -std=C++20 -O3 -Wall "$f" -o /tmp/test && /tmp/test && echo "PASS"
+    clang++ -std=c++20 -O3 -Wall "$f" -o /tmp/test && /tmp/test && echo "PASS"
 done
 ```
 
@@ -165,16 +120,14 @@ done
 
 ## Current API Reference
 
-### `ilp::find<N>(start, end, body)`
-- `body(i, end)` returns `bool` or value with sentinel comparison
-- Returns index of first match, or `end` if not found
+### `ILP_FOR(loop_var, start, end, N) { ... } ILP_END;`
+- Basic loop, supports `ILP_BREAK`, `ILP_CONTINUE`
 
-### `ilp::reduce<N>(start, end, init, op, body)`
-- `body(i)` returns value OR `std::optional<T>` (nullopt = break)
-- Returns reduced result
+### `ILP_FOR_AUTO(loop_var, start, end, LoopType) { ... } ILP_END;`
+- Auto-selects optimal N based on LoopType (Sum, DotProduct, Search, etc.)
 
-### `ILP_FOR(loop_var, start, end, N) { ... } ILP_END`
-- Void loops, supports `ILP_BREAK`, `ILP_CONTINUE`
+### `ILP_FOR_T(type, loop_var, start, end, N) { ... } ILP_END_RETURN;`
+- Typed loop with `ILP_RETURN(value)` support
 
-### `ILP_FOR(...) { ... } ILP_END_RETURN`
-- Loops with `ILP_RETURN(value)`
+### `ILP_FOR_RANGE(loop_var, range, N) { ... } ILP_END;`
+- Range-based variant

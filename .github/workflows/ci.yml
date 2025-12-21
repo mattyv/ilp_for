@@ -22,6 +22,7 @@ jobs:
           - { os: macos-14, compiler: appleclang, cc: clang, cxx: clang++ }
           - { os: macos-14, compiler: gcc-14, cc: gcc-14, cxx: g++-14 }
           - { os: windows-latest, compiler: msvc, cc: cl, cxx: cl }
+          - { os: windows-latest, compiler: clang, cc: clang-cl, cxx: clang-cl }
 
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +47,12 @@ jobs:
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Clang (Windows)
+        if: runner.os == 'Windows' && matrix.config.compiler == 'clang'
+        run: |
+          # LLVM is pre-installed on Windows runners, just verify it's available
+          clang-cl --version
 
       - name: Set ILP mode flags
         id: ilp_flags
@@ -72,7 +79,7 @@ jobs:
         run: |
           mkdir tests\build
           cd tests\build
-          cmake .. -G "NMake Makefiles" -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
+          cmake .. -G "NMake Makefiles" -DCMAKE_C_COMPILER=${{ matrix.config.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_FLAGS="${{ steps.ilp_flags.outputs.cxx_flags }}"
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
@@ -153,3 +160,47 @@ jobs:
           else
             ./test_runner
           fi
+
+  clang-tidy-check:
+    name: clang-tidy-check
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM/Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev libclang-18-dev clang-18 clang-tidy-18
+
+      - name: Configure clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          cmake -B build \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm \
+            -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+
+      - name: Build clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          cmake --build build
+
+      - name: Test clang-tidy module
+        run: |
+          cd tools/clang-tidy
+          clang-tidy-18 \
+            -load build/ILPTidyModule.so \
+            -checks='-*,ilp-*' \
+            test/loop_patterns.cpp \
+            -- -std=c++20 -I../.. 2>&1 | tee output.txt
+          # Verify expected patterns are detected
+          grep -q "Sum pattern" output.txt
+          grep -q "DotProduct pattern" output.txt
+          grep -q "Search pattern" output.txt
+          grep -q "Copy pattern" output.txt
+          grep -q "Multiply pattern" output.txt
+          grep -q "Divide pattern" output.txt
+          grep -q "Bitwise pattern" output.txt
+          grep -q "Shift pattern" output.txt
+          echo "All expected patterns detected!"
