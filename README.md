@@ -312,7 +312,16 @@ If you need to debug your loop logic, you can disable ILP entirely:
 clang++ -std=C++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
-...bascially this just turns the macros back into simple `for` loops with the same semantics. <<insert example>>
+This turns the macros into simple `for` loops with the same semantics:
+
+| ILP Macro | Simple Mode Expansion |
+|-----------|----------------------|
+| `ILP_FOR(auto i, 0, n, 4)` | `for (auto i : ilp::iota(0, n))` |
+| `ILP_FOR_AUTO(auto i, 0, n, Sum)` | `for (auto i : ilp::iota(0, n))` |
+| `ILP_CONTINUE` | `continue` |
+| `ILP_BREAK` | `break` |
+| `ILP_RETURN(x)` | `return x` |
+| `ILP_END` / `ILP_END_RETURN` | *(empty)* |
 
 ### LoopType Reference
 
