@@ -163,5 +163,18 @@ Run with `--fix` to apply the change automatically.
 
 You can tweak these options via `.clang-tidy` or command line:
 
-- `TargetCPU`: CPU profile for N values (default: `skylake`, also: `apple_m1`)
-- `PreferPortableFix`: Use portable fix by default (default: `true`)
+| Option | Default | Description |
+|--------|---------|-------------|
+| `TargetCPU` | `skylake` | CPU profile for N values (`skylake`, `alderlake`, `zen5`, `apple_m1`) |
+| `PreferPortableFix` | `true` | Use `ILP_FOR_AUTO` fix instead of architecture-specific `ILP_FOR` |
+
+Example `.clang-tidy`:
+
+```yaml
+Checks: '-*,ilp-*'
+CheckOptions:
+  - key: ilp-loop-analysis.TargetCPU
+    value: apple_m1
+  - key: ilp-loop-analysis.PreferPortableFix
+    value: true
+```
