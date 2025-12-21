@@ -62,7 +62,7 @@ loop:
 done:
 ```
 
-So what can you do? Create a main loop + remainder pattern that checks bounds only once per block. But this is messy and error prone and looks ghastly:
+So what can you do? Create a main loop + remainder pattern that checks bounds only once per block? The compiler will give you nice machine code without the extra bounds checking, but this is messy and error prone and looks ghastly:
 
 ```cpp
 int sum = 0;
