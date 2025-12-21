@@ -58,16 +58,16 @@ namespace ilp::detail {
         return ::ilp::for_loop_range<N>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& __ilp_ctrl)
 
-#define ILP_FOR_AUTO(loop_var_decl, start, end, loop_type)                                                             \
+#define ILP_FOR_AUTO(loop_var_decl, start, end, loop_type, element_type)                                               \
     if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResult { \
         [[maybe_unused]] auto __ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_auto<::ilp::LoopType::loop_type>(start, end, \
+        return ::ilp::for_loop_auto<element_type, ::ilp::LoopType::loop_type>(start, end, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& __ilp_ctrl)
 
-#define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type)                                                            \
+#define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type, element_type)                                              \
     if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResult { \
         [[maybe_unused]] auto __ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_auto<::ilp::LoopType::loop_type>(range, \
+        return ::ilp::for_loop_range_auto<element_type, ::ilp::LoopType::loop_type>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& __ilp_ctrl)
 
 #define ILP_FOR_T(type, loop_var_decl, start, end, N)                                                                  \
@@ -82,17 +82,17 @@ namespace ilp::detail {
         return ::ilp::for_loop_range_typed<type, N>(range, \
             [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& __ilp_ctrl)
 
-#define ILP_FOR_T_AUTO(type, loop_var_decl, start, end, loop_type)                                                     \
-    if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResultTyped<type> { \
+#define ILP_FOR_T_AUTO(ret_type, loop_var_decl, start, end, loop_type, element_type)                                   \
+    if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResultTyped<ret_type> { \
         [[maybe_unused]] auto __ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_typed_auto<type, ::ilp::LoopType::loop_type>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& __ilp_ctrl)
+        return ::ilp::for_loop_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<ret_type>& __ilp_ctrl)
 
-#define ILP_FOR_RANGE_T_AUTO(type, loop_var_decl, range, loop_type)                                                    \
-    if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResultTyped<type> { \
+#define ILP_FOR_RANGE_T_AUTO(ret_type, loop_var_decl, range, loop_type, element_type)                                  \
+    if ([[maybe_unused]] auto __ilp_ret = [&]() -> ::ilp::ForResultTyped<ret_type> { \
         [[maybe_unused]] auto __ilp_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_typed_auto<type, ::ilp::LoopType::loop_type>(range, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& __ilp_ctrl)
+        return ::ilp::for_loop_range_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<ret_type>& __ilp_ctrl)
 
 // IMPORTANT: if ILP_RETURN is used, you MUST use ILP_END_RETURN instead!
 #define ILP_END );                                                                                                     \

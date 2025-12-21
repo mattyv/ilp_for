@@ -123,8 +123,8 @@ done
 ### `ILP_FOR(loop_var, start, end, N) { ... } ILP_END;`
 - Basic loop, supports `ILP_BREAK`, `ILP_CONTINUE`
 
-### `ILP_FOR_AUTO(loop_var, start, end, LoopType) { ... } ILP_END;`
-- Auto-selects optimal N based on LoopType (Sum, DotProduct, Search, etc.)
+### `ILP_FOR_AUTO(loop_var, start, end, LoopType, element_type) { ... } ILP_END;`
+- Auto-selects optimal N based on LoopType and element type (Sum, DotProduct, Search, etc.)
 
 ### `ILP_FOR_T(type, loop_var, start, end, N) { ... } ILP_END_RETURN;`
 - Typed loop with `ILP_RETURN(value)` support

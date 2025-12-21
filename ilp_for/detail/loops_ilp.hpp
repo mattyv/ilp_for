@@ -255,30 +255,28 @@ namespace ilp {
         return detail::for_loop_range_ret_simple_impl<N>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    template<LoopType LT, std::integral T, typename F>
+    template<typename ElementT, LoopType LT, std::integral T, typename F>
         requires detail::ForUntypedCtrlBody<F, T>
     ForResult for_loop_auto(T start, T end, F&& body) {
-        return for_loop<optimal_N<LT, T>>(start, end, std::forward<F>(body));
+        return for_loop<optimal_N<LT, ElementT>>(start, end, std::forward<F>(body));
     }
 
-    template<typename R, LoopType LT, std::integral T, typename F>
+    template<typename ElementT, typename R, LoopType LT, std::integral T, typename F>
         requires detail::ForTypedCtrlBody<F, T, R>
     ForResultTyped<R> for_loop_typed_auto(T start, T end, F&& body) {
-        return for_loop_typed<R, optimal_N<LT, T>>(start, end, std::forward<F>(body));
+        return for_loop_typed<R, optimal_N<LT, ElementT>>(start, end, std::forward<F>(body));
     }
 
-    template<LoopType LT, std::ranges::random_access_range Range, typename F>
+    template<typename ElementT, LoopType LT, std::ranges::random_access_range Range, typename F>
         requires detail::ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
     ForResult for_loop_range_auto(Range&& range, F&& body) {
-        using T = std::ranges::range_value_t<Range>;
-        return for_loop_range<optimal_N<LT, T>>(std::forward<Range>(range), std::forward<F>(body));
+        return for_loop_range<optimal_N<LT, ElementT>>(std::forward<Range>(range), std::forward<F>(body));
     }
 
-    template<typename R, LoopType LT, std::ranges::random_access_range Range, typename F>
+    template<typename ElementT, typename R, LoopType LT, std::ranges::random_access_range Range, typename F>
         requires detail::ForRangeTypedCtrlBody<F, std::ranges::range_reference_t<Range>, R>
     ForResultTyped<R> for_loop_range_typed_auto(Range&& range, F&& body) {
-        using T = std::ranges::range_value_t<Range>;
-        return for_loop_range_typed<R, optimal_N<LT, T>>(std::forward<Range>(range), std::forward<F>(body));
+        return for_loop_range_typed<R, optimal_N<LT, ElementT>>(std::forward<Range>(range), std::forward<F>(body));
     }
 
 } // namespace ilp

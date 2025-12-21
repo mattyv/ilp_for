@@ -99,7 +99,7 @@ namespace clang::tidy::ilp {
         // Fix generation helpers
         std::optional<MacroArgs> extractMacroArgs(const CallExpr* LoopCall, const SourceManager& SM,
                                                   const LangOptions& LO);
-        std::string buildPortableFix(const MacroArgs& Args, DetectedLoopType Type);
+        std::string buildPortableFix(const MacroArgs& Args, DetectedLoopType Type, const LoopAnalysis& Analysis);
     };
 
 } // namespace clang::tidy::ilp

@@ -8,10 +8,12 @@ Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
 | Loop Type | Simple | Pragma | ILP | Speedup |
 |-----------|--------|--------|-----|---------|
-| `ILP_FOR` with `ILP_BREAK` | 1.49ms | 1.48ms | 1.15ms | **1.29x** |
-| `ILP_FOR` with `ILP_RETURN` | 1.66ms | - | 0.94ms | **1.77x** |
+| `ILP_FOR` with `ILP_BREAK` | 1.46ms | 1.46ms | 0.94ms | **1.56x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.68ms | 1.51ms | 0.94ms | **1.79x** |
+| `ILP_FOR` with `ILP_CONTINUE` | 1.96ms | 1.72ms | 1.49ms | **1.31x** |
+| `ILP_FOR_RANGE` with `ILP_BREAK` | 2.21ms | - | 0.94ms | **2.35x** |
 
-Note: `#pragma unroll` performs the same as Simple for early-exit loops due to per-iteration bounds checks. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md) for details.
+Note: `#pragma unroll` is slower than a simple loop for early-exit patterns due to per-iteration bounds checks. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md) for details.
 
 ### Why ILP_RETURN is Faster
 

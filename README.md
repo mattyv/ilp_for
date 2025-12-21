@@ -84,7 +84,7 @@ for (; i < n; ++i) {              // Remainder
 }
 ```
 
-See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.29x speedup).
+See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.5x speedup).
 
 But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
 ```cpp
@@ -130,7 +130,7 @@ ILP_FOR(auto i, 0, n, 4) {
 ...or if you want something more portable, use `ILP_FOR_AUTO` with a [LoopType](#looptype-reference):
 
 ```cpp
-ILP_FOR_AUTO(auto i, 0, n, Search) {
+ILP_FOR_AUTO(auto i, 0, n, Search, int) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
@@ -140,7 +140,7 @@ ILP_FOR_AUTO(auto i, 0, n, Search) {
 Use the clang-tidy tool to check it suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
 
 ```cpp
-ILP_FOR_AUTO(auto i, 0, n, Add) { //incorrect LoopType
+ILP_FOR_AUTO(auto i, 0, n, Add, int) { //incorrect LoopType
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     process(data[i]);
@@ -148,9 +148,9 @@ ILP_FOR_AUTO(auto i, 0, n, Add) { //incorrect LoopType
 ```
 
 ```bash
-ILP_FOR_AUTO(auto i, 0, n, Add) {
+ILP_FOR_AUTO(auto i, 0, n, Add, int) {
 ^~~~~~~~~~~~~~~~~~~~~
-ILP_FOR_AUTO(auto i, 0, n, Search) 
+ILP_FOR_AUTO(auto i, 0, n, Search, int)
 file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::Search
 file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=4
 
@@ -172,7 +172,7 @@ int find_index(const std::vector<int>& data, int target) {
 
 ```cpp
 int find_index(const std::vector<int>& data, int target) {
-    ILP_FOR_AUTO(auto i, 0, static_cast<int>(data.size()), Search) {
+    ILP_FOR_AUTO(auto i, 0, static_cast<int>(data.size()), Search, int) {
         if (data[i] == target) ILP_RETURN(i);
     } ILP_END_RETURN;
     return -1;
@@ -216,12 +216,12 @@ Result find_result(const std::vector<int>& data, int target) {
 |-------|-------------|
 | `ILP_FOR(var, start, end, N)` | Index loop with explicit N |
 | `ILP_FOR_RANGE(var, range, N)` | Range-based loop with explicit N |
-| `ILP_FOR_AUTO(var, start, end, LoopType)` | Index loop with auto-selected N |
-| `ILP_FOR_RANGE_AUTO(var, range, LoopType)` | Range loop with auto-selected N |
+| `ILP_FOR_AUTO(var, start, end, LoopType, element_type)` | Index loop with auto-selected N |
+| `ILP_FOR_RANGE_AUTO(var, range, LoopType, element_type)` | Range loop with auto-selected N |
 | `ILP_FOR_T(type, var, start, end, N)` | Index loop for large return types (> 8 bytes) |
 | `ILP_FOR_RANGE_T(type, var, range, N)` | Range loop for large return types |
-| `ILP_FOR_T_AUTO(type, var, start, end, LoopType)` | Index loop for large types with auto-selected N |
-| `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType)` | Range loop for large types with auto-selected N |
+| `ILP_FOR_T_AUTO(type, var, start, end, LoopType, element_type)` | Index loop for large types with auto-selected N |
+| `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType, element_type)` | Range loop for large types with auto-selected N |
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
@@ -269,13 +269,13 @@ ILP_FOR(auto i, 0, n, 4) {
 
 ## When to Use ILP
 
-**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.29x speedup).
+**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.5x speedup).
 
 **Skip ILP for simple loops without early exit.** Compilers *can (amost most of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
-ILP_FOR_AUTO(auto i, 0, n, Search) {
+ILP_FOR_AUTO(auto i, 0, n, Search, int) {
     if (data[i] == target) ILP_BREAK;
 } ILP_END;
 
@@ -317,7 +317,7 @@ This turns the macros into simple `for` loops with the same semantics:
 | ILP Macro | Simple Mode Expansion |
 |-----------|----------------------|
 | `ILP_FOR(auto i, 0, n, 4)` | `for (auto i : ilp::iota(0, n))` |
-| `ILP_FOR_AUTO(auto i, 0, n, Sum)` | `for (auto i : ilp::iota(0, n))` |
+| `ILP_FOR_AUTO(auto i, 0, n, Sum, int)` | `for (auto i : ilp::iota(0, n))` |
 | `ILP_CONTINUE` | `continue` |
 | `ILP_BREAK` | `break` |
 | `ILP_RETURN(x)` | `return x` |

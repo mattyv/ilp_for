@@ -78,7 +78,7 @@ ILP_FOR(auto i, 0uz, n, 4) {
 
 After:
 ```cpp
-ILP_FOR_AUTO(auto i, 0uz, n, Sum) {
+ILP_FOR_AUTO(auto i, 0uz, n, Sum, double) {
     sum += data[i];
 } ILP_END;
 ```
@@ -152,7 +152,7 @@ The check spits out warnings with a fix hint:
 file.cpp:42:5: warning: Loop body contains DotProduct pattern [ilp-loop-analysis]
     ILP_FOR(auto i, 0uz, n, 4) {
     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct)
+    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct, double)
 file.cpp:42:5: note: Portable fix: use ILP_FOR_AUTO with LoopType::DotProduct
 file.cpp:42:5: note: Architecture-specific fix for skylake: use ILP_FOR with N=8
 ```
