@@ -2,7 +2,7 @@
 
 A best-effort static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
 
-> **Note:** This is a community-driven tool. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
+> **Note:** Id really lole this tooll to be a community-driven tool. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
 
 ## Building
 
