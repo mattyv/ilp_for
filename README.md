@@ -371,7 +371,9 @@ Doing bitwise ops?                 → Bitwise
 Unsure?                            → Search (safe default)
 ```
 
-**Super Secret Tooling:** If all else you can just use the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. Its pretty Beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+### Super Secret Tooling
+
+If all else you can just use the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. Its pretty Beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
 
 ### Reading CPU Profiles
 
