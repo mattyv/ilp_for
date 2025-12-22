@@ -429,15 +429,31 @@ Default Header values by type:
 **[View Coverage Report](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
 
 ---
-## Experemental LLM RAG
 
-I wanted to experiment with an idea of allowing maintainers and code experts to generate a source of ground truth of LLM knowledge to improve LLMs capabilities to ues library code and hopefully reduce hullucenations.
-Especially for code LLM's have never seen I feel this idea may be valueable.
+## Experimental LLM RAG
 
-### How it woks
+I wanted to experiment with an idea: what if library maintainers could curate a ground-truth knowledge base that LLMs can query when helping users? The goal is to reduce hallucinations and improve the quality of LLM-generated code, especially for libraries the model hasn't seen much of during training.
 
-<<insert here>>
-link to other md file
+### How it works
+
+The [`knowledge/`](knowledge/) directory contains a vector database (LanceDB) with 59 curated entries covering:
+- API signatures parsed from source code
+- Usage patterns and best practices
+- Common mistakes and gotchas (e.g., "you need a semicolon after `ILP_END`")
+- Performance insights from assembly analysis
+- Compiler flags and CPU-specific tuning
+
+When you ask Claude Code about `ilp_for`, a hook automatically queries this knowledge base and injects relevant context into the conversation. Think of it as a RAG system that pulls from verified, maintainer-curated knowledge instead of hoping the LLM remembers correctly.
+
+The system includes:
+- **Custom evaluation** (free, fast) - tests retrieval quality against 12 test cases
+- **RAGAS integration** (industry-standard) - measures answer faithfulness and relevance
+- **One-command setup** - `cd knowledge && ./setup.sh` builds the database from seed data + source parsing
+
+Current eval scores: **88% average, 100% pass rate** on custom evaluation.
+
+See [`knowledge/README.md`](knowledge/README.md) for full documentation on setup, usage, evaluation, and how to port this to other libraries.
+
 ---
 
 ## Requirements
