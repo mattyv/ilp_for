@@ -48,32 +48,40 @@ def main():
         cat = entry.pop('category')
         by_category.setdefault(cat, []).append(entry)
 
+    # Ensure all categories exist (even if empty in seed)
+    from config import CATEGORIES
+    for cat in CATEGORIES:
+        by_category.setdefault(cat, [])
+
     # Import each category
     for category, cat_entries in sorted(by_category.items()):
-        print(f"Importing {len(cat_entries)} entries into '{category}'...")
+        if cat_entries:
+            print(f"Importing {len(cat_entries)} entries into '{category}'...")
 
-        # Generate embeddings
-        contents = [e['content'] for e in cat_entries]
-        vectors = model.encode(contents, show_progress_bar=False)
+            # Generate embeddings
+            contents = [e['content'] for e in cat_entries]
+            vectors = model.encode(contents, show_progress_bar=False)
 
-        # Add vectors to entries
-        for entry, vector in zip(cat_entries, vectors):
-            entry['vector'] = vector.tolist()
+            # Add vectors to entries
+            for entry, vector in zip(cat_entries, vectors):
+                entry['vector'] = vector.tolist()
 
-        # Create table
-        db.create_table(category, cat_entries, schema=schema, mode='overwrite')
+            # Create table with data
+            db.create_table(category, cat_entries, schema=schema, mode='overwrite')
+        else:
+            # Create empty table
+            print(f"Creating empty table '{category}'...")
+            db.create_table(category, [], schema=schema, mode='overwrite')
 
     print(f"\nSuccessfully imported {len(entries)} curated entries into {len(by_category)} tables")
 
     # Now ingest code signatures
     print("\nIngesting API signatures from source code...")
     sys.path.insert(0, str(script_dir))
-    from rag_ingest import ingest_source_code
+    from rag_ingest import ingest
 
-    code_count = ingest_source_code()
-    print(f"Added {code_count} API signatures from source code")
-
-    print(f"\nTotal knowledge base ready: {len(entries) + code_count} entries")
+    ingest()
+    print(f"\nKnowledge base ready with curated insights + API signatures")
 
 if __name__ == '__main__':
     exit(main() or 0)
