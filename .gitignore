@@ -28,6 +28,10 @@ venv/
 *.pyc
 __pycache__/
 
+# Knowledge RAG system
+knowledge/.venv/
+knowledge/scripts/__pycache__/
+
 # Claude
-CLAUDE.md
-.claude/
+/CLAUDE.md
+/.claude/
