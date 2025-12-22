@@ -1,0 +1,1 @@
+$81e992c5-a754-4fd1-8cd3-3faf2ab25df0ªÄ¾content = 'Do not nest ILP_FOR loops. The macro internals use internal variables (__ilp_ctrl, __ilp_ret, __ilp_ctx) that would conflict. Use a regular for loop for the outer loop if needed.'
