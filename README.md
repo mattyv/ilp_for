@@ -429,6 +429,16 @@ Default Header values by type:
 **[View Coverage Report](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
 
 ---
+## Experemental LLM RAG
+
+I wanted to experiment with an idea of allowing maintainers and code experts to generate a source of ground truth of LLM knowledge to improve LLMs capabilities to ues library code and hopefully reduce hullucenations.
+Especially for code LLM's have never seen I feel this idea may be valueable.
+
+### How it woks
+
+<<insert here>>
+link to other md file
+---
 
 ## Requirements
 
