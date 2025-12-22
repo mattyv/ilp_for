@@ -1,0 +1,843 @@
+[
+  {
+    "content": "Do NOT use ILP_FOR for simple loops without early exit. Standard loops with #pragma unroll or auto-vectorization are often equivalent or better. ILP_FOR is specifically for loops with break/continue/return.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "when-not-to-use",
+      "performance"
+    ],
+    "created_at": "2025-12-22T21:40:50.056793",
+    "category": "antipatterns"
+  },
+  {
+    "content": "Macro: #define ILP_FOR(loop_var_decl, start, end, N)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:37:49.044576",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_RANGE(loop_var_decl, range, N)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:37:52.266679",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_AUTO(loop_var_decl, start, end, loop_type, element_type)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_AUTO"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:37:55.467335",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type, element_type)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE_AUTO"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:37:59.188371",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_T(type, loop_var_decl, start, end, N)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_T"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:02.492022",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_RANGE_T(type, loop_var_decl, range, N)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE_T"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:06.075345",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_T_AUTO(ret_type, loop_var_decl, start, end, loop_type, element_type)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_T_AUTO"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:09.384304",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_FOR_RANGE_T_AUTO(ret_type, loop_var_decl, range, loop_type, element_type)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE_T_AUTO"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:12.629004",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_END",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_END"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:16.750686",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_END_RETURN",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_END_RETURN"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:20.108927",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_CONTINUE",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_CONTINUE"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:23.399804",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_BREAK",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_BREAK"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:26.746539",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Macro: #define ILP_RETURN(x)",
+    "source": "code",
+    "validated_by": "parsed",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "macro",
+      "api"
+    ],
+    "created_at": "2025-12-22T21:38:30.042987",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Target specific CPU architectures with -DILP_CPU_SKYLAKE, -DILP_CPU_ALDERLAKE, -DILP_CPU_APPLE_M1, or -DILP_CPU_ZEN5. Without this, _AUTO macros use default unroll factors. Supports uppercase and lowercase variants (ILP_CPU_skylake).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_CPU_SKYLAKE",
+      "ILP_CPU_ZEN5",
+      "ILP_CPU_APPLE_M1",
+      "optimal_N"
+    ],
+    "tags": [
+      "compilation",
+      "architecture",
+      "tuning"
+    ],
+    "created_at": "2025-12-22T21:49:23.987306",
+    "category": "compiler"
+  },
+  {
+    "content": "Use -DILP_MODE_SIMPLE for debugging. This turns all ILP macros into simple for loops with the same semantics: ILP_FOR becomes for loop, ILP_BREAK becomes break, ILP_CONTINUE becomes continue, ILP_RETURN(x) becomes return x.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_MODE_SIMPLE",
+      "ILP_BREAK",
+      "ILP_CONTINUE",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "debugging",
+      "compilation",
+      "simple-mode"
+    ],
+    "created_at": "2025-12-22T21:52:32.467891",
+    "category": "compiler"
+  },
+  {
+    "content": "Override SBO buffer size with -DILP_SBO_SIZE=16 at compile time. Default is sizeof(std::intmax_t), typically 8 bytes. Increase for return types larger than 8 bytes when you want to avoid using ILP_FOR_T explicitly.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_SBO_SIZE"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:16:45.265222",
+    "category": "compiler"
+  },
+  {
+    "content": "ILP_END_RETURN must be used instead of ILP_END when ILP_RETURN appears in the loop body. Using ILP_END will cause compilation errors or undefined behavior.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_RETURN",
+      "ILP_END",
+      "ILP_END_RETURN"
+    ],
+    "tags": [
+      "macro",
+      "return",
+      "common-mistake"
+    ],
+    "created_at": "2025-12-22T21:39:00.402442",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR and ILP_FOR_AUTO use a small buffer optimization (SBO) for return values. Buffer size is sizeof(std::intmax_t), typically 8 bytes on 64-bit. Works for types that are: \u2264 SBO size, \u2264 SBO alignment, and trivially destructible. Covers int, size_t, pointers, simple structs. Violations caught at compile time via static_assert. For larger/complex types, use ILP_FOR_T with explicit return type.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_FOR_T",
+      "ILP_FOR_AUTO",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "return-type",
+      "sbo",
+      "large-types"
+    ],
+    "created_at": "2025-12-22T21:43:04.611839",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_BREAK and ILP_CONTINUE cannot be used inside nested for/while loops within the ILP_FOR body. They use return from the body lambda, so they would break/continue from the wrong scope. Only use them at the ILP_FOR body level, not inside inner loops.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_BREAK",
+      "ILP_CONTINUE"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:18:56.654390",
+    "category": "gotchas"
+  },
+  {
+    "content": "C++20 is required. ILP_FOR is header-only - just #include <ilp_for.hpp>. No linking required.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ilp_for.hpp"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:19:42.332989",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR uses exclusive end like Python range(): ILP_FOR(auto i, 0, 10, 4) iterates i=0,1,...,9 (10 iterations). NOT like C-style for(i=0; i<=10; i++) which would be 11 iterations. Off-by-one errors are common when users expect inclusive end.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:29:17.755360",
+    "category": "gotchas"
+  },
+  {
+    "content": "Unroll factor N > 16 triggers a deprecation warning at compile time: 'N > 16 is likely counterproductive: exceeds CPU execution port throughput and causes instruction cache bloat. Typical optimal values are 4-8.' Use _AUTO macros to auto-select optimal N.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "optimal_N"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:30:10.560446",
+    "category": "gotchas"
+  },
+  {
+    "content": "Loop variable is read-only: you cannot modify the loop variable i inside ILP_FOR. If you need to modify, copy to a local: auto local_i = i; local_i *= 2; The original iteration variable continues unchanged.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:30:35.090710",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR_RANGE requires an lvalue container, not a temporary. Store in a variable first: std::vector<int> v = {1,2,3}; ILP_FOR_RANGE(auto&& val, v, 4) {...} - the 'v' must be a named variable, not an inline initializer.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_RANGE"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:31:44.292189",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR_RANGE does not provide index access. If you need both index and value, either use ILP_FOR with arr[i], or track index manually: int idx = 0; ILP_FOR_RANGE(auto&& val, data, 4) { use(idx, val); idx++; } ILP_END;",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE",
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:32:23.680852",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR provides ~1.5x speedup over #pragma unroll for early exit loops by avoiding per-iteration bounds checks. The main loop processes N elements with one bounds check, remainder loop handles leftovers.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "speedup",
+      "bounds-check",
+      "pragma"
+    ],
+    "created_at": "2025-12-22T21:54:34.849858",
+    "category": "performance"
+  },
+  {
+    "content": "CPU profile headers in cpu_profiles/ contain instruction timing data. Columns: Latency (L) = cycles from input to output, RThr = reciprocal throughput (cycles between new ops), TPC = 1/RThr, L\u00d7TPC = optimal unroll factor. Formula: optimal_N = Latency \u00d7 TPC. Create custom profiles from uops.info or Agner Fog's tables.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "cpu_profiles",
+      "optimal_N",
+      "Latency",
+      "TPC"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:17:57.959775",
+    "category": "performance"
+  },
+  {
+    "content": "#pragma unroll is insufficient for early exit loops because SCEV (Scalar Evolution) cannot determine trip count for loops with break. Compilers insert bounds checks after EACH unrolled element, negating the unroll benefit. ILP_FOR uses main loop + remainder pattern that checks bounds only once per block, giving ~1.5x speedup. See docs/PRAGMA_UNROLL.md for assembly evidence.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "pragma_unroll",
+      "SCEV"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:18:27.440032",
+    "category": "performance"
+  },
+  {
+    "content": "Default optimal_N values by type: Sum (int32/64: 4, float/double: 8), DotProduct (float/double: 8), Search (all: 4), MinMax (int: 4, float/double: 8), Multiply (all: 8), Bitwise/Shift (int only: 8), Copy/Transform (all: 4), Divide/Sqrt (float/double: 8). Use -DILP_CPU_* flags for architecture-specific values.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "optimal_N",
+      "LoopType"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:20:26.265829",
+    "category": "performance"
+  },
+  {
+    "content": "Assembly analysis: #pragma unroll generates ~6 instructions per element (load, compare, bounds check, conditional branch \u00d7 2). ILP_FOR generates ~4 instructions per element (load, compare, conditional branch only). The bounds check (cmp xN, xM; b.eq) appears after EACH element with pragma, but only once per block with ILP_FOR. This accounts for the ~1.5x speedup.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "pragma_unroll",
+      "assembly"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:23:31.032162",
+    "category": "performance"
+  },
+  {
+    "content": "ILP_FOR assembly structure on x86-64: main loop has load+compare for each of N elements in sequence, then a single bounds check (cmp rax, rsi; jbe loop) at the end of the block. All N element comparisons execute before the bounds check, allowing better instruction-level parallelism. Pattern: cmp [rdi+4*rax], edx; ja exit (\u00d7N times), then cmp rax, rsi; jbe loop.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "x86-64",
+      "assembly"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:23:56.405079",
+    "category": "performance"
+  },
+  {
+    "content": "ARM64 assembly with ILP_FOR: uses ldur/ldr for loads, cmp for compare, b.hi/b.ls for conditional branches. Same pattern as x86-64: all N element loads and compares execute before the single bounds check. Pattern: ldur wN, [xM, #offset]; cmp wN, threshold; b.hi exit (\u00d7N times), then cmp counter, limit; b.ls loop.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ARM64",
+      "assembly"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:24:20.027914",
+    "category": "performance"
+  },
+  {
+    "content": "ILP_FOR generates assembly equivalent to hand-rolled main loop + remainder pattern. Both use: (1) main loop processing N elements with single bounds check, (2) remainder loop processing leftover elements one at a time. The macro handles the error-prone unrolling automatically while producing the same optimized code.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "assembly"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:25:03.802515",
+    "category": "performance"
+  },
+  {
+    "content": "For loops WITHOUT early exit, all approaches (simple loop, #pragma unroll, ILP_FOR) produce identical SIMD assembly. Compilers auto-vectorize to ld4.4s, cmhs.4s etc. Only use ILP_FOR when you have break/continue/return - it adds no benefit for simple loops.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "SIMD",
+      "auto-vectorization"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:25:26.829892",
+    "category": "performance"
+  },
+  {
+    "content": "ILP_FOR expands to a main loop processing N elements at a time with a single bounds check, plus a remainder loop handling leftover elements. This is NOT the same as #pragma unroll which checks bounds on every iteration.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "expansion",
+      "performance",
+      "bounds-check"
+    ],
+    "created_at": "2025-12-22T21:40:04.033771",
+    "category": "semantics"
+  },
+  {
+    "content": "ILP_BREAK and ILP_CONTINUE use 'return' from the body lambda, not actual break/continue or goto. ILP_CONTINUE just returns, ILP_BREAK sets a control flag to false then returns. They work inside nested if/else. Cannot be used inside nested for/while loops since that would break from wrong scope.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_BREAK",
+      "ILP_CONTINUE"
+    ],
+    "tags": [
+      "control-flow",
+      "lambda",
+      "nesting"
+    ],
+    "created_at": "2025-12-22T21:44:45.888301",
+    "category": "semantics"
+  },
+  {
+    "content": "Inverted range (start > end) produces zero iterations safely. ILP_FOR(auto i, 10, 0, 4) executes 0 times. Both signed and unsigned types behave the same - no undefined behavior, no crash, just zero iterations.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:26:16.131816",
+    "category": "semantics"
+  },
+  {
+    "content": "Iteration order is strictly sequential (0, 1, 2, ...) even though the loop is unrolled. Side effects happen in order. This is verified by tests that record iteration order to a vector and compare against expected sequence.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:27:01.543846",
+    "category": "semantics"
+  },
+  {
+    "content": "Remainder handling: when range size is not divisible by N, remaining elements are processed one at a time. For N=4 and range 0-9: main loop processes 0-7 (8 elements), remainder processes 8 (1 element). Works correctly even when N > range size (all elements go to remainder).",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:27:28.724600",
+    "category": "semantics"
+  },
+  {
+    "content": "ILP_FOR captures outer variables by reference ([&] lambda capture). You can read and modify variables from outer scope inside the loop body. This is how accumulators like 'int sum = 0' work - sum is captured by reference and modified in each iteration.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:28:11.947032",
+    "category": "semantics"
+  },
+  {
+    "content": "Variable shadowing is safe: using the same variable name (e.g., 'i') in nested ILP_FOR loops or shadowing an outer variable is allowed. The outer variable remains unchanged after the loop. Each loop level has its own scope.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:28:46.114517",
+    "category": "semantics"
+  },
+  {
+    "content": "ILP_BREAK exits the loop, ILP_RETURN(x) exits the enclosing function and returns x. Common mistake: using ILP_BREAK when you meant ILP_RETURN, or vice versa. ILP_BREAK requires ILP_END, ILP_RETURN requires ILP_END_RETURN.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_BREAK",
+      "ILP_RETURN",
+      "ILP_END",
+      "ILP_END_RETURN"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:32:40.835516",
+    "category": "semantics"
+  },
+  {
+    "content": "For loops with early exit (break/return), use LoopType::Search which optimizes for branch prediction. For accumulation without early exit, use LoopType::Sum.",
+    "source": "conversation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_AUTO",
+      "LoopType"
+    ],
+    "tags": [
+      "looptype",
+      "optimization"
+    ],
+    "created_at": "2025-12-22T21:40:26.683329",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR syntax: ILP_FOR(var, start, end, N) { body } ILP_END; - the semicolon goes after ILP_END. When using ILP_RETURN in the body, you MUST use ILP_END_RETURN instead of ILP_END.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_END",
+      "ILP_END_RETURN"
+    ],
+    "tags": [
+      "syntax",
+      "semicolon"
+    ],
+    "created_at": "2025-12-22T21:50:41.887812",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Use auto&& for ILP_FOR_RANGE to avoid copying elements: ILP_FOR_RANGE(auto&& val, container, N). Using 'auto val' copies each element which is slow for non-trivial types like std::string.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_RANGE",
+      "ILP_FOR_RANGE_AUTO"
+    ],
+    "tags": [
+      "range",
+      "forwarding-reference",
+      "performance"
+    ],
+    "created_at": "2025-12-22T21:51:54.595976",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "LoopType selection for _AUTO macros: Search for early exit (break/return), Sum for acc+=val, DotProduct for acc+=a*b (FMA), MinMax for min/max reduction, Multiply for acc*=val, Bitwise for &|^, Shift for <<>>. If loop has early exit, always use Search regardless of other operations.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "LoopType",
+      "ILP_FOR_AUTO"
+    ],
+    "tags": [
+      "looptype",
+      "selection",
+      "optimization"
+    ],
+    "created_at": "2025-12-22T21:53:11.349716",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "For debugging, compile with -DILP_MODE_SIMPLE -O0 -g to turn ILP macros into simple for loops. ILP_FOR becomes for(auto i : ilp::iota(start, end)), ILP_CONTINUE becomes continue, ILP_BREAK becomes break, ILP_RETURN(x) becomes return x, and ILP_END/ILP_END_RETURN become empty. Preserves loop semantics while enabling debugger stepping.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_MODE_SIMPLE"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:15:41.647934",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Query optimal unroll factor directly with: constexpr auto N = ilp::optimal_N<ilp::LoopType::Sum, double>; This returns the architecture-specific optimal N for that LoopType and element type. Useful when you need the value at compile time for other purposes.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "optimal_N",
+      "LoopType"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:16:14.870076",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "LoopType selection decision tree: Has early exit (break/return)? Use Search. Doing acc += a * b (FMA)? Use DotProduct. Doing acc += val? Use Sum. Doing acc *= val? Use Multiply. Doing min/max? Use MinMax. Doing bitwise ops? Use Bitwise. Unsure? Use Search as safe default. Early exit always dominates - use Search regardless of other operations if loop has ILP_BREAK or ILP_RETURN.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "LoopType",
+      "Search",
+      "DotProduct",
+      "Sum",
+      "Multiply",
+      "MinMax",
+      "Bitwise"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:17:10.081548",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Use ilp-loop-analysis clang-tidy check to detect patterns and suggest correct LoopType automatically. Located in tools/clang-tidy/. It warns when using wrong LoopType (e.g., Add instead of Search for loops with early exit) and suggests both portable fix (correct LoopType) and architecture-specific fix (explicit N value).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ilp-loop-analysis",
+      "clang-tidy"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:17:34.360667",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "For index-based loops (ILP_FOR), use 'auto' for the loop variable since indices are just integers. For range-based loops (ILP_FOR_RANGE), use 'auto&&' to avoid copying elements. Example: ILP_FOR(auto i, 0, n, 4) vs ILP_FOR_RANGE(auto&& val, container, 4).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_FOR_RANGE"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:19:19.017813",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Mixed operations in loop: pick LoopType for the bottleneck operation (slowest one on the critical path). acc += data[i] * weight[i] is FMA, use DotProduct. acc += data[i]; acc *= factor uses Multiply (slower). Mostly adds with occasional multiply use Sum. Mostly multiplies with occasional add use Multiply.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "LoopType",
+      "DotProduct",
+      "Sum",
+      "Multiply"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:20:02.889204",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "When inspecting ILP_FOR assembly on Godbolt: look for (1) per-iteration bounds checks in pragma version (cmp + conditional branch after each element), (2) single bounds check at end of block in ILP version, (3) parallel comparisons vs sequential in register usage, (4) branch prediction patterns. Compiler settings: -std=c++2b -O3 -march=skylake (x86) or -mcpu=apple-m1 (ARM64).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "Godbolt",
+      "assembly"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:24:43.058105",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Nested ILP_FOR loops are fully supported up to 6+ levels deep. Each nested loop needs its own ILP_END. Inner loops can use ILP_BREAK/ILP_CONTINUE which only affects that inner loop. Different N values can be used at each nesting level. Triangular patterns (j depends on i) work correctly.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_END"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:26:38.089006",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Triangular iteration pattern works: ILP_FOR(auto i, 0, n, 4) { ILP_FOR(auto j, 0, i, 4) { ... } ILP_END; } ILP_END; The inner loop end can depend on the outer loop variable. This correctly handles variable-length inner loops.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:29:51.066383",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Empty loop body is valid and doesn't crash. ILP_FOR(auto i, 0, 100, 4) { (void)i; } ILP_END; - this just iterates without doing anything. Useful placeholder during development.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:30:52.149576",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Negative ranges work correctly: ILP_FOR(auto i, -5, 5, 4) iterates through -5,-4,-3,-2,-1,0,1,2,3,4. The crossing from negative to positive is handled safely with signed integer types.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:31:07.461211",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Raw arrays work with index-based ILP_FOR: int arr[] = {1,2,3,4,5}; ILP_FOR(auto i, 0, 5, 4) { sum += arr[i]; } ILP_END; - use size_t or int for the index type matching the array access pattern.",
+    "source": "test",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [],
+    "created_at": "2025-12-22T22:32:05.526070",
+    "category": "usage_patterns"
+  }
+]

@@ -31,6 +31,7 @@ __pycache__/
 # Knowledge RAG system
 knowledge/.venv/
 knowledge/scripts/__pycache__/
+knowledge/db/
 
 # Claude
 /CLAUDE.md

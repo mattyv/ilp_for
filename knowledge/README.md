@@ -83,12 +83,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Initialize database
-python scripts/rag_setup.py
-
-# Parse source code for API signatures
-python scripts/rag_ingest.py
+# Build database from seed file + source code
+python scripts/import_knowledge.py
 ```
+
+This imports 59 curated insights from [knowledge_seed.json](knowledge_seed.json) and parses API signatures from [ilp_for.hpp](../ilp_for.hpp).
 
 ### Claude Code Hook
 

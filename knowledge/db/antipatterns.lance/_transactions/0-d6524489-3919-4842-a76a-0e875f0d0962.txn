@@ -1,5 +1,0 @@
-$d6524489-3919-4842-a76a-0e875f0d0962²· content ÿÿÿÿÿÿÿÿÿ*string084vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408!source ÿÿÿÿÿÿÿÿÿ*string08'validated_by ÿÿÿÿÿÿÿÿÿ*string08%
-confidence ÿÿÿÿÿÿÿÿÿ*double08(related_symbols ÿÿÿÿÿÿÿÿÿ*list08item *string08tags ÿÿÿÿÿÿÿÿÿ*list08item *string08%
-created_at	 ÿÿÿÿÿÿÿÿÿ*string08"!
-lance.auto_cleanup.interval20"'
-lance.auto_cleanup.older_than14days
