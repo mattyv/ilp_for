@@ -6,19 +6,26 @@ A vector-based knowledge retrieval system for reducing LLM hallucinations when w
 
 ```
 knowledge/
-├── db/                     # LanceDB vector database (gitignored)
+├── db/                      # LanceDB vector database (gitignored)
 ├── hooks/
-│   └── rag_query_hook.py   # Claude Code hook (committable)
+│   └── rag_query_hook.py    # Claude Code hook (committable)
 ├── scripts/
-│   ├── config.py           # Centralized configuration
-│   ├── ingest_config.py    # Library-specific parsing patterns
-│   ├── rag_setup.py        # Database initialization
-│   ├── rag_ingest.py       # Parse source code for API signatures
-│   ├── rag_add.py          # Add individual insights
-│   ├── rag_query.py        # Query the knowledge base
-│   └── rag_delete.py       # Remove incorrect entries
-├── CLAUDE.md               # Instructions for Claude (committed)
-└── README.md               # This file
+│   ├── config.py            # Centralized configuration
+│   ├── ingest_config.py     # Library-specific parsing patterns
+│   ├── import_knowledge.py  # Build database from seed + source
+│   ├── rag_ingest.py        # Parse source code for API signatures
+│   ├── rag_add.py           # Add individual insights
+│   ├── rag_query.py         # Query the knowledge base
+│   └── rag_delete.py        # Remove incorrect entries
+├── tests/
+│   ├── rag_evaluation.json  # Test cases for evaluation
+│   ├── evaluate_custom.py   # Custom evaluation (free, fast)
+│   ├── evaluate_ragas.py    # RAGAS evaluation (LLM-based)
+│   └── results/             # Evaluation results with timestamps
+├── knowledge_seed.json      # Curated knowledge (committed)
+├── setup.sh                 # One-command setup script
+├── CLAUDE.md                # Instructions for Claude (committed)
+└── README.md                # This file
 ```
 
 ## How It Works
@@ -164,6 +171,45 @@ python rag_delete.py \
 python rag_ingest.py
 ```
 
+### Evaluate RAG Quality
+
+Test the knowledge base against a suite of 12 test cases:
+
+```bash
+cd knowledge/tests
+
+# Custom evaluation (free, fast - recommended for regular testing)
+python evaluate_custom.py --verbose
+
+# RAGAS evaluation (requires ANTHROPIC_API_KEY, costs ~$0.05-0.10)
+export ANTHROPIC_API_KEY=your_key_here
+python evaluate_ragas.py --verbose
+```
+
+**Custom Evaluation** tests retrieval quality without LLM inference:
+- Queries RAG for each test question
+- Checks if expected categories and symbols were retrieved
+- Scores: 0.0 (miss), 0.5 (partial), 1.0 (perfect)
+- Fast (~30 seconds for all 12 tests)
+- No API costs
+
+**RAGAS Evaluation** uses industry-standard metrics:
+- Generates answers using Claude API with RAG context
+- Measures 4 metrics:
+  - **Faithfulness** (0-1): Is answer grounded in retrieved context?
+  - **Answer Relevancy** (0-1): Does answer address the question?
+  - **Context Precision** (0-1): Are relevant contexts ranked higher?
+  - **Context Recall** (0-1): Did we retrieve all necessary context?
+- Requires LLM API calls (~$0.05-0.10 per run)
+- Use before releases or after major knowledge base changes
+
+**Test Cases** ([tests/rag_evaluation.json](tests/rag_evaluation.json)):
+- 12 questions covering basic, intermediate, and advanced topics
+- Expected answers, categories, and symbols for each
+- Covers: API syntax, control flow, debugging, performance, edge cases
+
+**Results** are saved to `tests/results/` with timestamps for tracking improvement over time.
+
 ## Porting to Another Library
 
 This system is designed to be library-agnostic. To use with a different library:
@@ -299,6 +345,9 @@ Then add the corrected version.
 
 ## Current Stats
 
-- **60 entries** across 7 categories
+- **59 entries** across 7 categories (46 curated + 13 API signatures)
+- **12 test cases** for evaluation (easy/medium/hard difficulty)
+- **88% average score** on custom evaluation (100% pass rate)
 - Sources: code parsing, documentation, unit tests, assembly analysis
 - Covers: API signatures, usage patterns, gotchas, performance, semantics
+- Evaluation: Custom (free/fast) + RAGAS (industry-standard)
