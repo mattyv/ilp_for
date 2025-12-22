@@ -157,7 +157,7 @@ TEST_CASE("ILP_FOR_RANGE basic", "[for_range][basic]") {
 TEST_CASE("ILP_FOR_AUTO basic", "[for_auto][basic]") {
     SECTION("auto N selection") {
         int sum = 0;
-        ILP_FOR_AUTO(auto i, 0, 10, Sum) {
+        ILP_FOR_AUTO(auto i, 0, 10, Sum, int) {
             sum += i;
         }
         ILP_END;
@@ -169,7 +169,7 @@ TEST_CASE("ILP_FOR_RANGE_AUTO basic", "[for_range_auto][basic]") {
     SECTION("auto N with range") {
         std::vector<int> data = {10, 20, 30, 40, 50};
         int sum = 0;
-        ILP_FOR_RANGE_AUTO(auto val, data, Sum) {
+        ILP_FOR_RANGE_AUTO(auto val, data, Sum, int) {
             sum += val;
         }
         ILP_END;
@@ -220,7 +220,7 @@ TEST_CASE("ILP_FOR with ILP_RETURN", "[for][return]") {
 
     SECTION("ILP_RETURN with AUTO loops") {
         auto find_first_even = []() -> int {
-            ILP_FOR_AUTO(auto i, 1, 100, Search) {
+            ILP_FOR_AUTO(auto i, 1, 100, Search, int) {
                 if (i % 2 == 0)
                     ILP_RETURN(i);
             }
@@ -250,7 +250,7 @@ TEST_CASE("ILP_FOR_RANGE_T basic", "[for_range_t][basic]") {
 TEST_CASE("ILP_FOR_T_AUTO basic", "[for_t_auto][basic]") {
     SECTION("typed return with auto N") {
         auto find_square = []() -> int {
-            ILP_FOR_T_AUTO(int, auto i, 1, 20, Search) {
+            ILP_FOR_T_AUTO(int, auto i, 1, 20, Search, int) {
                 if (i * i == 49)
                     ILP_RETURN(i);
             }
@@ -264,7 +264,7 @@ TEST_CASE("ILP_FOR_T_AUTO basic", "[for_t_auto][basic]") {
 TEST_CASE("ILP_FOR_RANGE_T_AUTO basic", "[for_range_t_auto][basic]") {
     SECTION("typed return with auto N and range") {
         auto find_triple = [](const std::vector<int>& data, int target) -> int {
-            ILP_FOR_RANGE_T_AUTO(int, auto val, data, Search) {
+            ILP_FOR_RANGE_T_AUTO(int, auto val, data, Search, int) {
                 if (val == target)
                     ILP_RETURN(val * 3);
             }

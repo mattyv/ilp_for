@@ -88,7 +88,7 @@ LBB0_8:                                 ; main loop
     b.ls LBB0_8
 ```
 
-**Result:** Pragma has ~6 instructions per element, ILP_FOR has ~4. This accounts for the ~1.29x speedup.
+**Result:** Pragma has ~6 instructions per element, ILP_FOR has ~4. This accounts for the ~1.5x speedup.
 
 [View on Godbolt](https://godbolt.org/z/Mh4aTP5j7)
 
@@ -164,7 +164,7 @@ Or just use `ILP_FOR` which works everywhere.
 | Pattern | `#pragma unroll` | ILP_FOR | Winner |
 |---------|------------------|---------|--------|
 | Simple sum (no break) | SIMD | SIMD | Either |
-| Early exit (`break`/`return`) | Bounds check per element | Bounds check per block | **ILP_FOR (~1.29x)** |
+| Early exit (`break`/`return`) | Bounds check per element | Bounds check per block | **ILP_FOR (~1.5x)** |
 | Loops without early exit | SIMD | SIMD | Either |
 
 ---

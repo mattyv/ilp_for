@@ -195,7 +195,7 @@ namespace clang::tidy::ilp {
 
         // Emit diagnostic with fix if we can generate one
         if (MaybeArgs) {
-            std::string FixText = buildPortableFix(*MaybeArgs, DominantType);
+            std::string FixText = buildPortableFix(*MaybeArgs, DominantType, Analysis);
             if (!FixText.empty()) {
                 diag(Loc, "Loop body contains %0 pattern")
                     << LoopTypeName << FixItHint::CreateReplacement(MaybeArgs->macroRange, FixText);
@@ -749,13 +749,41 @@ namespace clang::tidy::ilp {
         return Args;
     }
 
-    std::string ILPLoopCheck::buildPortableFix(const MacroArgs& Args, DetectedLoopType Type) {
+    std::string ILPLoopCheck::buildPortableFix(const MacroArgs& Args, DetectedLoopType Type,
+                                               const LoopAnalysis& Analysis) {
         std::string LoopTypeName = getLoopTypeName(Type);
 
+        // Determine element type string from analysis
+        std::string ElementType;
+        if (Analysis.isFloatingPoint) {
+            ElementType = (Analysis.typeSize == 8) ? "double" : "float";
+        } else {
+            // Integer types
+            switch (Analysis.typeSize) {
+            case 1:
+                ElementType = "std::int8_t";
+                break;
+            case 2:
+                ElementType = "std::int16_t";
+                break;
+            case 4:
+                ElementType = "std::int32_t";
+                break;
+            case 8:
+                ElementType = "std::int64_t";
+                break;
+            default:
+                ElementType = "int";
+                break;
+            }
+        }
+
         if (Args.macroName == "ILP_FOR") {
-            return "ILP_FOR_AUTO(" + Args.varDecl + ", " + Args.start + ", " + Args.end + ", " + LoopTypeName + ")";
+            return "ILP_FOR_AUTO(" + Args.varDecl + ", " + Args.start + ", " + Args.end + ", " + LoopTypeName + ", " +
+                   ElementType + ")";
         } else if (Args.macroName == "ILP_FOR_RANGE") {
-            return "ILP_FOR_RANGE_AUTO(" + Args.varDecl + ", " + Args.start + ", " + LoopTypeName + ")";
+            return "ILP_FOR_RANGE_AUTO(" + Args.varDecl + ", " + Args.start + ", " + LoopTypeName + ", " + ElementType +
+                   ")";
         }
         // Already using AUTO variant, return unchanged
         return "";

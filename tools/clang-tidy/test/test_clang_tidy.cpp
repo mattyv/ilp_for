@@ -315,7 +315,7 @@ const char* TEST_FIX_EXPECTED = R"(#include "ilp_for.hpp"
 
 void test_fix(const double* a, const double* b, std::size_t n) {
     double sum = 0.0;
-    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct) {
+    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct, double) {
         sum += a[i] * b[i];
     } ILP_END;
 }
@@ -351,7 +351,7 @@ TEST_CASE("Auto-fix application", "[clang-tidy][autofix]") {
 
     // Verify the file was modified correctly
     std::string fixedContent = readFile(tmpFile);
-    REQUIRE(fixedContent.find("ILP_FOR_AUTO(auto i, 0uz, n, DotProduct)") != std::string::npos);
+    REQUIRE(fixedContent.find("ILP_FOR_AUTO(auto i, 0uz, n, DotProduct, double)") != std::string::npos);
     REQUIRE(fixedContent.find("ILP_FOR(auto i, 0uz, n, 4)") == std::string::npos);
 
     fs::remove(tmpFile);
@@ -366,7 +366,7 @@ TEST_CASE("Already fixed code not detected", "[clang-tidy][idempotent]") {
 
 void test_already_fixed(const double* a, const double* b, std::size_t n) {
     double sum = 0.0;
-    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct) {
+    ILP_FOR_AUTO(auto i, 0uz, n, DotProduct, double) {
         sum += a[i] * b[i];
     } ILP_END;
 }
