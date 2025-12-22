@@ -135,7 +135,7 @@ int find(int* data, int n, int target) {
 }
 
 // Auto-selected unroll factor
-ILP_FOR_AUTO(auto i, 0, n, Search) {
+ILP_FOR_AUTO(auto i, 0, n, Search, int) {
     // ...
 } ILP_END;
 ```
