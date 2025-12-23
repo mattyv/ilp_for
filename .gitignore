@@ -34,6 +34,7 @@ knowledge/scripts/__pycache__/
 knowledge/db/
 knowledge/tests/results/
 knowledge/tests/__pycache__/
+knowledge/logs/
 
 # Claude
 /CLAUDE.md
