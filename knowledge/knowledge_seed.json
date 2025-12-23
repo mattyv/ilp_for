@@ -1128,5 +1128,92 @@
     ],
     "created_at": "2025-12-24T00:00:00.000000",
     "category": "performance"
+  },
+  {
+    "content": "Complete list of ILP_FOR macro variants (8 total):\n\n• ILP_FOR(var, start, end, N) — index loop with explicit N\n• ILP_FOR_T(type, var, start, end, N) — with explicit return type\n• ILP_FOR_AUTO(var, start, end, LoopType, ElemType) — auto N selection\n• ILP_FOR_T_AUTO(type, var, start, end, LoopType, ElemType) — both auto N and explicit return type\n• ILP_FOR_RANGE(var, container, N) — range-based with explicit N\n• ILP_FOR_RANGE_T(type, var, container, N) — range with explicit return type\n• ILP_FOR_RANGE_AUTO(var, container, LoopType, ElemType) — range with auto N\n• ILP_FOR_RANGE_T_AUTO(type, var, container, LoopType, ElemType) — range with both",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_FOR_T",
+      "ILP_FOR_AUTO",
+      "ILP_FOR_T_AUTO",
+      "ILP_FOR_RANGE",
+      "ILP_FOR_RANGE_T",
+      "ILP_FOR_RANGE_AUTO",
+      "ILP_FOR_RANGE_T_AUTO"
+    ],
+    "tags": [
+      "api",
+      "reference",
+      "complete-list"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "api_signatures"
+  },
+  {
+    "content": "LoopType enum has 11 values: Sum (acc+=val), DotProduct (acc+=a*b with FMA), Search (early exit), Copy (dst=src), Transform (dst=f(src)), Multiply (acc*=val), Divide (val/const), Sqrt (sqrt(val)), MinMax (min/max reduction), Bitwise (& | ^), Shift (<< >>). Usage: ilp::LoopType::Search, ilp::LoopType::Sum, etc.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "LoopType",
+      "Sum",
+      "DotProduct",
+      "Search",
+      "Copy",
+      "Transform",
+      "Multiply",
+      "Divide",
+      "Sqrt",
+      "MinMax",
+      "Bitwise",
+      "Shift"
+    ],
+    "tags": [
+      "enum",
+      "reference",
+      "complete-list"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "api_signatures"
+  },
+  {
+    "content": "Only two loop endings exist: ILP_END and ILP_END_RETURN. There is NO ILP_END_BREAK. Use ILP_END when loop uses ILP_BREAK or no early exit. Use ILP_END_RETURN when loop uses ILP_RETURN. Mismatch causes runtime abort with diagnostic message.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_END",
+      "ILP_END_RETURN",
+      "ILP_BREAK",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "ending",
+      "macro",
+      "common-mistake"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_END_BREAK does not exist. When using ILP_BREAK, end the loop with ILP_END (not ILP_END_RETURN). ILP_END_RETURN is only for ILP_RETURN.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_END",
+      "ILP_END_RETURN",
+      "ILP_BREAK"
+    ],
+    "tags": [
+      "clarification",
+      "nonexistent",
+      "common-mistake"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "gotchas"
   }
 ]

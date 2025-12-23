@@ -39,3 +39,4 @@ knowledge/logs/
 # Claude
 /CLAUDE.md
 /.claude/
+/.mcp.json

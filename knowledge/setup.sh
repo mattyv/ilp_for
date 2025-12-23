@@ -55,6 +55,17 @@ if settings_path.exists():
 else:
     settings = {"permissions": {"allow": [], "deny": [], "ask": []}}
 
+# Add MCP tool permissions
+if "permissions" not in settings:
+    settings["permissions"] = {"allow": [], "deny": [], "ask": []}
+if "allow" not in settings["permissions"]:
+    settings["permissions"]["allow"] = []
+
+mcp_perm = "mcp__ilp-knowledge__*"
+if mcp_perm not in settings["permissions"]["allow"]:
+    settings["permissions"]["allow"].append(mcp_perm)
+    print(f"  Added MCP permission: {mcp_perm}")
+
 # Add hooks configuration
 settings["hooks"] = {
     "UserPromptSubmit": [
@@ -77,6 +88,22 @@ with open(settings_path, "w") as f:
 
 print("  Hook registered in settings.local.json")
 PYTHON_SCRIPT
+
+# Generate .mcp.json with absolute paths for this machine
+MCP_CONFIG="../.mcp.json"
+KNOWLEDGE_DIR="$(pwd)"
+cat > "$MCP_CONFIG" << EOF
+{
+  "mcpServers": {
+    "ilp-knowledge": {
+      "command": "$KNOWLEDGE_DIR/.venv/bin/python",
+      "args": ["$KNOWLEDGE_DIR/mcp_server.py"],
+      "description": "ILP_FOR knowledge base - query documentation, examples, gotchas, performance info"
+    }
+  }
+}
+EOF
+echo "Generated .mcp.json with paths for this machine"
 
 echo ""
 echo "Setup complete! Knowledge base ready at knowledge/db/"
