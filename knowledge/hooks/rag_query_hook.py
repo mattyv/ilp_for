@@ -48,7 +48,7 @@ import subprocess
 
 try:
     result = subprocess.run(
-        [venv_python, query_script, prompt, "--limit", "3", "--json"],
+        [venv_python, query_script, prompt, "--limit", "3", "--json", "--source", "hook"],
         capture_output=True,
         text=True,
         timeout=30,

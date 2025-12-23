@@ -67,13 +67,20 @@ def main():
                 entry['vector'] = vector.tolist()
 
             # Create table with data
-            db.create_table(category, cat_entries, schema=schema, mode='overwrite')
+            table = db.create_table(category, cat_entries, schema=schema, mode='overwrite')
+
+            # Create FTS index for hybrid search
+            try:
+                table.create_fts_index("content", replace=True)
+            except Exception as e:
+                print(f"  Warning: Could not create FTS index for '{category}': {e}")
         else:
             # Create empty table
             print(f"Creating empty table '{category}'...")
             db.create_table(category, [], schema=schema, mode='overwrite')
 
     print(f"\nSuccessfully imported {len(entries)} curated entries into {len(by_category)} tables")
+    print("FTS indexes created for hybrid search")
 
     # Now ingest code signatures
     print("\nIngesting API signatures from source code...")
