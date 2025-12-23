@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hook to automatically query the RAG knowledge base when user asks about ilp_for."""
+"""Hook to automatically query the RAG knowledge base for library-related questions."""
 import json
 import sys
 import os
@@ -11,32 +11,34 @@ try:
 except json.JSONDecodeError:
     sys.exit(0)  # Silent exit on invalid input
 
-prompt = input_data.get("prompt", "").lower()
+prompt = input_data.get("prompt", "")
 
-# Keywords that suggest the user is asking about ilp_for
-ILP_KEYWORDS = [
-    r"\bilp_for\b",
-    r"\bilp_",
-    r"\bilp::",
-    r"\bloop.*unroll",
-    r"\bunroll.*loop",
-    r"\bearly.?exit.*loop",
-    r"\bloop.*break",
-    r"\bloop.*return",
-    r"\bloop.*continue",
-]
-
-# Check if this is an ilp_for related question
-is_ilp_question = any(re.search(pattern, prompt) for pattern in ILP_KEYWORDS)
-
-if not is_ilp_question:
-    sys.exit(0)  # Not relevant, continue normally
-
-# Query the RAG knowledge base
+# Get project directory to locate config
 project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
 if not project_dir:
     sys.exit(0)
 
+# Add scripts directory to path for config import
+scripts_dir = os.path.join(project_dir, "knowledge", "scripts")
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
+
+try:
+    from config import HOOK_KEYWORDS, LIBRARY_DISPLAY_NAME
+except ImportError:
+    # Fallback if config can't be imported
+    sys.exit(0)
+
+# Pre-compile patterns for efficiency (case-insensitive)
+COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in HOOK_KEYWORDS]
+
+# Check if this is a library-related question
+is_relevant = any(p.search(prompt) for p in COMPILED_PATTERNS)
+
+if not is_relevant:
+    sys.exit(0)  # Not relevant, continue normally
+
+# Query the RAG knowledge base
 knowledge_dir = os.path.join(project_dir, "knowledge")
 venv_python = os.path.join(knowledge_dir, ".venv", "bin", "python3")
 query_script = os.path.join(knowledge_dir, "scripts", "rag_query.py")
@@ -58,8 +60,23 @@ try:
     if result.returncode == 0 and result.stdout.strip():
         results = json.loads(result.stdout)
         if results:
-            # Format results as context for Claude
-            context_lines = ["[RAG Knowledge Base Results for ilp_for]"]
+            # Compute relevance indicator
+            top_score = results[0].get("_hybrid_score", 0) if results else 0
+            result_count = len(results)
+            if top_score > 0.015 or result_count >= 3:
+                relevance = "HIGH"
+            elif top_score > 0.010 or result_count >= 2:
+                relevance = "MEDIUM"
+            else:
+                relevance = "LOW"
+
+            # Format results as context
+            context_lines = [
+                f"[RAG Knowledge Base - AUTHORITATIVE SOURCE for {LIBRARY_DISPLAY_NAME}]",
+                "Trust these results. Only explore codebase if results are empty or you need to modify code.",
+                f"Results: {result_count} | Relevance: {relevance}",
+                ""
+            ]
             for r in results:
                 content = r.get("content", "")
                 category = r.get("_category", "unknown")
@@ -70,8 +87,12 @@ try:
             context_lines.append("[End RAG Results]")
 
             # Output context that will be injected
+            # Must use hookSpecificOutput wrapper for Claude Code
             output = {
-                "additionalContext": "\n".join(context_lines)
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": "\n".join(context_lines)
+                }
             }
             print(json.dumps(output))
 except Exception:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Code Generation Evaluation for ilp_for RAG Knowledge Base
+Code Generation Evaluation for RAG Knowledge Base
 
 Tests whether an LLM using ONLY RAG context can generate correct, compilable code.
 """
@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Tuple
 # Add parent directory and scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from config import DB_PATH, EMBEDDING_MODEL, CATEGORIES
+from config import DB_PATH, EMBEDDING_MODEL, CATEGORIES, CODEGEN_EVAL_MODEL
 from rag_query import query
 
 def query_rag(task_description: str, top_k: int = 5) -> str:
@@ -72,7 +72,7 @@ Requirements:
 Generate the complete function implementation now:"""
 
     message = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
+        model=CODEGEN_EVAL_MODEL,
         max_tokens=2000,
         messages=[{"role": "user", "content": prompt}]
     )

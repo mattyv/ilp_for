@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 import lancedb
 from sentence_transformers import SentenceTransformer
-from config import CATEGORIES
+from config import CATEGORIES, LIBRARY_DISPLAY_NAME, EMBEDDING_MODEL
 
 def load_test_cases():
     """Load test cases from rag_evaluation.json."""
@@ -68,7 +68,7 @@ def generate_answer(question, contexts, api_key):
 
     context_text = "\n\n".join(f"[Context {i+1}]\n{ctx}" for i, ctx in enumerate(contexts))
 
-    prompt = f"""You are an expert on the ilp_for C++ library. Answer the following question using ONLY the provided context. Do not add information not present in the context.
+    prompt = f"""You are an expert on the {LIBRARY_DISPLAY_NAME} C++ library. Answer the following question using ONLY the provided context. Do not add information not present in the context.
 
 Context:
 {context_text}
@@ -105,7 +105,7 @@ def run_ragas_evaluation(verbose=False):
 
     # Load embedding model
     print("Loading embedding model...")
-    model = SentenceTransformer('BAAI/bge-small-en-v1.5')
+    model = SentenceTransformer(EMBEDDING_MODEL)
 
     print(f"\nGenerating answers for {len(test_cases)} test cases...")
     print("⚠️  This will make API calls to Claude. Cost estimate: ~$0.05-0.10\n")

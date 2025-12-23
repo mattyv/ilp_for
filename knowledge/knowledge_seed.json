@@ -1,5 +1,23 @@
 [
   {
+    "content": "ILP (Instruction-Level Parallelism) is a CPU's ability to execute multiple instructions simultaneously through superscalar execution. Modern CPUs have multiple execution ports (Skylake has 8) that can operate in parallel. To saturate these ports, code needs independent operations that don't wait on each other's results. Loop-carried dependencies (where each iteration depends on the previous result) limit ILP. The optimal unroll factor N follows N ≈ Latency × Throughput to keep enough operations in flight to hide latency.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "optimal_N",
+      "LoopType"
+    ],
+    "tags": [
+      "concept",
+      "fundamentals",
+      "cpu-architecture"
+    ],
+    "created_at": "2025-12-23T15:00:00.000000",
+    "category": "semantics"
+  },
+  {
     "content": "Do NOT use ILP_FOR for simple loops without early exit. Standard loops with #pragma unroll or auto-vectorization are often equivalent or better. ILP_FOR is specifically for loops with break/continue/return.",
     "source": "conversation",
     "validated_by": "human",

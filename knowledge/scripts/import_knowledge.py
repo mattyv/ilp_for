@@ -7,6 +7,8 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import sys
 
+from config import EMBEDDING_MODEL, CATEGORIES
+
 def main():
     script_dir = Path(__file__).parent
     seed_file = script_dir.parent / 'knowledge_seed.json'
@@ -24,8 +26,8 @@ def main():
 
     # Initialize embedding model
     print("Loading embedding model...")
-    model = SentenceTransformer('BAAI/bge-small-en-v1.5')
-    embedding_dim = 384
+    model = SentenceTransformer(EMBEDDING_MODEL)
+    embedding_dim = model.get_sentence_embedding_dimension()
 
     # Connect to database
     db = lancedb.connect(str(db_path))
@@ -42,14 +44,23 @@ def main():
         pa.field("created_at", pa.string()),
     ])
 
-    # Group by category
+    # Group by category (without mutating original entries)
     by_category = {}
+    skipped = 0
     for entry in entries:
-        cat = entry.pop('category')
-        by_category.setdefault(cat, []).append(entry)
+        cat = entry.get('category')
+        if cat not in CATEGORIES:
+            print(f"  Warning: Unknown category '{cat}' in seed file, skipping entry")
+            skipped += 1
+            continue
+        # Copy entry without 'category' field
+        entry_copy = {k: v for k, v in entry.items() if k != 'category'}
+        by_category.setdefault(cat, []).append(entry_copy)
+
+    if skipped > 0:
+        print(f"  Skipped {skipped} entries with unknown categories")
 
     # Ensure all categories exist (even if empty in seed)
-    from config import CATEGORIES
     for cat in CATEGORIES:
         by_category.setdefault(cat, [])
 

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 import lancedb
 from sentence_transformers import SentenceTransformer
-from config import CATEGORIES
+from config import CATEGORIES, EMBEDDING_MODEL
 
 def load_test_cases():
     """Load test cases from rag_evaluation.json."""
@@ -21,7 +21,7 @@ def load_test_cases():
 
 def query_rag(question, db, model, top_k=5):
     """Query RAG and return results from all categories."""
-    vector = model.encode([question])[0].tolist()
+    vector = model.encode(question).tolist()
 
     results = []
     for category in CATEGORIES:
@@ -70,21 +70,18 @@ def evaluate_context_retrieval(retrieved, expected_categories, expected_symbols)
     sym_total = len(expected_sym_set)
     sym_score = sym_overlap / sym_total if sym_total > 0 else 1.0
 
-    # Combined score
+    # Combined score (preserve granularity instead of quantizing)
     overall_score = (cat_score + sym_score) / 2
 
-    # Classify
+    # Classify for human readability
     if overall_score >= 0.8:
         rating = "perfect"
-        score = 1.0
     elif overall_score >= 0.3:
         rating = "partial"
-        score = 0.5
     else:
         rating = "miss"
-        score = 0.0
 
-    return score, {
+    return overall_score, {
         'rating': rating,
         'overall_score': overall_score,
         'category_score': cat_score,
@@ -111,7 +108,7 @@ def run_evaluation(verbose=False):
 
     # Load embedding model
     print("Loading embedding model...")
-    model = SentenceTransformer('BAAI/bge-small-en-v1.5')
+    model = SentenceTransformer(EMBEDDING_MODEL)
 
     print(f"\nRunning evaluation on {len(test_cases)} test cases...\n")
 

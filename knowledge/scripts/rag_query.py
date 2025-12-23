@@ -5,6 +5,7 @@ from sentence_transformers import SentenceTransformer, CrossEncoder
 import argparse
 import json
 import sys
+import threading
 from pathlib import Path
 from datetime import datetime
 
@@ -12,38 +13,50 @@ from datetime import datetime
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent))
 
-from config import DB_PATH, EMBEDDING_MODEL
+from config import DB_PATH, EMBEDDING_MODEL, RERANK_MODEL
 
 # Paths
 LOG_PATH = Path(__file__).parent.parent / "logs" / "queries.jsonl"
 
-# Lazy-loaded models (avoid loading until needed)
+# Lazy-loaded models with thread safety
 _embedding_model = None
 _rerank_model = None
+_model_lock = threading.Lock()
 
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# Log directory creation flag
+_log_dir_created = False
+
+# RRF fallback rank for results not found in a search type
+RRF_FALLBACK_RANK = 1000
 
 
 def get_embedding_model():
-    """Lazy load embedding model."""
+    """Lazy load embedding model (thread-safe)."""
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+        with _model_lock:
+            if _embedding_model is None:  # Double-check after acquiring lock
+                _embedding_model = SentenceTransformer(EMBEDDING_MODEL)
     return _embedding_model
 
 
 def get_rerank_model():
-    """Lazy load cross-encoder reranking model."""
+    """Lazy load cross-encoder reranking model (thread-safe)."""
     global _rerank_model
     if _rerank_model is None:
-        _rerank_model = CrossEncoder(RERANK_MODEL)
+        with _model_lock:
+            if _rerank_model is None:  # Double-check after acquiring lock
+                _rerank_model = CrossEncoder(RERANK_MODEL)
     return _rerank_model
 
 
 def log_query(query_text: str, results: list, source: str = "cli"):
     """Log query to JSONL file for feedback loop."""
+    global _log_dir_created
     try:
-        LOG_PATH.parent.mkdir(exist_ok=True)
+        if not _log_dir_created:
+            LOG_PATH.parent.mkdir(exist_ok=True)
+            _log_dir_created = True
         entry = {
             "timestamp": datetime.now().isoformat(),
             "query": query_text,
@@ -64,7 +77,8 @@ def rerank(query_text: str, results: list, top_k: int = 5) -> list:
         return results
 
     reranker = get_rerank_model()
-    pairs = [(query_text, r['content']) for r in results]
+    # Defensive access in case content is missing
+    pairs = [(query_text, r.get('content', '')) for r in results]
     scores = reranker.predict(pairs)
 
     for r, score in zip(results, scores):
@@ -93,12 +107,15 @@ def hybrid_search(table, query_text: str, embedding: list, limit: int, hybrid_we
     try:
         vector_hits = table.search(embedding).limit(limit * 2).to_list()
         for i, hit in enumerate(vector_hits):
-            content = hit['content']
+            content = hit.get('content', '')
             if content not in results_map:
                 results_map[content] = hit.copy()
                 results_map[content]['_vector_rank'] = i
             else:
-                results_map[content]['_vector_rank'] = i
+                # Keep best (lowest) rank if duplicate
+                results_map[content]['_vector_rank'] = min(
+                    i, results_map[content].get('_vector_rank', i)
+                )
     except Exception:
         pass
 
@@ -106,12 +123,15 @@ def hybrid_search(table, query_text: str, embedding: list, limit: int, hybrid_we
     try:
         fts_hits = table.search(query_text, query_type="fts").limit(limit * 2).to_list()
         for i, hit in enumerate(fts_hits):
-            content = hit['content']
+            content = hit.get('content', '')
             if content not in results_map:
                 results_map[content] = hit.copy()
                 results_map[content]['_fts_rank'] = i
             else:
-                results_map[content]['_fts_rank'] = i
+                # Keep best (lowest) rank if duplicate
+                results_map[content]['_fts_rank'] = min(
+                    i, results_map[content].get('_fts_rank', i)
+                )
     except Exception:
         # FTS index may not exist - fall back to vector-only
         pass
@@ -119,11 +139,12 @@ def hybrid_search(table, query_text: str, embedding: list, limit: int, hybrid_we
     # Compute hybrid scores using reciprocal rank fusion
     results = []
     for content, hit in results_map.items():
-        vector_rank = hit.get('_vector_rank', len(results_map))
-        fts_rank = hit.get('_fts_rank', len(results_map))
+        # Use constant fallback rank for results not found in a search type
+        vector_rank = hit.get('_vector_rank', RRF_FALLBACK_RANK)
+        fts_rank = hit.get('_fts_rank', RRF_FALLBACK_RANK)
 
         # Reciprocal Rank Fusion: score = w1/(k+rank1) + w2/(k+rank2)
-        k = 60  # Constant to prevent division issues
+        k = 60  # Standard RRF constant
         vector_score = hybrid_weight / (k + vector_rank)
         fts_score = (1 - hybrid_weight) / (k + fts_rank)
         hit['_hybrid_score'] = vector_score + fts_score
@@ -253,7 +274,7 @@ def main():
 
             print(f"[{i}] Category: {r['_category']} | {score_str}")
             print(f"    Confidence: {r.get('confidence', 'N/A')} | Symbols: {r.get('related_symbols', [])}")
-            content = r['content']
+            content = r.get('content', '')
             if len(content) > 500:
                 content = content[:500] + "..."
             print(f"    Content: {content}")

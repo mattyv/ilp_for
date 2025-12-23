@@ -1,5 +1,5 @@
 """Schema definitions for the RAG knowledge system."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
 
@@ -10,19 +10,19 @@ class InsightCategory(str, Enum):
     ANTIPATTERN = "antipatterns"          # What NOT to do
     GOTCHA = "gotchas"                    # Subtle issues/edge cases
     PERFORMANCE = "performance"           # When to use, benchmarks
-    COMPILER = "compiler"                 # GCC vs Clang differences
-    SEMANTIC = "semantics"                # What the macros actually expand to
+    COMPILER = "compiler"                 # Compiler-specific differences
+    SEMANTIC = "semantics"                # What things actually expand to
 
 
 class Insight(BaseModel):
     content: str
     category: InsightCategory
-    source: str  # "docs", "code", "conversation", "test"
-    validated_by: str  # "human", "compiles", "test_passes"
+    source: str  # "docs", "code", "conversation", "test", "implementation"
+    validated_by: str  # "human", "compiles", "test_passes", "parsed", "system"
     confidence: float  # 0.0-1.0
-    related_symbols: list[str]  # ["ILP_FOR", "ILP_BREAK", etc.]
+    related_symbols: list[str]
     tags: list[str]
-    created_at: datetime = datetime.now()
+    created_at: datetime = Field(default_factory=datetime.now)
 
     class Config:
         use_enum_values = True

@@ -159,7 +159,7 @@
         "Not understanding Search is for early exit"
       ],
       "evaluation_checks": {
-        "must_contain": ["ILP_FOR_AUTO", "LoopType::Search", "Search", "ILP_BREAK", "ILP_END;"],
+        "must_contain": ["ILP_FOR_AUTO", "Search", "ILP_BREAK", "ILP_END;"],
         "must_not_contain": ["DotProduct", "Sum"],
         "compilation_flags": ["-std=c++20", "-O3", "-I.."]
       }

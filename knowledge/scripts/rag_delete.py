@@ -3,7 +3,19 @@
 import lancedb
 import argparse
 
-from config import DB_PATH
+from config import DB_PATH, CATEGORIES
+
+
+def escape_sql_string(s: str) -> str:
+    """Escape a string for use in SQL-like filter expressions.
+
+    Escapes single quotes, backslashes, and other special characters.
+    """
+    # Escape backslashes first (order matters)
+    s = s.replace("\\", "\\\\")
+    # Escape single quotes
+    s = s.replace("'", "''")
+    return s
 
 
 def delete_by_content(category: str, content_substring: str):
@@ -25,13 +37,20 @@ def delete_by_content(category: str, content_substring: str):
 
     print(f"Found {len(to_delete)} entries to delete:")
     for c in to_delete:
-        print(f"  - {c[:80]}...")
+        # Only add "..." if content is actually truncated
+        preview = c[:80] + "..." if len(c) > 80 else c
+        print(f"  - {preview}")
 
     # Delete using SQL-like filter
     for content in to_delete:
-        # Escape single quotes in content
-        escaped = content.replace("'", "''")
+        escaped = escape_sql_string(content)
         table.delete(f"content = '{escaped}'")
+
+    # Rebuild FTS index after deletion
+    try:
+        table.create_fts_index("content", replace=True)
+    except Exception:
+        pass  # FTS update is best-effort
 
     print(f"Deleted {len(to_delete)} entries from '{category}'")
 
@@ -39,6 +58,7 @@ def delete_by_content(category: str, content_substring: str):
 def main():
     parser = argparse.ArgumentParser(description='Delete insights from knowledge base')
     parser.add_argument('--category', '-c', required=True,
+                        choices=CATEGORIES,
                         help='Category to delete from')
     parser.add_argument('--contains', required=True,
                         help='Substring to match in content')

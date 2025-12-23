@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unified evaluation runner for ilp_for RAG knowledge base
+# Unified evaluation runner for RAG knowledge base
 # Runs all three types of evaluations: custom, RAGAS, and code generation
 
 set -e
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "======================================================================"
-echo "ILP_FOR RAG Knowledge Base - Comprehensive Evaluation Suite"
+echo "RAG Knowledge Base - Comprehensive Evaluation Suite"
 echo "======================================================================"
 echo ""
 
