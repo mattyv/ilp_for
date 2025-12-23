@@ -4,6 +4,12 @@ import lancedb
 from sentence_transformers import SentenceTransformer
 import argparse
 import json
+import sys
+from pathlib import Path
+
+# Add scripts directory to path if not already there
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).parent))
 
 from config import DB_PATH, EMBEDDING_MODEL
 

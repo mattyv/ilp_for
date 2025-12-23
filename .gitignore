@@ -32,6 +32,8 @@ __pycache__/
 knowledge/.venv/
 knowledge/scripts/__pycache__/
 knowledge/db/
+knowledge/tests/results/
+knowledge/tests/__pycache__/
 
 # Claude
 /CLAUDE.md

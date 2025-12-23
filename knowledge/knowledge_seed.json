@@ -647,5 +647,156 @@
     "tags": [],
     "created_at": "2025-12-22T22:32:05.526070",
     "category": "usage_patterns"
+  },
+  {
+    "content": "Complete working example of ILP_FOR with early exit:\n\nint count_until_negative(const std::vector<int>& data) {\n    int count = 0;\n    ILP_FOR(auto i, 0, data.size(), 4) {\n        if (data[i] < 0) {\n            ILP_BREAK;\n        }\n        count++;\n    } ILP_END;\n    return count;\n}\n\nThis example shows ILP_FOR with ILP_BREAK for early exit. Loop variable i goes from 0 to data.size(). Body accesses elements with data[i]. ILP_END ends the loop with semicolon. Loop processes 4 elements per iteration.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_END"
+    ],
+    "tags": [
+      "example",
+      "early-exit",
+      "vector"
+    ],
+    "created_at": "2025-12-23T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Vector iteration patterns with ILP_FOR:\n\n// Process all elements\nvoid process_vector(const std::vector<int>& data) {\n    ILP_FOR(auto i, 0, data.size(), 4) {\n        int value = data[i];  // Access element at index i\n        // Process value...\n    } ILP_END;\n}\n\n// Early exit with return\nint find_first_match(const std::vector<int>& data, int target) {\n    ILP_FOR(auto i, 0, data.size(), 4) {\n        if (data[i] == target) {\n            ILP_RETURN(i);  // Found it, return index\n        }\n    } ILP_END_RETURN;\n    return -1;  // Not found\n}\n\nCommon pattern: ILP_FOR(auto i, 0, vec.size(), N). Use vec[i] to access elements. For early exit with return value, use ILP_RETURN and ILP_END_RETURN.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_RETURN",
+      "ILP_END_RETURN"
+    ],
+    "tags": [
+      "example",
+      "vector",
+      "pattern"
+    ],
+    "created_at": "2025-12-23T12:01:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_BREAK usage pattern with flag variable:\n\nbool contains_value(const std::vector<int>& data, int target) {\n    bool found = false;\n    ILP_FOR(auto i, 0, data.size(), 4) {\n        if (data[i] == target) {\n            found = true;\n            ILP_BREAK;  // Exit loop early\n        }\n    } ILP_END;  // Use ILP_END with ILP_BREAK\n    return found;\n}\n\nILP_BREAK exits the loop early, similar to regular break. Must use ILP_END (not ILP_END_RETURN) after loop body. Commonly used with a flag variable set before breaking.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_BREAK",
+      "ILP_END"
+    ],
+    "tags": [
+      "example",
+      "early-exit",
+      "search"
+    ],
+    "created_at": "2025-12-23T12:02:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Minimal complete ILP_FOR program:\n\n#include \"ilp_for/ilp_for.hpp\"\n#include <vector>\n#include <iostream>\n\nint main() {\n    std::vector<int> data = {10, 20, 30, 40, 50};\n\n    // Sum all elements\n    int sum = 0;\n    ILP_FOR(auto i, 0, data.size(), 4) {\n        sum += data[i];\n    } ILP_END;\n\n    std::cout << \"Sum: \" << sum << std::endl;\n    return 0;\n}\n\n// Compile: g++ -std=c++20 -O3 -I/path/to/ilp_for main.cpp\n\nInclude ilp_for.hpp, use ILP_FOR(variable, start, end, N) for loop, end with ILP_END;. Loop variable i accesses elements. Compile with C++20 and optimization enabled.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_END"
+    ],
+    "tags": [
+      "example",
+      "hello-world",
+      "complete"
+    ],
+    "created_at": "2025-12-23T12:03:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR_RANGE example with auto&&:\n\n// Process elements without indices\nvoid process_strings(const std::vector<std::string>& items) {\n    ILP_FOR_RANGE(auto&& item, items, 4) {\n        // item is a reference to each element\n        std::cout << item.size() << std::endl;\n    } ILP_END;\n}\n\n// Modify elements in place\nvoid uppercase_all(std::vector<std::string>& items) {\n    ILP_FOR_RANGE(auto&& item, items, 4) {\n        for (char& c : item) c = std::toupper(c);\n    } ILP_END;\n}\n\nILP_FOR_RANGE(auto&& variable, container, N) iterates over elements directly without indices. Use auto&& to avoid copying (critical for expensive types like std::string). Loop variable is a reference to each element. Container must be an lvalue (named variable), not a temporary. Terminates with ILP_END.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_RANGE",
+      "ILP_END"
+    ],
+    "tags": [
+      "example",
+      "range",
+      "auto&&"
+    ],
+    "created_at": "2025-12-23T12:04:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR_AUTO example with CPU-specific optimization:\n\n#include \"ilp_for/ilp_for.hpp\"\n#include \"ilp_for/loop_types.hpp\"\n\n// Compile with: -DILP_CPU_SKYLAKE or -DILP_CPU_ZEN5 or -DILP_CPU_APPLE_M1\n\nint find_value(const std::vector<int>& data, int target) {\n    ILP_FOR_AUTO(auto i, 0, data.size(), LoopType::Search, int) {\n        if (data[i] == target) {\n            ILP_RETURN(i);\n        }\n    } ILP_END_RETURN;\n    return -1;\n}\n\nILP_FOR_AUTO chooses optimal unroll factor N automatically based on CPU target defined at compile time (-DILP_CPU_SKYLAKE, etc.). Requires specifying LoopType (Search, DotProduct, Reduction, etc.) and return type. Without CPU target, uses conservative defaults. Best for portable code that should optimize for different architectures.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_AUTO",
+      "ILP_END_RETURN",
+      "LoopType"
+    ],
+    "tags": [
+      "example",
+      "auto",
+      "cpu-targeting"
+    ],
+    "created_at": "2025-12-23T12:05:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR_T example for large return types:\n\n// Return large struct (> 8 bytes)\nstruct LargeResult {\n    int index;\n    double value;\n    std::string name;  // > SBO size\n};\n\nLargeResult find_best(const std::vector<double>& scores, const std::vector<std::string>& names) {\n    double best_score = -1.0;\n    LargeResult result{-1, 0.0, \"\"};\n\n    ILP_FOR_T(LargeResult, auto i, 0, scores.size(), 4) {\n        if (scores[i] > best_score) {\n            best_score = scores[i];\n            result = {(int)i, scores[i], names[i]};\n        }\n    } ILP_END_RETURN;\n    return result;\n}\n\nILP_FOR_T(ReturnType, variable, start, end, N) is needed when return type exceeds SBO size (typically 8 bytes). First parameter specifies return type explicitly. Use with ILP_END_RETURN. For types <= 8 bytes, use regular ILP_FOR. Alternative: increase -DILP_SBO_SIZE at compile time.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR_T",
+      "ILP_END_RETURN",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "example",
+      "large-return-type",
+      "SBO"
+    ],
+    "created_at": "2025-12-23T12:06:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR uses an if-statement with an immediately-invoked lambda to capture the user's loop body. The user's { body } becomes the inner lambda argument to for_loop<N>(), which is why the semicolon must go after ILP_END, not after the closing brace. Putting a semicolon after } would break the lambda call syntax. This design allows for-loop-like syntax while supporting early exit.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_END",
+      "syntax"
+    ],
+    "tags": [],
+    "created_at": "2025-12-23T00:00:00.000000",
+    "category": "semantics"
+  },
+  {
+    "content": "The if/else pattern used by ILP_FOR is the most portable way to achieve for-loop syntax with early exit in C++. Alternative designs were evaluated: for-loop wrapper (cannot capture user code as callable), callback pattern (requires explicit returns, loses for-loop appearance), statement expressions (GCC-only, not portable). The if-statement + lambda approach works across all C++20 compilers.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "portability",
+      "design"
+    ],
+    "tags": [],
+    "created_at": "2025-12-23T00:00:00.000000",
+    "category": "semantics"
   }
 ]

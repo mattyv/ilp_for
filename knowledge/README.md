@@ -6,26 +6,29 @@ A vector-based knowledge retrieval system for reducing LLM hallucinations when w
 
 ```
 knowledge/
-├── db/                      # LanceDB vector database (gitignored)
+├── db/                               # LanceDB vector database (gitignored)
 ├── hooks/
-│   └── rag_query_hook.py    # Claude Code hook (committable)
+│   └── rag_query_hook.py             # Claude Code hook (committable)
 ├── scripts/
-│   ├── config.py            # Centralized configuration
-│   ├── ingest_config.py     # Library-specific parsing patterns
-│   ├── import_knowledge.py  # Build database from seed + source
-│   ├── rag_ingest.py        # Parse source code for API signatures
-│   ├── rag_add.py           # Add individual insights
-│   ├── rag_query.py         # Query the knowledge base
-│   └── rag_delete.py        # Remove incorrect entries
+│   ├── config.py                     # Centralized configuration
+│   ├── ingest_config.py              # Library-specific parsing patterns
+│   ├── import_knowledge.py           # Build database from seed + source
+│   ├── rag_ingest.py                 # Parse source code for API signatures
+│   ├── rag_add.py                    # Add individual insights
+│   ├── rag_query.py                  # Query the knowledge base
+│   └── rag_delete.py                 # Remove incorrect entries
 ├── tests/
-│   ├── rag_evaluation.json  # Test cases for evaluation
-│   ├── evaluate_custom.py   # Custom evaluation (free, fast)
-│   ├── evaluate_ragas.py    # RAGAS evaluation (LLM-based)
-│   └── results/             # Evaluation results with timestamps
-├── knowledge_seed.json      # Curated knowledge (committed)
-├── setup.sh                 # One-command setup script
-├── CLAUDE.md                # Instructions for Claude (committed)
-└── README.md                # This file
+│   ├── rag_evaluation.json           # Test cases (retrieval quality)
+│   ├── code_generation_evaluation.json  # Test cases (code synthesis)
+│   ├── evaluate_custom.py            # Custom evaluation (free, fast)
+│   ├── evaluate_ragas.py             # RAGAS evaluation (answer quality)
+│   ├── evaluate_codegen.py           # Code generation evaluation (synthesis)
+│   ├── run_all_evals.sh              # Unified test runner
+│   └── results/                      # Evaluation results with timestamps
+├── knowledge_seed.json               # Curated knowledge (committed)
+├── setup.sh                          # One-command setup script
+├── CLAUDE.md                         # Instructions for Claude (committed)
+└── README.md                         # This file
 ```
 
 ## How It Works
@@ -173,40 +176,78 @@ python rag_ingest.py
 
 ### Evaluate RAG Quality
 
-Test the knowledge base against a suite of 12 test cases:
+Test the knowledge base with three types of evaluations:
 
 ```bash
 cd knowledge/tests
 
-# Custom evaluation (free, fast - recommended for regular testing)
+# Run all evaluations at once
+./run_all_evals.sh
+
+# Or run individually:
+
+# 1. Custom evaluation (free, fast - retrieval quality)
 python evaluate_custom.py --verbose
 
-# RAGAS evaluation (requires ANTHROPIC_API_KEY, costs ~$0.05-0.10)
+# 2. RAGAS evaluation (LLM-based - answer quality)
 export ANTHROPIC_API_KEY=your_key_here
 python evaluate_ragas.py --verbose
+
+# 3. Code generation evaluation (LLM-based - synthesis quality)
+python evaluate_codegen.py --verbose
+
+# Run specific test only
+python evaluate_codegen.py --test-id codegen_003
 ```
 
-**Custom Evaluation** tests retrieval quality without LLM inference:
+#### 1. Custom Evaluation (Retrieval Quality)
+
+Tests whether RAG retrieves the right knowledge chunks:
 - Queries RAG for each test question
 - Checks if expected categories and symbols were retrieved
 - Scores: 0.0 (miss), 0.5 (partial), 1.0 (perfect)
-- Fast (~30 seconds for all 12 tests)
+- Fast (~30 seconds for 12 tests)
 - No API costs
+- **Use for**: Regular testing, CI/CD
 
-**RAGAS Evaluation** uses industry-standard metrics:
+**Test Cases**: [tests/rag_evaluation.json](tests/rag_evaluation.json)
+- 12 questions: basic, intermediate, and advanced
+- Covers: API syntax, control flow, debugging, performance, edge cases
+
+#### 2. RAGAS Evaluation (Answer Quality)
+
+Tests whether answers are faithful and relevant:
 - Generates answers using Claude API with RAG context
-- Measures 4 metrics:
+- Measures 4 industry-standard metrics:
   - **Faithfulness** (0-1): Is answer grounded in retrieved context?
   - **Answer Relevancy** (0-1): Does answer address the question?
   - **Context Precision** (0-1): Are relevant contexts ranked higher?
   - **Context Recall** (0-1): Did we retrieve all necessary context?
 - Requires LLM API calls (~$0.05-0.10 per run)
-- Use before releases or after major knowledge base changes
+- **Use for**: Pre-release validation, major knowledge base changes
 
-**Test Cases** ([tests/rag_evaluation.json](tests/rag_evaluation.json)):
-- 12 questions covering basic, intermediate, and advanced topics
-- Expected answers, categories, and symbols for each
-- Covers: API syntax, control flow, debugging, performance, edge cases
+#### 3. Code Generation Evaluation (Synthesis Quality)
+
+Tests whether LLM can write correct code using ONLY RAG context:
+- Queries RAG with task description
+- Generates code via Claude API with strict prompting
+- Compiles with g++ and runs test cases
+- Checks code quality (patterns, anti-patterns)
+- Scoring:
+  - **Compilation** (30%): Compiles without errors
+  - **Correctness** (40%): Passes all test cases
+  - **Quality** (30%): Follows best practices, avoids pitfalls
+- Success criteria:
+  - Compilation rate ≥ 90%
+  - Correctness rate ≥ 80%
+  - Average score ≥ 0.8
+- **Use for**: End-to-end validation that RAG provides sufficient knowledge
+
+**Test Cases**: [tests/code_generation_evaluation.json](tests/code_generation_evaluation.json)
+- 8 scenarios: easy (2), medium (4), hard (2)
+- Tests: ILP_BREAK, ILP_RETURN, nested loops, range loops, LoopType selection
+- Each test has 3-5 input/output test cases
+- Validates compilation, correctness, and quality
 
 **Results** are saved to `tests/results/` with timestamps for tracking improvement over time.
 
