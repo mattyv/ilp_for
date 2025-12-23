@@ -145,6 +145,38 @@
     "category": "gotchas"
   },
   {
+    "content": "ILP_FOR is portable across GCC, Clang, and MSVC. The macro uses an if-statement + lambda pattern instead of GCC-only statement expressions. Requires C++20. Header-only with no dependencies beyond the standard library.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "portability"
+    ],
+    "tags": [
+      "portability",
+      "compiler-support"
+    ],
+    "created_at": "2025-12-23T16:00:00.000000",
+    "category": "compiler"
+  },
+  {
+    "content": "Code bloat: For loops WITH early exit, ILP_FOR expands code (unrolled iterations + exit tracking logic). For loops WITHOUT early exit, compilers produce identical SIMD assembly to standard loops - no bloat. Only use ILP_FOR when you need early exit.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "code-size"
+    ],
+    "tags": [
+      "code-bloat",
+      "binary-size"
+    ],
+    "created_at": "2025-12-23T16:00:00.000000",
+    "category": "performance"
+  },
+  {
     "content": "ILP_FOR uses exclusive end like Python range(): ILP_FOR(auto i, 0, 10, 4) iterates i=0,1,...,9 (10 iterations). NOT like C-style for(i=0; i<=10; i++) which would be 11 iterations. Off-by-one errors are common when users expect inclusive end.",
     "source": "test",
     "validated_by": "human",
@@ -832,5 +864,269 @@
     "tags": [],
     "created_at": "2025-12-23T00:00:00.000000",
     "category": "semantics"
+  },
+  {
+    "content": "Compile-time errors you'll see: (1) 'Unroll factor N must be at least 1' - using N < 1. (2) 'Return type exceeds SBO size. Use ILP_FOR_T(type, ...) instead.' - ILP_RETURN with type > 8 bytes. (3) 'Return type alignment exceeds SBO size' - overaligned types. (4) 'SmallStorage only supports trivially-destructible types' - using std::string or types with destructors in ILP_RETURN.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_RETURN",
+      "ILP_FOR_T",
+      "SmallStorage"
+    ],
+    "tags": [
+      "error-messages",
+      "static_assert",
+      "troubleshooting"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "compiler"
+  },
+  {
+    "content": "Runtime error: '*** ILP_FOR ERROR *** ILP_RETURN was called but ILP_END was used instead of ILP_END_RETURN. The return value would be silently discarded.' This calls std::abort() - program terminates. Fix: change ILP_END to ILP_END_RETURN when using ILP_RETURN in the loop body.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_RETURN",
+      "ILP_END",
+      "ILP_END_RETURN"
+    ],
+    "tags": [
+      "error-messages",
+      "runtime",
+      "troubleshooting"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "compiler"
+  },
+  {
+    "content": "Exception safety: Basic guarantee only. Exceptions thrown in loop body propagate normally through the lambda - loop terminates immediately, no remainder iterations run. Loop state (iteration count) may be partial. Strong guarantee NOT provided. noexcept is NOT used on loop body invocation.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_FOR_RANGE"
+    ],
+    "tags": [
+      "exceptions",
+      "safety",
+      "error-handling"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "gotchas"
+  },
+  {
+    "content": "Thread safety: ILP_FOR has no shared mutable state - multiple threads can safely use ILP_FOR simultaneously on different data. Each loop invocation is independent. However, the loop body must be thread-safe if accessing shared data. No OpenMP integration - this is single-threaded loop optimization only.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "threads",
+      "concurrency",
+      "safety"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR_AUTO(loop_var, start, end, loop_type, element_type) auto-selects optimal N based on LoopType and element_type. Example: ILP_FOR_AUTO(auto i, 0, n, Search, int) { if (arr[i] == target) ILP_BREAK; } ILP_END; The element_type should match what you're operating on (int, double, etc). LoopType guides N selection (Search=4, Sum=4-8, DotProduct=8).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_AUTO",
+      "LoopType",
+      "optimal_N"
+    ],
+    "tags": [
+      "auto",
+      "syntax",
+      "optimal-N"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR_RANGE_AUTO(loop_var, container, loop_type, element_type) iterates over a container with auto-selected N. Example: ILP_FOR_RANGE_AUTO(auto&& val, vec, Search, int) { if (val < 0) ILP_BREAK; } ILP_END; Use auto&& for the loop variable to avoid copies. element_type should match container's value_type.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_RANGE_AUTO",
+      "LoopType"
+    ],
+    "tags": [
+      "auto",
+      "range",
+      "syntax"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ILP_FOR_T_AUTO(ret_type, loop_var, start, end, loop_type, element_type) combines explicit return type with auto N selection. Use when: (1) return type > 8 bytes AND (2) you want architecture-optimized N. Example: ILP_FOR_T_AUTO(MyStruct, auto i, 0, n, Search, int) { if (cond) ILP_RETURN(result); } ILP_END_RETURN;",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR_T_AUTO",
+      "ILP_FOR_RANGE_T_AUTO",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "auto",
+      "large-return-type",
+      "syntax"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Migration guide - standard loop to ILP_FOR: (1) for(int i=0; i<n; i++) becomes ILP_FOR(auto i, 0, n, 4). (2) break becomes ILP_BREAK. (3) continue becomes ILP_CONTINUE. (4) return x becomes ILP_RETURN(x). (5) Add ILP_END after body (or ILP_END_RETURN if using ILP_RETURN). (6) Semicolon goes after ILP_END, not after closing brace. (7) Keep loop body unchanged otherwise.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_CONTINUE",
+      "ILP_RETURN",
+      "ILP_END"
+    ],
+    "tags": [
+      "migration",
+      "conversion",
+      "how-to"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Namespace structure: Public API in ilp:: namespace. Internal details in ilp::detail::. CPU profiles in ilp::cpu::. All macros prefixed with ILP_ (public) or __ilp_ (internal). No global namespace pollution. All headers use #pragma once. Library is header-only, single include: #include <ilp_for.hpp>",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ilp",
+      "ilp_for.hpp"
+    ],
+    "tags": [
+      "namespace",
+      "hygiene",
+      "headers"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "semantics"
+  },
+  {
+    "content": "How to benchmark ILP_FOR: (1) Warm the cache - run loop once before timing. (2) Use volatile or benchmark::DoNotOptimize to prevent dead code elimination. (3) Test with realistic data sizes (10K+ elements). (4) Compare against simple loop AND #pragma unroll. (5) Check assembly on Godbolt with -O3 -march=native. (6) Run benchmarks/bench_reduce.cpp for reference.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "bench_reduce"
+    ],
+    "tags": [
+      "benchmarking",
+      "profiling",
+      "methodology"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "performance"
+  },
+  {
+    "content": "Troubleshooting 'ILP_FOR is not faster': (1) Does loop have break/return? If no, don't use ILP_FOR. (2) Is N > 16? Reduce to 4-8. (3) Is array tiny (<100 elements)? Overhead may dominate. (4) Is body branch-heavy? ILP helps less. (5) Check assembly - is it actually unrolling? (6) Try -DILP_CPU_SKYLAKE etc for your arch. (7) Compare with -DILP_MODE_SIMPLE to isolate.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_MODE_SIMPLE"
+    ],
+    "tags": [
+      "troubleshooting",
+      "debugging",
+      "slow"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "performance"
+  },
+  {
+    "content": "In-flight iteration semantics: When ILP_BREAK is called, remaining iterations in the current unrolled block do NOT execute. The implementation checks ctrl.ok after EACH iteration within the inner loop, not at block boundaries. Example: with N=4, if ILP_BREAK at i=5, iterations 6,7 never run. This matches standard break semantics exactly - no speculative execution.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_BREAK",
+      "ILP_CONTINUE",
+      "ForCtrl"
+    ],
+    "tags": [
+      "semantics",
+      "control-flow",
+      "early-exit"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "semantics"
+  },
+  {
+    "content": "Cannot use goto to exit ILP_FOR loops. The loop body is a lambda function, and goto cannot cross lambda scope boundaries in C++. Use ILP_BREAK (exit loop), ILP_CONTINUE (skip iteration), or ILP_RETURN(x) (exit enclosing function) instead.",
+    "source": "implementation",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_CONTINUE",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "goto",
+      "lambda",
+      "control-flow"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "gotchas"
+  },
+  {
+    "content": "Benchmark results (Apple M2, Clang 19, -O3): ILP_BREAK patterns: 1.29-1.36x speedup over simple loop. ILP_RETURN patterns: 1.66-1.80x speedup (best case - parallel comparison before return). No advantage for accumulation without early exit (compiler auto-vectorizes). std::find_if matches ILP_FOR (<1% difference). See benchmarks/results/ for detailed data.",
+    "source": "benchmark",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "benchmark",
+      "speedup",
+      "M2",
+      "performance"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "performance"
+  },
+  {
+    "content": "ILP_FOR benefits are computation-driven (instruction parallelism), not memory-driven. Sequential memory access is already optimal - no prefetch hints needed. The 4x unroll fits within typical hardware prefetch distance. Strided or random access patterns don't benefit differently from ILP_FOR vs simple loops.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": [
+      "ILP_FOR"
+    ],
+    "tags": [
+      "cache",
+      "memory",
+      "prefetch"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "performance"
   }
 ]
