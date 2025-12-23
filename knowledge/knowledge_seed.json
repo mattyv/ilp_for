@@ -786,7 +786,7 @@
     "category": "semantics"
   },
   {
-    "content": "The if/else pattern used by ILP_FOR is the most portable way to achieve for-loop syntax with early exit in C++. Alternative designs were evaluated: for-loop wrapper (cannot capture user code as callable), callback pattern (requires explicit returns, loses for-loop appearance), statement expressions (GCC-only, not portable). The if-statement + lambda approach works across all C++20 compilers.",
+    "content": "The if/else pattern used by ILP_FOR is the most portable way to achieve for-loop syntax with early exit in C++. Alternative designs were evaluated: for-loop wrapper (cannot capture user code as callable), callback pattern (requires explicit returns, loses for-loop appearance), statement expressions (supported by GCC and Clang but not MSVC, limiting portability to all three major compilers). The if-statement + lambda approach works across all C++20 compilers including GCC, Clang, and MSVC.",
     "source": "implementation",
     "validated_by": "human",
     "confidence": 1.0,
