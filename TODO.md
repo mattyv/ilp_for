@@ -28,4 +28,4 @@
 - [x] ~~update SBO to discuss how UB is handled~~ Added compile-time enforcement and std::launder info
 
 ## LLM
-- [ ] add chroma db or some vector db that can be committed to git and add's help to llm's.
+- [ ] add lance db or some vector db that can be committed to git and add's help to llm's. create and multiple choice test as a unit test... maybe
