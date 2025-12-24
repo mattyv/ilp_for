@@ -1261,7 +1261,7 @@
     "category": "usage_patterns"
   },
   {
-    "content": "Introduction to ILP_FOR: A C++ macro library that optimizes loops containing break, continue, or return statements. Unlike #pragma unroll which checks bounds after every iteration, ILP_FOR batches N iterations with a single bounds check, achieving ~1.5x speedup. Basic usage: ILP_FOR(auto i, 0, size, 4) { if (condition) ILP_BREAK; } ILP_END; Header-only, requires C++20, works with GCC/Clang/MSVC.",
+    "content": "Introduction to ILP_FOR: A C++ macro library that optimizes loops containing break, continue, or return statements. Unlike #pragma unroll which checks bounds after every iteration, ILP_FOR batches N iterations with a single bounds check, achieving ~1.5x speedup. Basic usage: ILP_FOR(auto i, 0, size, 4) { if (condition) ILP_BREAK; } ILP_END; Header-only, requires C++20, works with GCC/Clang/MSVC. This knowledge base is comprehensive - it covers syntax, semantics, gotchas, performance characteristics, API signatures, usage patterns, compiler flags, error messages, and troubleshooting. Query it for any ILP_FOR question before exploring the codebase.",
     "source": "docs",
     "validated_by": "human",
     "confidence": 1.0,
@@ -1275,9 +1275,101 @@
       "intro",
       "beginner",
       "tutorial",
-      "basics"
+      "basics",
+      "comprehensive",
+      "knowledge-base"
     ],
     "created_at": "2025-12-24T00:00:00.000000",
     "category": "usage_patterns"
+  },
+  {
+    "content": "ilp-loop-analysis is a clang-tidy check that automatically detects loop computation patterns and suggests optimal ILP_FOR configurations. It solves the problem of choosing the right unroll factor N and LoopType by analyzing loop bodies for patterns like Sum, DotProduct, Search, etc. The check warns when ILP_FOR is used with suboptimal N values and can auto-fix code to use ILP_FOR_AUTO with the correct LoopType. Located in tools/clang-tidy/.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "clang-tidy", "ILP_FOR_AUTO"],
+    "tags": ["overview", "what-is", "introduction", "clang-tidy", "tooling"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Build ilp-loop-analysis clang-tidy module on macOS (Homebrew): First install LLVM: brew install llvm. Then build: cd tools/clang-tidy && cmake -B build -DCMAKE_PREFIX_PATH=\"/opt/homebrew/opt/llvm\" -DLLVM_DIR=\"/opt/homebrew/opt/llvm/lib/cmake/llvm\" -DClang_DIR=\"/opt/homebrew/opt/llvm/lib/cmake/clang\" && cmake --build build. Output: build/ILPTidyModule.so (or .dylib on macOS).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "ILPTidyModule", "clang-tidy"],
+    "tags": ["build", "installation", "macos", "homebrew"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Build ilp-loop-analysis clang-tidy module on Ubuntu: Install dependencies: sudo apt-get install llvm-18-dev libclang-18-dev clang-18 clang-tidy-18. Then build: cd tools/clang-tidy && cmake -B build -DCMAKE_CXX_COMPILER=clang++-18 -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang && cmake --build build. Output: build/ILPTidyModule.so. Requires C++17 minimum.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "ILPTidyModule", "clang-tidy"],
+    "tags": ["build", "installation", "ubuntu", "linux"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Run ilp-loop-analysis: clang-tidy -load path/to/ILPTidyModule.so -checks='-*,ilp-*' your_file.cpp -- -std=c++20. With auto-fix: add --fix flag. On macOS Homebrew: /opt/homebrew/opt/llvm/bin/clang-tidy -load tools/clang-tidy/build/ILPTidyModule.so -checks='-*,ilp-*' file.cpp -- -std=c++20. The check ID is 'ilp-loop-analysis', module name is 'ilp-module'.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "clang-tidy"],
+    "tags": ["command-line", "usage", "clang-tidy"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Configure ilp-loop-analysis via .clang-tidy file: Checks: '-*,ilp-*' with CheckOptions: ilp-loop-analysis.TargetCPU (skylake, alderlake, zen5, apple_m1) for CPU-specific N values, ilp-loop-analysis.PreferPortableFix (true/false) - true suggests ILP_FOR_AUTO with LoopType, false suggests ILP_FOR with explicit N value. Without TargetCPU, uses skylake defaults.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "TargetCPU", "PreferPortableFix"],
+    "tags": ["configuration", "clang-tidy", "options"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "compiler"
+  },
+  {
+    "content": "ilp-loop-analysis detects 11 loop patterns: Sum (+=, -=), DotProduct (acc+=a[i]*b[i] where both indexed), Search (early exit via break/return), Copy (dst[i]=src[i]), Transform (dst[i]=f(src[i])), Multiply (*=), Divide (/), Sqrt (sqrt/sqrtf/sqrtl), MinMax (std::min/max, fmin/fmax), Bitwise (&=, |=, ^=), Shift (<<, >>). Each has optimal N = Latency x TPC. DotProduct specifically requires BOTH multiply operands to be indexed - acc+=data[i]*2.0 is Sum, not DotProduct.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "LoopType", "DotProduct", "Sum", "Search"],
+    "tags": ["patterns", "detection", "clang-tidy"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ilp-loop-analysis auto-fix (--fix flag) transforms ILP_FOR(var, start, end, N) to ILP_FOR_AUTO(var, start, end, LoopType, ElemType). Also handles ILP_FOR_RANGE variants. Element type inferred from analysis (float, double, int8_t, int16_t, int32_t, int64_t). Skips code already using ILP_FOR_AUTO (idempotent). Handles nested parentheses in macro arguments correctly.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "ILP_FOR_AUTO", "ILP_FOR_RANGE_AUTO"],
+    "tags": ["auto-fix", "refactoring", "clang-tidy"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "VSCode integration for ilp-loop-analysis: Copy tools/clang-tidy/vscode/tasks.json to .vscode/. Provides 5 tasks: 'ILP Loop Analysis (current file)', 'ILP Loop Analysis (test patterns)', 'ILP Loop Fix (current file)', 'ILP Loop Fix (test patterns)', 'Build ILP clang-tidy module'. Warnings appear in Problems panel with file:line:column. On macOS, edit tasks.json to use /opt/homebrew/opt/llvm/bin/clang-tidy.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis", "vscode"],
+    "tags": ["vscode", "ide", "integration", "tasks"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "ilp-loop-analysis warning format: 'file.cpp:42:5: warning: Loop body contains DotProduct pattern [ilp-loop-analysis]' followed by the code line, then 'note: Portable fix: use ILP_FOR_AUTO with LoopType::DotProduct' and 'note: Architecture-specific fix for skylake: use ILP_FOR with N=8'. When multiple patterns detected, recommends N for the bottleneck operation (highest N value needed).",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 0.9,
+    "related_symbols": ["ilp-loop-analysis"],
+    "tags": ["warnings", "diagnostics", "output-format"],
+    "created_at": "2025-12-24T12:00:00.000000",
+    "category": "compiler"
   }
 ]
