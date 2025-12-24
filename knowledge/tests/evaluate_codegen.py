@@ -16,9 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-# Add parent directory and scripts directory to path for imports
+# Add parent directory (knowledge/) and lucidity/scripts to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "lucidity" / "scripts"))
 from config import DB_PATH, EMBEDDING_MODEL, CATEGORIES, CODEGEN_EVAL_MODEL
 from rag_query import query
 
