@@ -15,11 +15,11 @@ LIBRARY_DISPLAY_NAME = "ILP_FOR"
 # =============================================================================
 # Paths
 # =============================================================================
-# Database path (relative to this script)
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "db")
+# Database path (relative to this file, which is in knowledge/)
+DB_PATH = os.path.join(os.path.dirname(__file__), "db")
 
-# Repository root (two levels up from scripts/)
-REPO_ROOT = Path(__file__).parent.parent.parent
+# Repository root (parent of knowledge/)
+REPO_ROOT = Path(__file__).parent.parent
 
 # =============================================================================
 # Models (pinned to specific revisions for reproducibility)

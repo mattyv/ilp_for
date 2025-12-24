@@ -1,0 +1,3 @@
+[submodule "knowledge/lucidity"]
+	path = knowledge/lucidity
+	url = https://github.com/mattyv/lucidity.git
