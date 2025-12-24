@@ -2,6 +2,10 @@
 
 A vector-based knowledge retrieval system to reduce LLM hallucinations when working with the ilp_for library. It automatically provides relevant context to Claude Code when you ask about the library.
 
+---
+
+**90+ entries** | 7 categories | 12 test cases | Sources: code parsing, docs, tests, assembly analysis
+
 ## Setup
 
 ```bash
@@ -60,6 +64,3 @@ knowledge/
 
 Uses LanceDB for vector storage, `BAAI/bge-small-en-v1.5` for embeddings (384-dim). Categories: `api_signatures`, `usage_patterns`, `antipatterns`, `gotchas`, `performance`, `compiler`, `semantics`.
 
----
-
-**90+ entries** | 7 categories | 12 test cases | Sources: code parsing, docs, tests, assembly analysis
