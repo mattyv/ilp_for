@@ -19,6 +19,16 @@ def get_model():
     return _model
 
 
+def build_searchable_content(content: str, tags: list[str]) -> str:
+    """Build searchable content by appending tags to content.
+
+    Tags are included in embeddings and FTS for better retrieval.
+    """
+    if tags:
+        return f"{content} Tags: {' '.join(tags)}"
+    return content
+
+
 def add_insight(content: str, category: str, symbols: list[str],
                 tags: list[str], source: str = "conversation",
                 validated_by: str = "human", confidence: float = 0.9):
@@ -36,10 +46,14 @@ def add_insight(content: str, category: str, symbols: list[str],
     db = lancedb.connect(DB_PATH)
     model = get_model()
 
+    # Include tags in searchable content for better retrieval
+    searchable_content = build_searchable_content(content, tags)
+
     table = db.open_table(category)
     table.add([{
         "content": content,
-        "vector": model.encode(content).tolist(),
+        "searchable_content": searchable_content,
+        "vector": model.encode(searchable_content).tolist(),
         "source": source,
         "validated_by": validated_by,
         "confidence": confidence,
@@ -48,9 +62,9 @@ def add_insight(content: str, category: str, symbols: list[str],
         "created_at": datetime.now().isoformat()
     }])
 
-    # Rebuild FTS index to include new entry
+    # Rebuild FTS index on searchable_content to include new entry
     try:
-        table.create_fts_index("content", replace=True)
+        table.create_fts_index("searchable_content", replace=True)
     except Exception:
         pass  # FTS update is best-effort
 

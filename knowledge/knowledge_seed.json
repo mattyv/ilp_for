@@ -1215,5 +1215,69 @@
     ],
     "created_at": "2025-12-24T00:00:00.000000",
     "category": "gotchas"
+  },
+  {
+    "content": "ILP_FOR is a C++ header-only macro library for optimizing loops with early exit (break/continue/return). It provides instruction-level parallelism by unrolling loops while correctly handling control flow. Key macros: ILP_FOR, ILP_FOR_RANGE, ILP_BREAK, ILP_CONTINUE, ILP_RETURN. Requires C++20. Use it when #pragma unroll fails for loops with break - ILP_FOR gives ~1.5x speedup by reducing bounds checks.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_RETURN",
+      "ILP_CONTINUE",
+      "ILP_FOR_RANGE"
+    ],
+    "tags": [
+      "overview",
+      "introduction",
+      "what-is",
+      "summary",
+      "getting-started"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Expert knowledge of ILP_FOR includes: (1) When to use it - only for loops with early exit, (2) Syntax - ILP_FOR(var, start, end, N) { body } ILP_END; with semicolon after ILP_END, (3) ILP_END vs ILP_END_RETURN - match to ILP_BREAK vs ILP_RETURN, (4) auto&& for range loops, (5) CPU targeting with -DILP_CPU_*, (6) Debug mode with -DILP_MODE_SIMPLE, (7) LoopType selection for _AUTO variants.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_END",
+      "ILP_END_RETURN",
+      "ILP_BREAK",
+      "ILP_RETURN"
+    ],
+    "tags": [
+      "expert",
+      "summary",
+      "knowledge",
+      "checklist",
+      "mastery"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
+  },
+  {
+    "content": "Introduction to ILP_FOR: A C++ macro library that optimizes loops containing break, continue, or return statements. Unlike #pragma unroll which checks bounds after every iteration, ILP_FOR batches N iterations with a single bounds check, achieving ~1.5x speedup. Basic usage: ILP_FOR(auto i, 0, size, 4) { if (condition) ILP_BREAK; } ILP_END; Header-only, requires C++20, works with GCC/Clang/MSVC.",
+    "source": "docs",
+    "validated_by": "human",
+    "confidence": 1.0,
+    "related_symbols": [
+      "ILP_FOR",
+      "ILP_BREAK",
+      "ILP_END"
+    ],
+    "tags": [
+      "introduction",
+      "intro",
+      "beginner",
+      "tutorial",
+      "basics"
+    ],
+    "created_at": "2025-12-24T00:00:00.000000",
+    "category": "usage_patterns"
   }
 ]

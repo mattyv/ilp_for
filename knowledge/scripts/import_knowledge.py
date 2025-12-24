@@ -9,6 +9,17 @@ import sys
 
 from config import EMBEDDING_MODEL, CATEGORIES
 
+
+def build_searchable_content(content: str, tags: list) -> str:
+    """Build searchable content by appending tags to content.
+
+    Tags are included in embeddings and FTS for better retrieval.
+    """
+    if tags:
+        return f"{content} Tags: {' '.join(tags)}"
+    return content
+
+
 def main():
     script_dir = Path(__file__).parent
     seed_file = script_dir.parent / 'knowledge_seed.json'
@@ -32,9 +43,10 @@ def main():
     # Connect to database
     db = lancedb.connect(str(db_path))
 
-    # Define schema
+    # Define schema - includes searchable_content for FTS (content + tags)
     schema = pa.schema([
         pa.field("content", pa.string()),
+        pa.field("searchable_content", pa.string()),  # content + tags for FTS
         pa.field("vector", pa.list_(pa.float32(), embedding_dim)),
         pa.field("source", pa.string()),
         pa.field("validated_by", pa.string()),
@@ -69,20 +81,24 @@ def main():
         if cat_entries:
             print(f"Importing {len(cat_entries)} entries into '{category}'...")
 
-            # Generate embeddings
-            contents = [e['content'] for e in cat_entries]
-            vectors = model.encode(contents, show_progress_bar=False)
+            # Generate embeddings using searchable content (content + tags)
+            searchable_contents = [
+                build_searchable_content(e['content'], e.get('tags', []))
+                for e in cat_entries
+            ]
+            vectors = model.encode(searchable_contents, show_progress_bar=False)
 
-            # Add vectors to entries
-            for entry, vector in zip(cat_entries, vectors):
+            # Add vectors and searchable_content to entries
+            for entry, vector, searchable in zip(cat_entries, vectors, searchable_contents):
                 entry['vector'] = vector.tolist()
+                entry['searchable_content'] = searchable
 
             # Create table with data
             table = db.create_table(category, cat_entries, schema=schema, mode='overwrite')
 
-            # Create FTS index for hybrid search
+            # Create FTS index on searchable_content (includes tags)
             try:
-                table.create_fts_index("content", replace=True)
+                table.create_fts_index("searchable_content", replace=True)
             except Exception as e:
                 print(f"  Warning: Could not create FTS index for '{category}': {e}")
         else:

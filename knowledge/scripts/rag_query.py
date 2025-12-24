@@ -119,7 +119,7 @@ def hybrid_search(table, query_text: str, embedding: list, limit: int, hybrid_we
     except Exception:
         pass
 
-    # Full-text search (if FTS index exists)
+    # Full-text search on searchable_content (if FTS index exists)
     try:
         fts_hits = table.search(query_text, query_type="fts").limit(limit * 2).to_list()
         for i, hit in enumerate(fts_hits):
