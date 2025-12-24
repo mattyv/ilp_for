@@ -436,7 +436,7 @@ I wanted to experiment with an idea: what if library maintainers could curate a 
 
 ### How it works
 
-The [`knowledge/`](knowledge/) directory contains a vector database (LanceDB) with 59 curated entries covering:
+The [`knowledge/`](knowledge/) directory contains a vector database (LanceDB) with 90+ curated entries covering:
 - API signatures parsed from source code
 - Usage patterns and best practices
 - Common mistakes and gotchas (e.g., "you need a semicolon after `ILP_END`")
@@ -444,6 +444,8 @@ The [`knowledge/`](knowledge/) directory contains a vector database (LanceDB) wi
 - Compiler flags and CPU-specific tuning
 
 When you ask Claude Code about `ilp_for`, a hook automatically queries this knowledge base and injects relevant context into the conversation. Think of it as a RAG system that pulls from verified, maintainer-curated knowledge instead of hoping the LLM remembers correctly.
+
+There's also an [MCP server](https://modelcontextprotocol.io/) if you want to use this with other AI tools beyond Claude Code. Just run `cd knowledge && ./setup.sh` to set it up.
 
 The system includes:
 - **Custom evaluation** (free, fast) - tests retrieval quality against 12 test cases

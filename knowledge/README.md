@@ -1,6 +1,6 @@
 # RAG Knowledge System
 
-A vector-based knowledge retrieval system for reducing LLM hallucinations when working with the ilp_for library. Automatically provides relevant context to Claude Code when users ask about the library.
+This is a vector-based knowledge retrieval system I built to reduce LLM hallucinations when working with the ilp_for library. It automatically provides relevant context to Claude Code when you ask about the library.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ knowledge/
 
 ### 1. Vector Storage (LanceDB)
 
-Knowledge is stored as vector embeddings in a LanceDB database. Each entry contains:
+Knowledge is stored as vector embeddings in a LanceDB database. Each entry has:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -50,7 +50,7 @@ Knowledge is stored as vector embeddings in a LanceDB database. Each entry conta
 
 ### 2. Embedding Model
 
-Uses `BAAI/bge-small-en-v1.5` via sentence-transformers:
+I'm using `BAAI/bge-small-en-v1.5` via sentence-transformers:
 - 384-dimensional embeddings
 - Fast inference (~100ms per query)
 - Good semantic similarity for technical content
@@ -77,7 +77,7 @@ User prompt → Hook detects keywords → Query vector DB → Return top matches
                               Claude sees additionalContext ←─┘
 ```
 
-The hook ([hooks/rag_query_hook.py](hooks/rag_query_hook.py)) triggers on keywords:
+The hook ([hooks/rag_query_hook.py](hooks/rag_query_hook.py)) triggers on keywords like:
 - `ilp_for`, `ilp_`, `ilp::`
 - `loop.*unroll`, `unroll.*loop`
 - `early.?exit.*loop`
@@ -97,11 +97,11 @@ pip install -r requirements.txt
 python scripts/import_knowledge.py
 ```
 
-This imports 59 curated insights from [knowledge_seed.json](knowledge_seed.json) and parses API signatures from [ilp_for.hpp](../ilp_for.hpp).
+This imports the curated insights from [knowledge_seed.json](knowledge_seed.json) and parses API signatures from [ilp_for.hpp](../ilp_for.hpp).
 
 ### Claude Code Hook
 
-The hook auto-queries when users ask about ilp_for:
+The hook auto-queries when you ask about ilp_for:
 
 ```bash
 # Create .claude directory and symlink
@@ -176,7 +176,7 @@ python rag_ingest.py
 
 ### Evaluate RAG Quality
 
-Test the knowledge base with three types of evaluations:
+I've set up three types of evaluations you can run:
 
 ```bash
 cd knowledge/tests
@@ -202,7 +202,7 @@ python evaluate_codegen.py --test-id codegen_003
 
 #### 1. Custom Evaluation (Retrieval Quality)
 
-Tests whether RAG retrieves the right knowledge chunks:
+This tests whether the RAG retrieves the right knowledge chunks:
 - Queries RAG for each test question
 - Checks if expected categories and symbols were retrieved
 - Scores: 0.0 (miss), 0.5 (partial), 1.0 (perfect)
@@ -216,11 +216,11 @@ Tests whether RAG retrieves the right knowledge chunks:
 
 #### 2. RAGAS Evaluation (Answer Quality)
 
-Tests whether answers are faithful and relevant:
+This tests whether answers are faithful and relevant:
 - Generates answers using Claude API with RAG context
 - Measures 4 industry-standard metrics:
-  - **Faithfulness** (0-1): Is answer grounded in retrieved context?
-  - **Answer Relevancy** (0-1): Does answer address the question?
+  - **Faithfulness** (0-1): Is the answer grounded in retrieved context?
+  - **Answer Relevancy** (0-1): Does the answer address the question?
   - **Context Precision** (0-1): Are relevant contexts ranked higher?
   - **Context Recall** (0-1): Did we retrieve all necessary context?
 - Requires LLM API calls (~$0.05-0.10 per run)
@@ -228,7 +228,7 @@ Tests whether answers are faithful and relevant:
 
 #### 3. Code Generation Evaluation (Synthesis Quality)
 
-Tests whether LLM can write correct code using ONLY RAG context:
+This tests whether the LLM can write correct code using ONLY RAG context:
 - Queries RAG with task description
 - Generates code via Claude API with strict prompting
 - Compiles with g++ and runs test cases
@@ -249,11 +249,11 @@ Tests whether LLM can write correct code using ONLY RAG context:
 - Each test has 3-5 input/output test cases
 - Validates compilation, correctness, and quality
 
-**Results** are saved to `tests/results/` with timestamps for tracking improvement over time.
+**Results** are saved to `tests/results/` with timestamps so you can track improvement over time.
 
 ## Porting to Another Library
 
-This system is designed to be library-agnostic. To use with a different library:
+I designed this system to be library-agnostic. If you want to use it with a different library:
 
 ### 1. Update Configuration
 
@@ -308,7 +308,7 @@ ILP_KEYWORDS = [
 
 ### 4. Update CLAUDE.md
 
-Replace ilp_for-specific content with your library's notes.
+Replace the ilp_for-specific content with your library's notes.
 
 ### 5. Re-run Setup
 
@@ -321,6 +321,7 @@ python scripts/rag_ingest.py   # Parses your source
 
 ### Why LanceDB?
 
+I went with LanceDB because:
 - Embedded (no server required)
 - Fast vector similarity search
 - Simple Python API
@@ -335,7 +336,7 @@ python scripts/rag_ingest.py   # Parses your source
 
 ### Schema Design
 
-Uses explicit PyArrow schema to handle empty lists:
+I use an explicit PyArrow schema to handle empty lists:
 
 ```python
 schema = pa.schema([
@@ -384,11 +385,96 @@ python rag_delete.py --category <cat> --contains "unique substring"
 
 Then add the corrected version.
 
+## MCP Server
+
+There's also an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server if you want to use this with other AI tools beyond Claude Code.
+
+### Setup
+
+Just run the setup script - it creates `.mcp.json` in the project root:
+
+```bash
+cd knowledge && ./setup.sh
+```
+
+The MCP server uses the same Python environment as the rest of the knowledge system.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `query_ilp_knowledge` | Search the knowledge base with natural language queries |
+| `list_ilp_categories` | List all available knowledge categories |
+
+### query_ilp_knowledge
+
+Searches the knowledge base for documentation, examples, gotchas, and performance info.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | required | Natural language search query (e.g., "how to use ILP_BREAK") |
+| `category` | string | "all" | Filter by category: `all`, `semantics`, `gotchas`, `performance`, `usage_patterns`, `compiler`, `api_signatures`, `antipatterns` |
+| `limit` | int | 5 | Number of results to return (max 15) |
+| `rerank` | bool | true | Use cross-encoder reranking for better precision |
+
+**Example usage:**
+```
+# In Claude Code or any MCP-compatible tool:
+Use the query_ilp_knowledge tool to search for "ILP_RETURN semantics"
+```
+
+**Response format:**
+```
+[1] [gotchas] (confidence: 0.9)
+    Symbols: ILP_RETURN, ILP_END_RETURN
+    ILP_END_RETURN must be used instead of ILP_END when ILP_RETURN appears in the loop body...
+
+[2] [semantics] (confidence: 0.9)
+    Symbols: ILP_BREAK, ILP_RETURN
+    ILP_BREAK exits the loop, ILP_RETURN(x) exits the enclosing function and returns x...
+```
+
+### list_ilp_categories
+
+Returns all available knowledge categories with descriptions:
+
+```
+ILP_FOR Knowledge Base Categories:
+
+  semantics: How ILP_FOR works internally, iteration order, variable capture, lambda mechanics
+  gotchas: Common mistakes, pitfalls, and things that trip people up
+  performance: Benchmarks, speedup data, assembly analysis, optimization tips
+  usage_patterns: Examples, patterns, how-to guides, migration from standard loops
+  compiler: Compiler flags, error messages, debug modes, CPU targeting
+  api_signatures: Complete list of macros, LoopType enum values, function signatures
+  antipatterns: When NOT to use ILP_FOR, misuse cases
+```
+
+### Configuration
+
+The `.mcp.json` file is auto-generated by `setup.sh` with machine-specific paths:
+
+```json
+{
+  "mcpServers": {
+    "ilp-knowledge": {
+      "command": "/path/to/knowledge/.venv/bin/python",
+      "args": ["/path/to/knowledge/mcp_server.py"],
+      "description": "ILP_FOR knowledge base - query documentation, examples, gotchas, performance info"
+    }
+  }
+}
+```
+
+---
+
 ## Current Stats
 
-- **59 entries** across 7 categories (46 curated + 13 API signatures)
+- **90+ entries** across 7 categories (77 curated + 13 API signatures)
 - **12 test cases** for evaluation (easy/medium/hard difficulty)
 - **88% average score** on custom evaluation (100% pass rate)
 - Sources: code parsing, documentation, unit tests, assembly analysis
-- Covers: API signatures, usage patterns, gotchas, performance, semantics
+- Covers: API signatures, usage patterns, gotchas, performance, semantics, clang-tidy tooling
 - Evaluation: Custom (free/fast) + RAGAS (industry-standard)
