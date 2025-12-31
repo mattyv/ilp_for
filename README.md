@@ -432,11 +432,11 @@ Default Header values by type:
 
 ## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could provide formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation alone, which may have gaps or ambiguities. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
+I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusion which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
 
 ### How it works
 
-The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contains 1000+ formal axioms extracted from the codebase covering:
+The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contains 1000+ formal axioms auto extracted from the codebase covering:
 - Macro preconditions (e.g., "N must be a compile-time constant expression")
 - Type constraints (e.g., "loop variable must be integral")
 - Runtime invariants (e.g., "start <= end for valid loop range")
