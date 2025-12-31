@@ -452,6 +452,8 @@ The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included 
 
 See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
 
+**[View Axiom Test Report](docs/axiom-test-report.md)** - Sample validations showing how Axiom catches incorrect ILP_FOR usage.
+
 ---
 
 ## Requirements
