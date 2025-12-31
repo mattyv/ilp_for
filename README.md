@@ -430,31 +430,27 @@ Default Header values by type:
 
 ---
 
-## Experimental LLM RAG
+## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could curate a ground-truth knowledge base that LLMs can query when helping users? The goal is to reduce hallucinations and improve the quality of LLM-generated code, especially for libraries the model hasn't seen much of during training.
+I wanted to experiment with an idea: what if library maintainers could provide formal specifications that LLMs can use to understand and verify code? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation alone.
 
 ### How it works
 
-The [`knowledge/`](knowledge/) directory contains a vector database (LanceDB) with 90+ curated entries covering:
-- API signatures parsed from source code
-- Usage patterns and best practices
-- Common mistakes and gotchas (e.g., "you need a semicolon after `ILP_END`")
-- Performance insights from assembly analysis
-- Compiler flags and CPU-specific tuning
+The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contains 1000+ formal axioms extracted from the codebase covering:
+- Macro preconditions (e.g., "N must be a compile-time constant expression")
+- Type constraints (e.g., "loop variable must be integral")
+- Runtime invariants (e.g., "start <= end for valid loop range")
+- Template SFINAE conditions and concept requirements
+- Violation behavior (compile error, runtime error, undefined behavior)
 
-When you ask Claude Code about `ilp_for`, a hook automatically queries this knowledge base and injects relevant context into the conversation. Think of it as a RAG system that pulls from verified, maintainer-curated knowledge instead of hoping the LLM remembers correctly.
+When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers the details correctly.
 
-There's also an [MCP server](https://modelcontextprotocol.io/) if you want to use this with other AI tools beyond Claude Code. Just run `cd knowledge && ./setup.sh` to set it up.
+The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
+- **Automated extraction** - parses C++ source to extract preconditions, postconditions, invariants
+- **MCP server integration** - query axioms from any AI tool that supports the Model Context Protocol
+- **Formal verification** - enable static analysis and contract checking
 
-The system includes:
-- **Custom evaluation** (free, fast) - tests retrieval quality against 12 test cases
-- **RAGAS integration** (industry-standard) - measures answer faithfulness and relevance
-- **One-command setup** - `cd knowledge && ./setup.sh` builds the database from seed data + source parsing
-
-Current eval scores: **88% average, 100% pass rate** on custom evaluation.
-
-See [`knowledge/README.md`](knowledge/README.md) for full documentation on setup, usage, evaluation, and how to port this to other libraries.
+This replaces the previous experimental RAG system with a more principled approach based on formal methods. See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
 
 ---
 
