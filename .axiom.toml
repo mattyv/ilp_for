@@ -1,0 +1,200 @@
+# ILP_FOR Library Function Pairings
+# This file defines semantic relationships between functions that must be used together.
+#
+# Format:
+# [[pairing]]
+# opener = "function_name"      # The function that initiates/acquires
+# closer = "function_name"      # The function that completes/releases
+# required = true/false         # Whether the closer MUST be called
+# evidence = "explanation"      # Why these are paired
+
+[metadata]
+layer = "ilp_for"
+version = "1.0.0"
+
+# =============================================================================
+# Loop Start/End Pairs (CONDITIONAL)
+# Every ILP_FOR* macro MUST be closed with either ILP_END or ILP_END_RETURN:
+#   - Use ILP_END when ILP_RETURN is NOT used in the loop body
+#   - Use ILP_END_RETURN when ILP_RETURN IS used in the loop body
+# Using the wrong closer will cause runtime errors or compilation errors.
+# =============================================================================
+
+[[pairing]]
+opener = "ILP_FOR"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_T"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_T (typed) opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_AUTO"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_T_AUTO"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_T_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_T"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_T opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_AUTO"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_T_AUTO"
+closer = "ILP_END"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_T_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+
+# =============================================================================
+# Loop Start with Early Return Pairs
+# When ILP_RETURN is used in the loop body, ILP_END_RETURN MUST be used instead of ILP_END.
+# Using ILP_END when ILP_RETURN is present will cause a runtime error.
+# =============================================================================
+
+[[pairing]]
+opener = "ILP_FOR"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_T"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_T must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_AUTO"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_T_AUTO"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_T_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_T"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_T must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_AUTO"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+[[pairing]]
+opener = "ILP_FOR_RANGE_T_AUTO"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Loop structure: ILP_FOR_RANGE_T_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+
+# =============================================================================
+# Control Flow Pairing
+# ILP_RETURN must be paired with ILP_END_RETURN (not ILP_END)
+# =============================================================================
+
+[[pairing]]
+opener = "ILP_RETURN"
+closer = "ILP_END_RETURN"
+required = true
+evidence = "Control flow: When ILP_RETURN is used anywhere in the loop body, the loop MUST be closed with ILP_END_RETURN instead of ILP_END. Using ILP_END with ILP_RETURN will trigger ilp::detail::ilp_end_with_return_error() at runtime."
+
+# =============================================================================
+# Idiom Templates
+# Common usage patterns showing correct composition
+# =============================================================================
+
+[[idiom]]
+name = "ilp_for_basic"
+participants = ["ILP_FOR", "ILP_END"]
+template = '''
+ILP_FOR(int, i, 0, n, N) {
+    // loop body - processes N iterations in parallel
+} ILP_END
+'''
+
+[[idiom]]
+name = "ilp_for_typed"
+participants = ["ILP_FOR_T", "ILP_END"]
+template = '''
+ILP_FOR_T(size_t, i, start, end, N) {
+    // loop body with explicit type for iterator
+} ILP_END
+'''
+
+[[idiom]]
+name = "ilp_for_auto"
+participants = ["ILP_FOR_AUTO", "ILP_END"]
+template = '''
+ILP_FOR_AUTO(i, 0, n, N) {
+    // loop body with auto-deduced iterator type
+} ILP_END
+'''
+
+[[idiom]]
+name = "ilp_for_range"
+participants = ["ILP_FOR_RANGE", "ILP_END"]
+template = '''
+ILP_FOR_RANGE(int, elem, container, N) {
+    // iterate over container elements
+} ILP_END
+'''
+
+[[idiom]]
+name = "ilp_for_early_return"
+participants = ["ILP_FOR", "ILP_RETURN", "ILP_END_RETURN"]
+template = '''
+ILP_FOR(int, i, 0, n, N) {
+    if (condition) {
+        ILP_RETURN(value);  // early return from loop
+    }
+} ILP_END_RETURN
+'''
+
+[[idiom]]
+name = "ilp_for_break_continue"
+participants = ["ILP_FOR", "ILP_BREAK", "ILP_CONTINUE", "ILP_END"]
+template = '''
+ILP_FOR(int, i, 0, n, N) {
+    if (skip_condition) {
+        ILP_CONTINUE;  // skip to next iteration
+    }
+    if (stop_condition) {
+        ILP_BREAK;  // exit loop early
+    }
+} ILP_END
+'''

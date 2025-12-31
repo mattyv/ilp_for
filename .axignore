@@ -1,0 +1,50 @@
+# Build directories
+build/
+benchmarks/build*/
+benchmarks/results/
+
+# Tests (usually not needed for library knowledge)
+tests/
+
+# Coverage reports
+coverage/
+
+# Generated files
+*.s
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Hidden directories
+.git/
+.github/
+.claude/
+
+# example code
+examples/
+godbolt_examples/
+
+# Documentation (extract from source instead)
+docs/
+
+# Knowledge system itself
+knowledge/
+
+# Benchmark code (implementation details, not API)
+benchmarks/
+
+# Tools/scripts
+tools/
+scripts/
+
+# Database
+db/
+
+# Python artifacts
+venv/
+.venv/
+__pycache__/
+*.pyc

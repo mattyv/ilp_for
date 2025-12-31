@@ -24,15 +24,17 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`. 
+Compilers *can* unroll this with `#pragma unroll` and will do a better job if dependency chains are broken down like so...
 ```cpp
-int sum = 0;
+constexpr size_t N = 4;
+int sums[N] = {0};
 #pragma unroll(4)
 for (size_t i = 0; i < n; ++i) {
     if (data[i] < 0) break;       // Early exit
     if (data[i] == 0) continue;   // Skip zeros
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 }
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 But they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break` so you end up with something like:
 
@@ -40,60 +42,65 @@ But they do a bit of a crappy job and insert bounds checks after **each element*
 loop:
   if (i >= n) goto done;        // bounds check
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   goto loop;
 done:
+  sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 So what can you do? Create a main loop + remainder pattern that checks bounds only once per block? The compiler will give you nice machine code without the extra bounds checking, but this is messy and error prone and looks ghastly:
 
 ```cpp
-int sum = 0;
+constexpr size_t N = 4;
+int sums[N] = {0};
 size_t i = 0;
 for (; i + 4 <= n; i += 4) {      // Main loop: bounds check once per 4 elements
     if (data[i+0] < 0) break;
-    if (data[i+0] != 0) sum += data[i+0];
+    if (data[i+0] != 0) sums[0] += data[i+0];
     if (data[i+1] < 0) break;
-    if (data[i+1] != 0) sum += data[i+1];
+    if (data[i+1] != 0) sums[1] += data[i+1];
     if (data[i+2] < 0) break;
-    if (data[i+2] != 0) sum += data[i+2];
+    if (data[i+2] != 0) sums[2] += data[i+2];
     if (data[i+3] < 0) break;
-    if (data[i+3] != 0) sum += data[i+3];
+    if (data[i+3] != 0) sums[3] += data[i+3];
 }
 for (; i < n; ++i) {              // Remainder
     if (data[i] < 0) break;
     if (data[i] == 0) continue;
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 }
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.5x speedup).
 
 But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
 ```cpp
-int sum = 0;
-ILP_FOR(auto i, 0uz, n, 4) {
+constexpr size_t N = 4;
+int sums[N] = {0};
+ILP_FOR(auto i, 0uz, n, N) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 } ILP_END;
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
@@ -427,6 +434,32 @@ Default Header values by type:
 ## Test Coverage
 
 **[View Coverage Report](https://htmlpreview.github.io/?https://github.com/mattyv/ilp_for/blob/main/coverage/index.html)**
+
+---
+
+## Formal Specifications with Axiom
+
+I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusion which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
+
+### How it works
+
+The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contains 1000+ formal axioms auto extracted from the codebase covering:
+- Macro preconditions (e.g., "N must be a compile-time constant expression")
+- Type constraints (e.g., "loop variable must be integral")
+- Runtime invariants (e.g., "start <= end for valid loop range")
+- Template SFINAE conditions and concept requirements
+- Violation behavior (compile error, runtime error, undefined behavior)
+
+When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers or learns the details correctly.
+
+The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
+- **Automated extraction** - parses your C++20 library source to extract preconditions, postconditions, invariants
+- **MCP server integration** - query axioms from any AI tool that supports the Model Context Protocol
+- **Formal verification** - enable static analysis and contract checking
+
+See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
+
+**[View Axiom Test Report](docs/axiom-test-report.md)** - Sample validations showing how Axiom catches incorrect ILP_FOR usage.
 
 ---
 

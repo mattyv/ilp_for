@@ -28,6 +28,15 @@ venv/
 *.pyc
 __pycache__/
 
+# Knowledge RAG system
+knowledge/.venv/
+knowledge/scripts/__pycache__/
+knowledge/db/
+knowledge/tests/results/
+knowledge/tests/__pycache__/
+knowledge/logs/
+
 # Claude
-CLAUDE.md
-.claude/
+/CLAUDE.md
+/.claude/
+/.mcp.json
