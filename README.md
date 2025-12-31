@@ -432,7 +432,7 @@ Default Header values by type:
 
 ## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could provide formal specifications that LLMs can use to understand and verify code? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation alone.
+I wanted to experiment with an idea: what if library maintainers could provide formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation alone, which may have gaps or ambiguities. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
 
 ### How it works
 
@@ -443,14 +443,14 @@ The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contai
 - Template SFINAE conditions and concept requirements
 - Violation behavior (compile error, runtime error, undefined behavior)
 
-When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers the details correctly.
+When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers or learns the details correctly.
 
 The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
-- **Automated extraction** - parses C++ source to extract preconditions, postconditions, invariants
+- **Automated extraction** - parses your C++20 library source to extract preconditions, postconditions, invariants
 - **MCP server integration** - query axioms from any AI tool that supports the Model Context Protocol
 - **Formal verification** - enable static analysis and contract checking
 
-This replaces the previous experimental RAG system with a more principled approach based on formal methods. See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
+See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
 
 ---
 
