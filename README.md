@@ -24,7 +24,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`.
+Compilers *can* unroll this with `#pragma unroll` and will do a better job if dependency chains are broken down like so...
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
