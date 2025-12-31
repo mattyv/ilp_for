@@ -1421,8 +1421,8 @@ reviewed = true
 
 [[axioms]]
 id = "ilp_end_macro_precondition_context_matching_fc8e2a91"
-content = '''ILP_END must be used in a context where it syntactically matches a preceding ILP_BEGIN or similar construct that sets up the expected code structure (lambda invocation, __ilp_ret variable, and if-else chain)'''
-formal_spec = '''∃ ILP_BEGIN: precedes(ILP_BEGIN, ILP_END) ∧ establishes_context(ILP_BEGIN, __ilp_ret) ∧ valid_nesting(ILP_BEGIN, ILP_END)'''
+content = '''ILP_END must be used in a context where it syntactically matches a preceding ILP_FOR* macro (e.g., ILP_FOR, ILP_FOR_T, ILP_FOR_AUTO, etc.) that sets up the expected code structure (lambda invocation, __ilp_ret variable, and if-else chain). ILP_RETURN must NOT be used in the loop body when using ILP_END.'''
+formal_spec = '''∃ ILP_FOR*: precedes(ILP_FOR*, ILP_END) ∧ establishes_context(ILP_FOR*, __ilp_ret) ∧ valid_nesting(ILP_FOR*, ILP_END) ∧ ¬used(ILP_RETURN)'''
 layer = "library"
 confidence = 0.95
 source_file = ""
@@ -1431,7 +1431,7 @@ function = "ILP_END"
 header = "/home/mvarendorff/Documents/Code/cpp/ilp_for/ilp_for.hpp"
 signature = '''ILP_END'''
 axiom_type = "precondition"
-on_violation = '''Compilation error due to unmatched braces, parentheses, or undefined __ilp_ret variable'''
+on_violation = '''Compilation error due to unmatched braces, parentheses, or undefined __ilp_ret variable; runtime error if ILP_RETURN was used (calls ilp::detail::ilp_end_with_return_error())'''
 depends_on = ['cpp20_dcl_init_list_copy_list_init_explicit_ctor_f2a3b4c5', 'cpp20_basic_life_vacuous_initialization_def_7c4e5d6a', 'cpp20_dcl_init_list_class_constructor_narrowing_d5e6f7a8']
 reviewed = true
 
@@ -1531,8 +1531,8 @@ reviewed = true
 
 [[axioms]]
 id = "ilp_end_macro_anti_pattern_unmatched_context_b7e9f1c4"
-content = '''Using ILP_END without a corresponding ILP_BEGIN or in an unmatched syntactic context will result in compilation errors due to unbalanced braces, parentheses, or if-else statements'''
-formal_spec = '''¬precedes(ILP_BEGIN, ILP_END) => compilation_error(unbalanced_delimiters)'''
+content = '''Using ILP_END without a corresponding ILP_FOR* macro or in an unmatched syntactic context will result in compilation errors due to unbalanced braces, parentheses, or if-else statements'''
+formal_spec = '''¬precedes(ILP_FOR*, ILP_END) => compilation_error(unbalanced_delimiters)'''
 layer = "library"
 confidence = 0.93
 source_file = ""
@@ -1720,8 +1720,8 @@ reviewed = true
 
 [[axioms]]
 id = "ilp_end_return_anti_pattern_context_dependent_g7h8i9j0"
-content = '''This macro must be used in conjunction with matching ILP_BEGIN macro - using it standalone will cause syntax errors due to unmatched parentheses and braces'''
-formal_spec = '''usage_context(ILP_END_RETURN) => preceded_by(ILP_BEGIN)'''
+content = '''ILP_END_RETURN must be used in conjunction with a matching ILP_FOR* macro (e.g., ILP_FOR, ILP_FOR_T, etc.) and requires that ILP_RETURN be used somewhere in the loop body. Using it standalone will cause syntax errors due to unmatched parentheses and braces. Using it without ILP_RETURN in the body is valid but unnecessary.'''
+formal_spec = '''usage_context(ILP_END_RETURN) => preceded_by(ILP_FOR*) ∧ (used(ILP_RETURN) ∨ valid_but_unnecessary)'''
 layer = "library"
 confidence = 1.0
 source_file = ""
@@ -14490,8 +14490,8 @@ reviewed = true
 
 [[axioms]]
 id = "ilp_end_macro_precondition_paired"
-content = '''ILP_END should be paired with a corresponding ILP_BEGIN or similar opening macro to form a syntactic block'''
-formal_spec = '''∃ ILP_BEGIN: lexically_precedes(ILP_BEGIN, ILP_END) ∧ properly_nested(ILP_BEGIN, ILP_END)'''
+content = '''ILP_END should be paired with a corresponding ILP_FOR* opening macro (e.g., ILP_FOR, ILP_FOR_T, ILP_FOR_AUTO, etc.) to form a syntactic block. ILP_RETURN must NOT be used in the loop body when using ILP_END (use ILP_END_RETURN instead).'''
+formal_spec = '''∃ ILP_FOR*: lexically_precedes(ILP_FOR*, ILP_END) ∧ properly_nested(ILP_FOR*, ILP_END) ∧ ¬used(ILP_RETURN)'''
 layer = "library"
 confidence = 0.9
 source_file = ""
@@ -14500,13 +14500,13 @@ function = "ILP_END"
 header = "/home/mvarendorff/Documents/Code/cpp/ilp_for/ilp_for/detail/macros_simple.hpp"
 signature = '''ILP_END'''
 axiom_type = "precondition"
-on_violation = '''compilation error or incorrect program structure if unpaired'''
+on_violation = '''compilation error or incorrect program structure if unpaired; runtime error if ILP_RETURN was used'''
 reviewed = true
 
 [[axioms]]
 id = "ilp_end_macro_anti_pattern_standalone"
-content = '''Using ILP_END without a corresponding opening macro creates unbalanced syntactic structure'''
-formal_spec = '''¬∃ ILP_BEGIN: lexically_precedes(ILP_BEGIN, ILP_END) ⇒ malformed_structure'''
+content = '''Using ILP_END without a corresponding ILP_FOR* opening macro creates unbalanced syntactic structure'''
+formal_spec = '''¬∃ ILP_FOR*: lexically_precedes(ILP_FOR*, ILP_END) ⇒ malformed_structure'''
 layer = "library"
 confidence = 0.85
 source_file = ""
@@ -14565,17 +14565,17 @@ reviewed = true
 
 [[axioms]]
 id = "ILP_END_RETURN_macro_marker_semantics"
-content = '''ILP_END_RETURN serves as a syntactic marker in macro-based control flow, likely paired with ILP_BEGIN or similar constructs'''
-formal_spec = '''∃ paired_macro : paired_with(ILP_END_RETURN, paired_macro)'''
+content = '''ILP_END_RETURN serves as a syntactic marker in macro-based control flow, paired with ILP_FOR* opening macros. It must be used (instead of ILP_END) when ILP_RETURN is used anywhere in the loop body to return from the enclosing function.'''
+formal_spec = '''∃ ILP_FOR* : paired_with(ILP_END_RETURN, ILP_FOR*) ∧ (used(ILP_RETURN) => required(ILP_END_RETURN))'''
 layer = "library"
-confidence = 0.85
+confidence = 0.95
 source_file = ""
 source_module = ""
 function = "ILP_END_RETURN"
 header = "/home/mvarendorff/Documents/Code/cpp/ilp_for/ilp_for/detail/macros_simple.hpp"
 signature = '''ILP_END_RETURN'''
 axiom_type = "constraint"
-on_violation = '''Correct behavior - macro still expands to nothing, but may indicate missing paired construct'''
+on_violation = '''Compilation error if unpaired with ILP_FOR*; runtime error if ILP_END is used instead when ILP_RETURN is present'''
 depends_on = ['cpp20_dcl_init_list_copy_list_init_explicit_ctor_f2a3b4c5', 'cpp20_basic_life_vacuous_initialization_def_7c4e5d6a', 'cpp20_dcl_init_list_class_constructor_narrowing_d5e6f7a8']
 reviewed = true
 
