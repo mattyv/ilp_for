@@ -24,15 +24,17 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-Compilers *can* unroll this with `#pragma unroll`. 
+Compilers *can* unroll this with `#pragma unroll`.
 ```cpp
-int sum = 0;
+constexpr size_t N = 4;
+int sums[N] = {0};
 #pragma unroll(4)
 for (size_t i = 0; i < n; ++i) {
     if (data[i] < 0) break;       // Early exit
     if (data[i] == 0) continue;   // Skip zeros
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 }
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 But they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break` so you end up with something like:
 
@@ -40,60 +42,65 @@ But they do a bit of a crappy job and insert bounds checks after **each element*
 loop:
   if (i >= n) goto done;        // bounds check
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   if (i >= n) goto done;        // bounds check (again!)
   if (data[i] < 0) goto done;
-  if (data[i] != 0) sum += data[i];
+  if (data[i] != 0) sums[i & 3] += data[i];
   i++;
 
   goto loop;
 done:
+  sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 So what can you do? Create a main loop + remainder pattern that checks bounds only once per block? The compiler will give you nice machine code without the extra bounds checking, but this is messy and error prone and looks ghastly:
 
 ```cpp
-int sum = 0;
+constexpr size_t N = 4;
+int sums[N] = {0};
 size_t i = 0;
 for (; i + 4 <= n; i += 4) {      // Main loop: bounds check once per 4 elements
     if (data[i+0] < 0) break;
-    if (data[i+0] != 0) sum += data[i+0];
+    if (data[i+0] != 0) sums[0] += data[i+0];
     if (data[i+1] < 0) break;
-    if (data[i+1] != 0) sum += data[i+1];
+    if (data[i+1] != 0) sums[1] += data[i+1];
     if (data[i+2] < 0) break;
-    if (data[i+2] != 0) sum += data[i+2];
+    if (data[i+2] != 0) sums[2] += data[i+2];
     if (data[i+3] < 0) break;
-    if (data[i+3] != 0) sum += data[i+3];
+    if (data[i+3] != 0) sums[3] += data[i+3];
 }
 for (; i < n; ++i) {              // Remainder
     if (data[i] < 0) break;
     if (data[i] == 0) continue;
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 }
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.5x speedup).
 
 But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
 ```cpp
-int sum = 0;
-ILP_FOR(auto i, 0uz, n, 4) {
+constexpr size_t N = 4;
+int sums[N] = {0};
+ILP_FOR(auto i, 0uz, n, N) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
-    sum += data[i];
+    sums[i & (N-1)] += data[i];
 } ILP_END;
+int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
 I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
