@@ -13,7 +13,7 @@ Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`)
 
 ## How It Works
 
-Lets say you want to write the below code:
+Lets say you want to write the below code ..
 
 ```cpp
 int sum = 0;
@@ -23,7 +23,7 @@ for (size_t i = 0; i < n; ++i) {
     sum += data[i];
 }
 ```
-
+... then you remember you can get a boost in performance from ILP so you rewrite it.
 Compilers *can* unroll this with `#pragma unroll` and will do a better job if dependency chains are broken down like so...
 ```cpp
 constexpr size_t N = 4;
