@@ -1,16 +1,61 @@
-# ILP_FOR Library Function Pairings
-# This file defines semantic relationships between functions that must be used together.
-#
-# Format:
-# [[pairing]]
-# opener = "function_name"      # The function that initiates/acquires
-# closer = "function_name"      # The function that completes/releases
-# required = true/false         # Whether the closer MUST be called
-# evidence = "explanation"      # Why these are paired
+# ILP_FOR Library Axioms and Pairings
+# This file defines semantic relationships and domain knowledge for ILP_FOR.
 
 [metadata]
 layer = "ilp_for"
 version = "1.0.0"
+
+# =============================================================================
+# Domain Knowledge Axioms
+# These explain the "why" behind ILP_FOR - not extractable from code
+# =============================================================================
+
+[[axioms]]
+id = "ilp_for.purpose.ilp_optimization"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "effect"
+content = "ILP_FOR enables instruction-level parallelism by unrolling N iterations, allowing the CPU pipeline to execute multiple loop bodies simultaneously without data hazards"
+formal_spec = "throughput(ILP_FOR(body, N)) >= throughput(for_loop(body)) when body has no loop-carried dependencies"
+on_violation = "No performance benefit; may be slower due to unroll overhead"
+confidence = 0.95
+
+[[axioms]]
+id = "ilp_for.guidance.choosing_n"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "constraint"
+content = "N (unroll factor) should match CPU pipeline depth. For modern x86-64, N=4 or N=8 is typically optimal. Larger N increases register pressure and code size."
+formal_spec = "optimal_N in {4, 8} for x86-64; optimal_N in {2, 4} for ARM"
+confidence = 0.9
+
+[[axioms]]
+id = "ilp_for.guidance.when_to_use"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "constraint"
+content = "Use ILP_FOR when: (1) loop body is compute-bound, (2) no loop-carried dependencies between iterations, (3) loop count >> N. Avoid when memory-bound or when iterations depend on previous results."
+formal_spec = "benefit(ILP_FOR) > 0 iff is_compute_bound(body) && !has_loop_carried_deps(body) && iteration_count > 10*N"
+confidence = 0.85
+
+[[axioms]]
+id = "ilp_for.effect.register_pressure"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "effect"
+content = "Unrolling by N multiplies register usage by approximately N. If N is too large, register spilling to stack occurs, negating ILP benefits."
+formal_spec = "register_usage(ILP_FOR(body, N)) ~= N * register_usage(body)"
+on_violation = "Performance degradation from register spills"
+confidence = 0.9
+
+[[axioms]]
+id = "ilp_for.effect.code_size"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "effect"
+content = "Loop unrolling increases code size by factor of N, which may cause instruction cache pressure for large loop bodies"
+formal_spec = "code_size(ILP_FOR(body, N)) ~= N * code_size(body)"
+confidence = 0.95
 
 # =============================================================================
 # Loop Start/End Pairs (CONDITIONAL)

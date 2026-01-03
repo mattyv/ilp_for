@@ -3,8 +3,8 @@ build/
 benchmarks/build*/
 benchmarks/results/
 
-# Tests (usually not needed for library knowledge)
-tests/
+# Tests - marked for test mining mode
+@test: tests/
 
 # Coverage reports
 coverage/
