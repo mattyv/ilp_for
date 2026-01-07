@@ -1,5 +1,4 @@
 # ILP_FOR Library Axioms and Pairings
-# This file defines semantic relationships and domain knowledge for ILP_FOR.
 
 [metadata]
 layer = "ilp_for"
@@ -7,7 +6,6 @@ version = "1.0.0"
 
 # =============================================================================
 # Domain Knowledge Axioms
-# These explain the "why" behind ILP_FOR - from docs/ILP.md and docs/PERFORMANCE.md
 # =============================================================================
 
 [[axioms]]
@@ -15,9 +13,8 @@ id = "ilp_for.purpose.ilp_optimization"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "effect"
-content = "ILP_FOR unrolls loops by factor N, enabling CPU superscalar execution to run N independent operations in parallel across execution ports (Skylake has 8 ports)"
-formal_spec = "throughput(ILP_FOR(body, N)) ~= N * throughput(for_loop(body)) when iterations are independent"
-on_violation = "Falls back to sequential execution with no speedup"
+content = "Unrolls loops by factor N for CPU superscalar execution across multiple execution ports."
+formal_spec = "throughput ~= N * sequential when iterations are independent"
 confidence = 1.0
 
 [[axioms]]
@@ -25,8 +22,8 @@ id = "ilp_for.purpose.early_exit"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "effect"
-content = "ILP_FOR is optimized for loops with early exit (ILP_BREAK, ILP_RETURN). For pure accumulation without early exit, compilers can often auto-vectorize simple loops just as effectively."
-formal_spec = "benefit(ILP_FOR) maximized when has_early_exit(body)"
+content = "Optimized for early exit (ILP_BREAK, ILP_RETURN). For pure accumulation, compilers auto-vectorize."
+formal_spec = "benefit maximized when has_early_exit(body)"
 confidence = 1.0
 
 [[axioms]]
@@ -34,8 +31,8 @@ id = "ilp_for.guidance.choosing_n"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "constraint"
-content = "N should match pipeline latency/throughput ratio. For FP ops with 4-cycle latency and 2/cycle throughput, N=8 saturates FP units. For integer ops (1-cycle latency, 4/cycle throughput), N=4 is sufficient."
-formal_spec = "optimal_N = latency / throughput; N=4 typical for integer, N=8 for FP"
+content = "N = latency/throughput. N=4 for integer, N=8 for FP."
+formal_spec = "optimal_N = pipeline_latency / throughput"
 confidence = 0.95
 
 [[axioms]]
@@ -43,8 +40,18 @@ id = "ilp_for.guidance.when_to_use"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "constraint"
-content = "Use ILP_FOR for: (1) loops with early exit (ILP_BREAK, ILP_RETURN), (2) search operations where comparisons can run in parallel, (3) operations with dependency chains (min, max). Skip for simple sums without early exit."
-formal_spec = "benefit(ILP_FOR) > 0 when has_early_exit(body) || has_dependency_chain(body)"
+content = "Use for: early exit loops, parallel searches. For reductions, need N accumulators."
+formal_spec = "benefit > 0 when has_early_exit || has_independent_iterations"
+confidence = 1.0
+depends_on = ["ilp_for.guidance.dependency_chains"]
+
+[[axioms]]
+id = "ilp_for.guidance.dependency_chains"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "constraint"
+content = "Single accumulator = sequential. For N-way unroll, use N accumulators merged after loop."
+formal_spec = "sum += x[i] is sequential; sum0..sumN += x[i+0..N] enables ILP"
 confidence = 1.0
 
 [[axioms]]
@@ -52,8 +59,8 @@ id = "ilp_for.advantage.over_pragma_unroll"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "effect"
-content = "Unlike #pragma unroll, ILP_FOR does not insert per-iteration bounds checks for early-exit loops. Pragma unroll fails because SCEV cannot determine trip count when break/return is present."
-formal_spec = "ILP_FOR avoids bounds_check overhead that pragma_unroll incurs for early_exit loops"
+content = "Unlike #pragma unroll, no per-iteration bounds checks for early-exit loops."
+formal_spec = "avoids bounds_check overhead from SCEV limitations"
 confidence = 1.0
 
 [[axioms]]
@@ -61,193 +68,231 @@ id = "ilp_for.benchmark.speedup"
 function = "ILP_FOR"
 header = "ilp_for/ilp_for.hpp"
 axiom_type = "effect"
-content = "Benchmarks on Apple M2 show 1.3x-2.4x speedup: ILP_BREAK 1.56x, ILP_RETURN 1.79x, ILP_CONTINUE 1.31x, ILP_FOR_RANGE with BREAK 2.35x"
-formal_spec = "speedup in [1.3, 2.4] for early-exit patterns on ARM"
+content = "Apple M2: ILP_BREAK 1.56x, ILP_RETURN 1.79x, ILP_CONTINUE 1.31x, ILP_FOR_RANGE+BREAK 2.35x"
+formal_spec = "speedup in [1.3, 2.4] on ARM"
 confidence = 1.0
 
 # =============================================================================
-# Loop Start/End Pairs (CONDITIONAL)
-# Every ILP_FOR* macro MUST be closed with either ILP_END or ILP_END_RETURN:
-#   - Use ILP_END when ILP_RETURN is NOT used in the loop body
-#   - Use ILP_END_RETURN when ILP_RETURN IS used in the loop body
-# Using the wrong closer will cause runtime errors or compilation errors.
+# Syntactic Gotchas
+# =============================================================================
+
+[[axioms]]
+id = "ilp_for.syntax.loop_var_decl"
+function = "ILP_FOR"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "precondition"
+content = "loop_var_decl is ONE argument: 'int i' not 'int, i'. Applies to all ILP_FOR variants."
+formal_spec = "loop_var_decl = type + varname as single token"
+on_violation = "macro passed N+1 arguments"
+confidence = 1.0
+depends_on = ["ilp_for.purpose.ilp_optimization"]
+
+[[axioms]]
+id = "ilp_for.syntax.no_comma_in_type"
+function = "ILP_FOR_T"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "precondition"
+content = "Type argument cannot contain commas (preprocessor). Use typedef for complex types."
+formal_spec = "type_arg must be single token"
+on_violation = "macro argument count mismatch"
+confidence = 1.0
+depends_on = ["ilp_for.purpose.ilp_optimization"]
+
+[[axioms]]
+id = "ilp_for.syntax.type_matching"
+function = "ILP_FOR_AUTO"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "precondition"
+content = "Start/end must match types. Cast literals: size_t(0) not 0."
+formal_spec = "decltype(start) == decltype(end)"
+on_violation = "template argument deduction failed"
+confidence = 1.0
+depends_on = ["ilp_for.guidance.prefer_auto_variants"]
+
+[[axioms]]
+id = "ilp_for.syntax.semicolons"
+function = "ILP_BREAK"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "precondition"
+content = "ILP_BREAK, ILP_CONTINUE, ILP_END, ILP_END_RETURN require trailing semicolons."
+formal_spec = "statement-like macros require ;"
+confidence = 1.0
+depends_on = ["ilp_for.purpose.early_exit"]
+
+[[axioms]]
+id = "ilp_for.guidance.prefer_auto_variants"
+function = "ILP_FOR_AUTO"
+header = "ilp_for/ilp_for.hpp"
+axiom_type = "constraint"
+content = "Prefer _AUTO variants - loop_type (Search, Sum, DotProduct) auto-selects N per-CPU."
+formal_spec = "portability(ILP_FOR_AUTO) > portability(ILP_FOR)"
+confidence = 1.0
+depends_on = ["ilp_for.guidance.choosing_n"]
+
+# =============================================================================
+# Loop Start/End Pairs
 # =============================================================================
 
 [[pairing]]
 opener = "ILP_FOR"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_T"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_T (typed) opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_AUTO"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_T_AUTO"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_T_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_T"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_T opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_AUTO"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_T_AUTO"
 closer = "ILP_END"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_T_AUTO opens a loop block that must be closed with ILP_END (when ILP_RETURN is not used in the body)"
+evidence = "Close with ILP_END when no ILP_RETURN in body"
 
-# =============================================================================
-# Loop Start with Early Return Pairs
-# When ILP_RETURN is used in the loop body, ILP_END_RETURN MUST be used instead of ILP_END.
-# Using ILP_END when ILP_RETURN is present will cause a runtime error.
-# =============================================================================
+# When ILP_RETURN is used, MUST use ILP_END_RETURN
 
 [[pairing]]
 opener = "ILP_FOR"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_T"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_T must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_AUTO"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_T_AUTO"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_T_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_T"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_T must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_AUTO"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_FOR_RANGE_T_AUTO"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Loop structure: ILP_FOR_RANGE_T_AUTO must use ILP_END_RETURN when ILP_RETURN is used in the loop body (required when returning from enclosing function)"
-
-# =============================================================================
-# Control Flow Pairing
-# ILP_RETURN must be paired with ILP_END_RETURN (not ILP_END)
-# =============================================================================
+evidence = "Close with ILP_END_RETURN when ILP_RETURN is used"
 
 [[pairing]]
 opener = "ILP_RETURN"
 closer = "ILP_END_RETURN"
 required = true
-evidence = "Control flow: When ILP_RETURN is used anywhere in the loop body, the loop MUST be closed with ILP_END_RETURN instead of ILP_END. Using ILP_END with ILP_RETURN will trigger ilp::detail::ilp_end_with_return_error() at runtime."
+evidence = "ILP_RETURN requires ILP_END_RETURN (not ILP_END) or runtime error"
 
 # =============================================================================
-# Idiom Templates
-# Common usage patterns showing correct composition
+# Idiom Templates - Canonical usage patterns
 # =============================================================================
 
 [[idiom]]
 name = "ilp_for_basic"
 participants = ["ILP_FOR", "ILP_END"]
 template = '''
-ILP_FOR(int, i, 0, n, N) {
-    // loop body - processes N iterations in parallel
-} ILP_END
+ILP_FOR(int i, 0, n, 4) {
+    // body
+} ILP_END;
 '''
 
 [[idiom]]
 name = "ilp_for_typed"
 participants = ["ILP_FOR_T", "ILP_END"]
 template = '''
-ILP_FOR_T(size_t, i, start, end, N) {
-    // loop body with explicit type for iterator
-} ILP_END
+ILP_FOR_T(size_t, size_t i, 0, n, 4) {
+    // body with explicit return type
+} ILP_END;
 '''
 
 [[idiom]]
 name = "ilp_for_auto"
 participants = ["ILP_FOR_AUTO", "ILP_END"]
 template = '''
-ILP_FOR_AUTO(i, 0, n, N) {
-    // loop body with auto-deduced iterator type
-} ILP_END
+// loop_type: Search, Sum, DotProduct, MinMax, etc.
+ILP_FOR_AUTO(auto i, size_t(0), vec.size(), Search, size_t) {
+    // body
+} ILP_END;
 '''
 
 [[idiom]]
 name = "ilp_for_range"
 participants = ["ILP_FOR_RANGE", "ILP_END"]
 template = '''
-ILP_FOR_RANGE(int, elem, container, N) {
-    // iterate over container elements
-} ILP_END
+ILP_FOR_RANGE(auto& elem, container, 4) {
+    // body
+} ILP_END;
 '''
 
 [[idiom]]
 name = "ilp_for_early_return"
 participants = ["ILP_FOR", "ILP_RETURN", "ILP_END_RETURN"]
 template = '''
-ILP_FOR(int, i, 0, n, N) {
-    if (condition) {
-        ILP_RETURN(value);  // early return from loop
-    }
-} ILP_END_RETURN
+ILP_FOR(int i, 0, n, 4) {
+    if (found) ILP_RETURN(value);
+} ILP_END_RETURN;  // NOT ILP_END!
 '''
 
 [[idiom]]
 name = "ilp_for_break_continue"
 participants = ["ILP_FOR", "ILP_BREAK", "ILP_CONTINUE", "ILP_END"]
 template = '''
-ILP_FOR(int, i, 0, n, N) {
-    if (skip_condition) {
-        ILP_CONTINUE;  // skip to next iteration
-    }
-    if (stop_condition) {
-        ILP_BREAK;  // exit loop early
-    }
-} ILP_END
+ILP_FOR(int i, 0, n, 4) {
+    if (skip) ILP_CONTINUE;
+    if (done) ILP_BREAK;
+} ILP_END;
 '''
