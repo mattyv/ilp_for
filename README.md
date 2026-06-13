@@ -9,11 +9,21 @@ Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`)
 #include <ilp_for.hpp>
 ```
 
+Headline numbers (Apple M2, Clang 19, 10M elements, `-O3 -march=native`):
+
+| Loop Type | Simple | Pragma | ILP | Speedup |
+|-----------|--------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.46ms | 1.46ms | 0.94ms | **1.56x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.68ms | 1.51ms | 0.94ms | **1.79x** |
+| `ILP_FOR_RANGE` with `ILP_BREAK` | 2.21ms | - | 0.94ms | **2.35x** |
+
+Full benchmarks in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
 ---
 
 ## How It Works
 
-Lets say you want to write the below code ..
+Let's say you want to write the below code ..
 
 ```cpp
 int sum = 0;
@@ -95,7 +105,7 @@ But using ILP_FOR all you write is the below, which expands to effectively the s
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
-ILP_FOR(auto i, 0uz, n, N) {
+ILP_FOR(auto i, size_t{0}, n, N) {
     if (data[i] < 0) ILP_BREAK;
     if (data[i] == 0) ILP_CONTINUE;
     sums[i & (N-1)] += data[i];
@@ -115,6 +125,7 @@ I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of 
 - [Important Notes](#important-notes)
 - [When to Use ILP](#when-to-use-ilp)
 - [Advanced](#advanced)
+  - [clang-tidy LoopType analysis](#clang-tidy-looptype-analysis)
 - [Test Coverage](#test-coverage)
 - [Requirements](#requirements)
 
@@ -144,7 +155,7 @@ ILP_FOR_AUTO(auto i, 0, n, Search, int) {
 } ILP_END;
 ```
 
-Use the clang-tidy tool to check it suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
+Use the clang-tidy tool to check its suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
 
 ```cpp
 ILP_FOR_AUTO(auto i, 0, n, Add, int) { //incorrect LoopType
@@ -248,7 +259,7 @@ Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ### Use `auto&&` for Range Loops
 
-When using `ILP_FOR_RANGE`, make sure you use `auto&&` to avoid copying each element (unless thats your thing):
+When using `ILP_FOR_RANGE`, make sure you use `auto&&` to avoid copying each element (unless that's your thing):
 
 ```cpp
 // Good - uses forwarding reference (zero copies)
@@ -278,7 +289,7 @@ ILP_FOR(auto i, 0, n, 4) {
 
 **Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.5x speedup).
 
-**Skip ILP for simple loops without early exit.** Compilers *can (amost most of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
+**Skip ILP for simple loops without early exit.** Compilers *can (almost all of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
@@ -289,6 +300,22 @@ ILP_FOR_AUTO(auto i, 0, n, Search, int) {
 // Skip ILP - compiler auto-vectorizes loops without break
 int sum = std::accumulate(data.begin(), data.end(), 0);
 ```
+
+### Where ilp_for loses
+
+`ilp_for` is not the right tool for a *trivially-vectorizable* search - a loop whose
+exit condition is a simple comparison over contiguous data (`std::find`, `memchr`,
+"first index where `x == target`"). Those are far better served by SIMD chunked
+scanning: load a vector of elements, compare them all at once, and use a `movemask`
+(or equivalent) to find the first hit, exactly as a tuned `memchr`/`std::find`
+implementation does. That processes 16/32/64 elements per branch instead of unrolling
+scalar comparisons.
+
+`ilp_for` targets the case the auto-vectorizer and `movemask` tricks *can't* reach:
+early-exit loops whose bodies aren't vectorizable (branchy per-element work, function
+calls, dependency chains, irregular control flow), where the win comes from breaking
+dependency chains and removing per-iteration bounds checks rather than from packing
+data into vector registers.
 
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md) for why pragma doesn't help.
 
@@ -316,7 +343,7 @@ If you do add a new architecture please let me know and I'll get it added.
 If you need to debug your loop logic, you can disable ILP entirely:
 
 ```bash
-clang++ -std=C++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
+clang++ -std=c++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
 This turns the macros into simple `for` loops with the same semantics:
@@ -332,7 +359,7 @@ This turns the macros into simple `for` loops with the same semantics:
 
 ### LoopType Reference
 
-When using `_AUTO` variants, you **must** to specify a 'LoopType' to auto-select the optimal unroll factor:
+When using `_AUTO` variants, you **must** specify a 'LoopType' to auto-select the optimal unroll factor:
 
 | LoopType | Operation | Use Case |
 |----------|-----------|----------|
@@ -378,9 +405,9 @@ Doing bitwise ops?                 → Bitwise
 Unsure?                            → Search (safe default)
 ```
 
-### Super Secret Tooling
+### clang-tidy LoopType analysis
 
-If all else you can just use the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. Its pretty Beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+If all else fails, the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. It's pretty beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
 
 ### Reading CPU Profiles
 
@@ -439,7 +466,7 @@ Default Header values by type:
 
 ## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusion which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
+I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusions which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
 
 ### How it works
 
