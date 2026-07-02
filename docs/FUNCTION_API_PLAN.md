@@ -1,7 +1,15 @@
 # Function API Parity Plan — Mode Switch + Ergonomics + README Repositioning
 
-**Status:** Proposal, ready to implement. Companion to [DESIGN_NOTES.md](DESIGN_NOTES.md)
-(which covers macro-layer sharp edges; this doc covers the function-layer feature work).
+**Status:** Implemented (see `ilp_for/detail/mode.hpp`, `ForCtrl::break_loop`/
+`return_with`, `tests/correctness/test_function_api.cpp`, and the README
+"Macro-free API" section). Kept for design rationale. Companion to
+[DESIGN_NOTES.md](DESIGN_NOTES.md) (which covers macro-layer sharp edges; this
+doc covers the function-layer feature work).
+
+Known wart discovered during implementation: `for_loop`/`for_loop_range` return
+a `[[nodiscard]]` `ForResult` even for break/continue-only bodies, forcing
+`[[maybe_unused]] auto r = ...` at call sites. Fixed by `ilp::for_each` in
+[END_ENFORCEMENT_PLAN.md](END_ENFORCEMENT_PLAN.md).
 
 **Motivation:** The loudest predictable criticism of this library is the macro syntax.
 The counter is that a full non-macro API already exists (`ilp::for_loop` and friends in
