@@ -1,12 +1,21 @@
 # Nested ILP_RETURN Propagation — Implementation Plan
 
-**Status:** Proposal, ready to implement. Mechanism prototype-validated against the
-current in-repo headers on GCC 13.3 and Clang 18.1: 2-level and 3-level nesting,
-typed×untyped combinations, and control flow around nested loops all produce
-correct values; the identical source produces identical results under
-`ILP_MODE_SIMPLE`; the new poison case fails to compile with an actionable
-message; and the sentinel introduces **zero** new `-Wshadow` warnings (GCC
-`-Wshadow`, Clang `-Wshadow-all`).
+**Status:** Implemented (see `ilp::detail::propagate_return`/`ctrl_typed_return` in
+`ilp_for/detail/ctrl.hpp`, the `ilp_detail_ctrl()` sentinel and updated
+`ILP_END_RETURN` in `ilp_for.hpp`, `tests/correctness/test_nested_return.cpp`,
+the two new `tests/compile_fail/` cases, and the README's "Nested Loops"
+section). Verified on GCC 13.3 and Clang 18.1, both build modes, plus a manual
+ASan+UBSan subset run — all green, no new warnings. The `-Wshadow` spot check
+confirmed the sentinel itself is silent in non-nested code; the nested-loop
+shadow warnings it does trigger are the pre-existing, already-tracked
+DESIGN_NOTES item 4 category (unchanged by this work).
+
+Mechanism prototype-validated against the in-repo headers on GCC 13.3 and
+Clang 18.1: 2-level and 3-level nesting, typed×untyped combinations, and
+control flow around nested loops all produce correct values; the identical
+source produces identical results under `ILP_MODE_SIMPLE`; the new poison
+case fails to compile with an actionable message; and the sentinel introduces
+**zero** new `-Wshadow` warnings (GCC `-Wshadow`, Clang `-Wshadow-all`).
 
 **Fixes:** the DESIGN_NOTES incidental finding "nested `ILP_RETURN` does not
 propagate through an outer loop's body" — currently a *silent wrong answer* (the

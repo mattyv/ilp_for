@@ -436,6 +436,21 @@ nested `ILP_RETURN` produces, which conflicts with the outer loop potentially ha
 no `ILP_RETURN` of its own (i.e., being `void`) - this needs its own design pass, not
 a fold-in to the END-enforcement work. Listed so it isn't lost.
 
+**Status: resolved.** Implemented per
+[NESTED_RETURN_PLAN.md](NESTED_RETURN_PLAN.md), which took the different approach
+this note ruled out above: rather than giving the outer body lambda a declared
+return type, `ILP_END_RETURN` now dispatches on what unqualified lookup finds for
+`ilp_detail_ctrl` at its own expansion point. Nested inside another loop's body,
+that name resolves to the *outer* loop's ctrl (shadowing a global sentinel function
+that only plain function-scope invocations see), so the inner value is carried into
+the outer ctrl and the outer loop's own `ILP_END_RETURN` propagates it one level
+further - keeping every lambda's return type `void` or the Proxy, exactly as
+before, with no declared-return-type conflict. An enclosing loop closed with plain
+`ILP_END` (whose ctrl is `EachCtrl`, break-only) now produces a compile error
+naming the fix, extending the END-enforcement mechanism transitively through
+nesting. `ILP_RETURN` now means the same thing - return from the enclosing
+function - at any nesting depth, matching `ILP_MODE_SIMPLE`.
+
 ---
 
 ## Suggested sequencing

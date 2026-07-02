@@ -380,6 +380,42 @@ ILP_FOR(auto i, 0, n, 4) {
 } ILP_END;
 ```
 
+### Nested Loops
+
+`ILP_RETURN` returns from the enclosing C++ function at any nesting depth — matching
+`ILP_MODE_SIMPLE`, where nested loops are plain `for` loops and the inner `return`
+naturally escapes everything:
+
+```cpp
+int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
+    ILP_FOR(auto r, std::size_t{0}, rows.size(), 2) {
+        ILP_FOR(auto c, std::size_t{0}, rows[r].size(), 4) {
+            if (rows[r][c] == target) ILP_RETURN(static_cast<int>(r * 100 + c));
+        } ILP_END_RETURN;   // required: this loop carries the inner value outward
+    } ILP_END_RETURN;
+    return -1;
+}
+```
+
+**Every enclosing loop on the path out must be closed with `ILP_END_RETURN`** —
+each one carries the value one level further. Closing an enclosing loop with plain
+`ILP_END` instead is a **compile-time error** naming the fix, since a break-only
+loop has nowhere to put the value.
+
+Two things this does *not* cover:
+- **A loop macro nested inside a function-API `for_loop`/`for_each` body.** The
+  ctrl variable there has whatever name your lambda parameter used, so the macro's
+  `ILP_RETURN` can't find it and treats itself as top-level — the returned value is
+  silently swallowed by your lambda's own deduced return type. Don't mix the two;
+  use nested `for_loop` calls and propagate explicitly (extract the inner result
+  into a local, then call `ctrl.return_with(that_local)` on the outer ctrl).
+- **An intervening non-ILP callback** (e.g. an `ILP_FOR` inside a `std::for_each`
+  lambda inside an outer `ILP_FOR`). The value still propagates once the inner
+  `ILP_FOR` completes, but the enclosing algorithm (`std::for_each`, etc.) finishes
+  its own remaining iterations first — the return is deferred, not immediate. Same
+  behavior class as `ILP_MODE_SIMPLE`, where the plain `return` would only exit
+  that callback.
+
 ---
 
 ## When to Use ILP

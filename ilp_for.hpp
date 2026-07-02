@@ -25,6 +25,14 @@ namespace ilp::detail {
 #include "ilp_for/detail/iota.hpp"
 #include "ilp_for/detail/loops_ilp.hpp"
 
+// Fallback target for unqualified `ilp_detail_ctrl` lookup when ILP_END_RETURN is
+// expanded at plain function scope - i.e. NOT nested inside another ILP_FOR body,
+// where the body lambda's `ilp_detail_ctrl` parameter would otherwise shadow this.
+// Declared as a function (not an object) so that shadowing it doesn't trigger
+// -Wshadow/-Wshadow-all, which only cover variables/parameters/types, not ordinary
+// functions. See the "Nested ILP_RETURN" design note below for how this is used.
+inline void ilp_detail_ctrl() {}
+
 #ifdef ILP_MODE_SIMPLE
 
 #include "ilp_for/detail/macros_simple.hpp"
@@ -54,6 +62,24 @@ namespace ilp::detail {
 // the fix. The ctrl lambda parameter is therefore declared `auto&`, not a concrete ctrl type, and
 // the IIFE's return type is deduced rather than declared - both are required for the same lambda
 // to be instantiable against either ctrl type depending on which macro_for* overload is selected.
+//
+// Nested ILP_RETURN propagation:
+// ILP_RETURN returns from the enclosing C++ function at any nesting depth (matching
+// ILP_MODE_SIMPLE, where nested loops are plain `for` loops and the inner `return` naturally
+// escapes everything). This works because ILP_END_RETURN's return statement -
+// `return ::ilp::detail::propagate_return(ilp_detail_ret, ilp_detail_ctrl);` - is textually
+// embedded at whatever scope contains the macro invocation, and `ilp_detail_ctrl` there is looked
+// up unqualified. At plain function scope, no enclosing ILP_FOR body lambda has declared that
+// name, so lookup falls back to the global sentinel function `ilp_detail_ctrl()` defined above,
+// and propagate_return returns the Proxy exactly as before. Nested inside another ILP_FOR's body,
+// that body lambda's own ctrl parameter (named `ilp_detail_ctrl`) shadows the sentinel, so
+// propagate_return sees a real ForCtrl/ForCtrlTyped<R> and stores the value into it instead,
+// returning void - which lets that outer loop's own ILP_END_RETURN propagate the value one level
+// further outward (or return it, if that outer loop is the outermost one). If an enclosing loop on
+// the path out is closed with ILP_END instead, its ctrl is EachCtrl (break-only), and
+// propagate_return hits a poisoned static_assert - the END-enforcement mechanism above extends
+// transitively through nesting. The sentinel is a function specifically because shadowing a
+// function does not trigger -Wshadow/-Wshadow-all, which only cover variables/parameters/types.
 //
 // Internal identifiers use the ilp_detail_ prefix. Identifiers containing a double underscore (and
 // those beginning with an underscore followed by an uppercase letter) are reserved to the
@@ -120,7 +146,7 @@ namespace ilp::detail {
 #define ILP_END_RETURN , ::ilp::detail::end_return_tag_t{});                                                          \
     }                                                                                                                  \
     (); ilp_detail_ret) \
-    return *std::move(ilp_detail_ret);                                                                                 \
+    return ::ilp::detail::propagate_return(ilp_detail_ret, ilp_detail_ctrl);                                          \
     else(void) 0
 
 // ILP_CONTINUE returns from the loop body lambda (skips to next iteration).

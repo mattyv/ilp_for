@@ -6,12 +6,15 @@
 // (see docs/END_ENFORCEMENT_PLAN.md). The negative cases - ILP_RETURN closed with
 // plain ILP_END, and ilp::for_each's return_with() - live in
 // tests/compile_fail/, since they must fail to compile. This file covers the
-// positive cases: an ILP_END-closed (break-only) loop nested inside an
-// ILP_END_RETURN-closed loop's body works correctly, since the opening/closing
-// macros dispatch on a tag appended by the *closing* macro, independent of any
-// enclosing loop's flavor. (The reverse nesting - propagating an inner loop's
-// ILP_RETURN out through an outer loop's body - has a separate, pre-existing
-// limitation unrelated to this feature; see the NOTE further down.)
+// positive cases: mixed nesting of ILP_END and ILP_END_RETURN works correctly,
+// since the opening/closing macros dispatch on a tag appended by the *closing*
+// macro, independent of any enclosing loop's flavor. Nested ILP_RETURN
+// propagation (an inner loop's ILP_RETURN escaping through an outer
+// ILP_END_RETURN-closed loop) has its own, more thorough coverage in
+// tests/correctness/test_nested_return.cpp; the negative case for that
+// mechanism - an inner ILP_RETURN whose value has nowhere to go because an
+// enclosing loop is ILP_END-closed - lives in
+// tests/compile_fail/nested_return_in_end_loop.cpp.
 
 TEST_CASE("ILP_END nested inside ILP_END_RETURN", "[end_enforcement][nesting]") {
     auto find_pair_sum = [](const std::vector<int>& data, int target) -> int {
@@ -37,20 +40,29 @@ TEST_CASE("ILP_END nested inside ILP_END_RETURN", "[end_enforcement][nesting]") 
     REQUIRE(find_pair_sum(data, 999) == -1);
 }
 
-// NOTE: an ILP_FOR/ILP_END_RETURN block nested *inside* another ILP_FOR's body
-// does NOT propagate its return value out of the true enclosing C++ function -
-// this is a pre-existing architectural limitation of the macro layer, not
-// something introduced or fixed by the END enforcement work, and it predates
-// this file (reproduces identically against the pre-enforcement library
-// snapshot). ILP_END_RETURN's `return *std::move(ilp_detail_ret);` is a bare
-// `return` statement textually embedded at whatever scope directly contains
-// it; when that scope is itself another ILP_FOR's body lambda (whose return
-// type is `auto`-deduced), the value returns from that *outer* body lambda
-// instead of the real function, and silently gets the wrong result rather
-// than a compile error (see the `-Wreturn-type` "control reaches end of
-// non-void function" warning it produces). Not exercised here since it isn't
-// a case this feature claims to support; flagged in DESIGN_NOTES.md for
-// future investigation.
+TEST_CASE("ILP_END_RETURN nested inside ILP_END_RETURN", "[end_enforcement][nesting]") {
+    // An inner loop's ILP_RETURN escapes through an outer ILP_END_RETURN-closed
+    // loop's body and returns from the true enclosing function. See
+    // test_nested_return.cpp for the fuller battery (3-level nesting, typed
+    // combinations, etc.) - this is a minimal smoke test tying the mechanism
+    // back to the END-enforcement tag dispatch covered by this file.
+    auto find_first_match = [](const std::vector<std::vector<int>>& rows, int target) -> int {
+        ILP_FOR(auto r, std::size_t{0}, rows.size(), 2) {
+            const auto& row = rows[r];
+            ILP_FOR(auto c, std::size_t{0}, row.size(), 4) {
+                if (row[c] == target)
+                    ILP_RETURN(static_cast<int>(r * 100 + c));
+            }
+            ILP_END_RETURN;
+        }
+        ILP_END_RETURN;
+        return -1;
+    };
+
+    std::vector<std::vector<int>> rows = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    REQUIRE(find_first_match(rows, 6) == 102); // row 1, col 2
+    REQUIRE(find_first_match(rows, 42) == -1);
+}
 
 TEST_CASE("ilp::for_each nested inside ILP_FOR/ILP_END_RETURN", "[end_enforcement][nesting]") {
     auto find_row_with_negative = [](const std::vector<std::vector<int>>& rows) -> int {
