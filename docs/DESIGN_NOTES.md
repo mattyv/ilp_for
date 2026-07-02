@@ -194,6 +194,18 @@ know the guard is necessary-but-not-sufficient and that tests must hit the retur
 branch. (Optionally, item #3's compile-time type check would also let us strengthen
 this into a compile-time error in a follow-up; tracked there.)
 
+**Status: resolved.** Implemented as a compile-time error instead of the
+documentation-only mitigation above — see
+[END_ENFORCEMENT_PLAN.md](END_ENFORCEMENT_PLAN.md). The opening and closing macros
+jointly form one call to a `detail::macro_for*` entry point; the closing macro appends
+a tag (`end_tag_t` for `ILP_END`, `end_return_tag_t` for `ILP_END_RETURN`) that
+selects which ctrl type the body lambda is instantiated against. `ILP_END` selects a
+break-only `EachCtrl` whose `return_with` is a poisoned `static_assert`, so a body
+using `ILP_RETURN` but closed with `ILP_END` now fails to compile with a message
+naming the fix. The runtime `abort()` path (`ilp_end_with_return_error`) has been
+deleted. This also introduced `ilp::for_each`/`for_each_range` (break/continue-only,
+`void`-returning) as the function-API counterpart to `EachCtrl`.
+
 ---
 
 ## 3. Type-erased SBO recovers the *function's* return type, not the stored type — silent pun
@@ -374,6 +386,55 @@ migrated off `0uz`; the godbolt copies were not. These files are deliberately
 line-for-line copies of library source per `godbolt_examples/INSTRUCTIONS.md`, so any
 fix should go through that regeneration process. Out of scope for this investigation;
 listed so it isn't lost.
+
+## Incidental finding: nested `ILP_RETURN` does not propagate through an outer loop's body
+
+Found while adding coverage for the END-enforcement work
+([END_ENFORCEMENT_PLAN.md](END_ENFORCEMENT_PLAN.md)). An `ILP_FOR`/`ILP_END_RETURN`
+block nested inside *another* `ILP_FOR`'s body does not return its value out of the
+true enclosing C++ function - reproduces identically against the pre-enforcement
+library snapshot (this is not something the tag-dispatch mechanism introduced or
+could have fixed).
+
+```cpp
+int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
+    ILP_FOR(auto r, std::size_t{0}, rows.size(), 2) {
+        const auto& row = rows[r];
+        ILP_FOR(auto c, std::size_t{0}, row.size(), 4) {
+            if (row[c] == target)
+                ILP_RETURN(static_cast<int>(r * 100 + c));
+        }
+        ILP_END_RETURN;
+    }
+    ILP_END;
+    return -1;
+}
+// find_first_match({{1,2,3},{4,5,6},{7,8,9}}, 6) returns -1, not 105.
+```
+
+**Cause:** `ILP_END_RETURN`'s `return *std::move(ilp_detail_ret);` is a bare C++
+`return` statement, textually embedded at whatever scope directly contains the macro
+invocation. When the inner `ILP_FOR`/`ILP_END_RETURN` block is nested inside another
+`ILP_FOR`'s `{ body }`, that scope is the *outer* loop's body lambda (`[&](auto r,
+auto& ctrl){ ... }`) - not the real enclosing function. The `return` only escapes as
+far as that outer lambda. Because the outer lambda's return type is deduced (`auto`,
+from its single `return` statement) rather than declared, this doesn't produce a
+compile error: it silently deduces a return type and discards the value the inner
+loop found, falling through to the outer loop's own `return -1;`. GCC does emit a
+`-Wreturn-type` "control reaches end of non-void function" warning, but it is easy to
+miss among the deprecation/nodiscard warnings this library already emits by design.
+
+**Severity:** narrow - only affects code that nests an `ILP_RETURN`-using loop inside
+another loop's body and expects the inner return to escape both loops. The far more
+common pattern (an inner *break-only* `ILP_END` loop nested inside an outer
+`ILP_END_RETURN` loop, or vice versa with the return used only at the outer level) is
+unaffected and is covered by `tests/correctness/test_end_enforcement.cpp`.
+
+**Out of scope for this investigation.** A fix would need the outer loop's body
+lambda to have a declared (not deduced) return type matching whatever the innermost
+nested `ILP_RETURN` produces, which conflicts with the outer loop potentially having
+no `ILP_RETURN` of its own (i.e., being `void`) - this needs its own design pass, not
+a fold-in to the END-enforcement work. Listed so it isn't lost.
 
 ---
 

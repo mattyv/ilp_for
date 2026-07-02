@@ -29,6 +29,15 @@ run_tests() {
 
 # Test both modes
 run_tests "ILP (default)" ""
+
+# Compile-fail harness (ILP_END/ILP_END_RETURN enforcement) is meaningful only
+# in default mode - under ILP_MODE_SIMPLE the mismatch legitimately compiles.
+echo "=========================================="
+echo "Testing: compile-fail harness (default mode only)"
+echo "=========================================="
+bash compile_fail/check_compile_fail.sh
+echo ""
+
 run_tests "SIMPLE" "-DCMAKE_CXX_FLAGS=-DILP_MODE_SIMPLE"
 
 echo "=========================================="

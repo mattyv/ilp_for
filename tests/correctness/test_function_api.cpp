@@ -10,7 +10,10 @@
 //
 // for_loop/for_loop_range return a [[nodiscard]] ForResult even when the body
 // never calls return_with(); calls that don't need the result still capture it
-// (as [[maybe_unused]]) to avoid a discarded-nodiscard warning.
+// (as [[maybe_unused]]) to avoid a discarded-nodiscard warning. ilp::for_each /
+// for_each_range (below) are the break/continue-only alternative: they return
+// void, so no such capture is needed. Attempting ctrl.return_with() in a
+// for_each body is a compile error (see tests/compile_fail/for_each_return_with.cpp).
 
 TEST_CASE("for_loop basic accumulation", "[function_api][basic]") {
     SECTION("simple sum") {
@@ -178,12 +181,134 @@ TEST_CASE("for_loop_range with ctrl methods", "[function_api][range]") {
     }
 }
 
-// Mode equivalence: ilp::Mode::Unrolled and ilp::Mode::Simple must be
-// observationally identical for every case above, since Simple mode is meant to
-// be a debugging aid, not a semantic change.
+// Mode tags used by both the for_each and for_loop Mode-equivalence
+// TEMPLATE_TEST_CASEs below (Catch2's TEMPLATE_TEST_CASE list can't contain a
+// bare comma-bearing type like std::integral_constant<ilp::Mode, ilp::Mode::X>
+// directly - the preprocessor would split it into two macro arguments).
 using ModeUnrolledTag = std::integral_constant<ilp::Mode, ilp::Mode::Unrolled>;
 using ModeSimpleTag = std::integral_constant<ilp::Mode, ilp::Mode::Simple>;
 
+TEST_CASE("for_each basic accumulation", "[function_api][for_each][basic]") {
+    SECTION("simple sum") {
+        int sum = 0;
+        ilp::for_each<4>(0, 10, [&](int i, auto& /*ctrl*/) { sum += i; });
+        REQUIRE(sum == 45); // 0+1+2+...+9
+    }
+
+    SECTION("empty range") {
+        int count = 0;
+        ilp::for_each<4>(0, 0, [&](int /*i*/, auto& /*ctrl*/) { count++; });
+        REQUIRE(count == 0);
+    }
+
+    SECTION("N greater than range length") {
+        int sum = 0;
+        ilp::for_each<8>(0, 3, [&](int i, auto& /*ctrl*/) { sum += i; });
+        REQUIRE(sum == 3); // 0+1+2, all handled by the remainder loop
+    }
+}
+
+TEST_CASE("for_each with ctrl.break_loop()", "[function_api][for_each][break]") {
+    SECTION("break exits loop") {
+        int sum = 0;
+        ilp::for_each<4>(0, 100, [&](int i, auto& ctrl) {
+            if (i >= 10)
+                return ctrl.break_loop();
+            sum += i;
+        });
+        REQUIRE(sum == 45); // 0+1+2+...+9
+    }
+
+    SECTION("break inside the remainder loop (N does not divide range)") {
+        int sum = 0;
+        ilp::for_each<4>(0, 10, [&](int i, auto& ctrl) {
+            if (i == 9)
+                return ctrl.break_loop();
+            sum += i;
+        });
+        REQUIRE(sum == 36); // 0+1+...+8
+    }
+}
+
+TEST_CASE("for_each with bare return (continue semantics)", "[function_api][for_each][continue]") {
+    SECTION("skip even numbers") {
+        int sum = 0;
+        ilp::for_each<4>(0, 10, [&](int i, auto& /*ctrl*/) {
+            if (i % 2 == 0)
+                return;
+            sum += i;
+        });
+        REQUIRE(sum == 25); // 1+3+5+7+9
+    }
+}
+
+TEST_CASE("for_each_range with ctrl methods", "[function_api][for_each][range]") {
+    SECTION("sum via range loop") {
+        std::vector<int> data = {1, 2, 3, 4, 5};
+        int sum = 0;
+        ilp::for_each_range<4>(data, [&](int val, auto& /*ctrl*/) { sum += val; });
+        REQUIRE(sum == 15);
+    }
+
+    SECTION("break inside range loop") {
+        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};
+        int sum = 0;
+        ilp::for_each_range<4>(data, [&](int val, auto& ctrl) {
+            if (val > 4)
+                return ctrl.break_loop();
+            sum += val;
+        });
+        REQUIRE(sum == 10); // 1+2+3+4
+    }
+
+    SECTION("empty range") {
+        std::vector<int> data;
+        int count = 0;
+        ilp::for_each_range<4>(data, [&](int /*val*/, auto& /*ctrl*/) { count++; });
+        REQUIRE(count == 0);
+    }
+}
+
+TEMPLATE_TEST_CASE("for_each Mode::Unrolled and Mode::Simple agree", "[function_api][for_each][mode]",
+                    ModeUnrolledTag, ModeSimpleTag) {
+    constexpr ilp::Mode M = TestType::value;
+
+    SECTION("sum with break in the middle") {
+        int sum = 0;
+        ilp::for_each<4, M>(0, 20, [&](int i, auto& ctrl) {
+            if (i == 13)
+                return ctrl.break_loop();
+            sum += i;
+        });
+        REQUIRE(sum == 78); // 0+1+...+12
+    }
+
+    SECTION("range loop break") {
+        std::vector<int> data = {1, 2, 3, 4, 5, 6, 7};
+        int sum = 0;
+        ilp::for_each_range<4, M>(data, [&](int val, auto& ctrl) {
+            if (val > 4)
+                return ctrl.break_loop();
+            sum += val;
+        });
+        REQUIRE(sum == 10);
+    }
+}
+
+TEST_CASE("per-loop Mode override on for_each does not require the global define",
+          "[function_api][for_each][mode]") {
+    int sum = 0;
+    ilp::for_each<4, ilp::Mode::Simple>(0, 10, [&](int i, auto& /*ctrl*/) { sum += i; });
+    REQUIRE(sum == 45);
+
+    sum = 0;
+    ilp::for_each<4, ilp::Mode::Unrolled>(0, 10, [&](int i, auto& /*ctrl*/) { sum += i; });
+    REQUIRE(sum == 45);
+}
+
+// Mode equivalence: ilp::Mode::Unrolled and ilp::Mode::Simple must be
+// observationally identical for every case above, since Simple mode is meant to
+// be a debugging aid, not a semantic change.
 TEMPLATE_TEST_CASE("for_loop Mode::Unrolled and Mode::Simple agree", "[function_api][mode]", ModeUnrolledTag,
                     ModeSimpleTag) {
     constexpr ilp::Mode M = TestType::value;

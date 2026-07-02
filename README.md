@@ -246,7 +246,12 @@ Result find_result(const std::vector<int>& data, int target) {
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
-Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
+Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead —
+mixing them up is a **compile-time error** naming the fix, not a runtime bug: a body
+that calls `ILP_RETURN` but is closed with plain `ILP_END` fails to build. (This
+holds for the default build; under `ILP_MODE_SIMPLE` the macros degrade to plain
+`for` loops where the mismatch is semantically harmless and does compile — the
+default build, which CI always runs, is what catches it.)
 
 ### Control Flow
 
@@ -287,21 +292,43 @@ A bare `return;` from the body lambda means *continue* — the natural, idiomati
 meaning for a lambda, and not a footgun the way it is inside the `ILP_FOR` macro
 expansion (see [DESIGN_NOTES.md](docs/DESIGN_NOTES.md)).
 
-Note: `for_loop`/`for_loop_range` return a `[[nodiscard]]` `ForResult`, even for
-loops that never call `return_with`. If you don't need the result, capture it as
-`[[maybe_unused]] auto r = ilp::for_loop(...)` rather than discarding it.
+### Break/continue-only loops: `ilp::for_each`
+
+`for_loop`/`for_loop_range` return a `[[nodiscard]]` `ForResult`, even for loops
+that never call `return_with` — the equivalent of `ILP_FOR ... ILP_END` (no
+`ILP_RETURN`). For that case, prefer `ilp::for_each`/`ilp::for_each_range`, which
+return `void`:
+
+```cpp
+// Macro version (no ILP_RETURN, so ILP_END)
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    sum += data[i];
+} ILP_END;
+
+// Function API equivalent - no [[maybe_unused]] auto r = ... needed
+ilp::for_each<4>(0, n, [&](auto i, auto& ctrl) {
+    if (data[i] < 0) return ctrl.break_loop();
+    sum += data[i];
+});
+```
+
+Calling `ctrl.return_with(x)` inside a `for_each` body is a compile error pointing
+you at `ilp::for_loop` instead — `for_each` genuinely cannot return a value out of
+the enclosing function, so there is nothing to discard and nothing to `nodiscard`.
 
 ### Equivalence table
 
 | Macro | Function API |
 |-------|--------------|
-| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END;` | `ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl){...});` |
-| `ILP_FOR_AUTO(auto i, 0, n, Search, int) {...} ILP_END;` | `ilp::for_loop_auto<int, ilp::LoopType::Search>(0, n, [&](auto i, auto& ctrl){...});` |
-| `ILP_FOR_RANGE(auto&& v, r, 4) {...} ILP_END;` | `ilp::for_loop_range<4>(r, [&](auto&& v, auto& ctrl){...});` |
+| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END;` (no `ILP_RETURN`) | `ilp::for_each<4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END_RETURN;` | `ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_AUTO(auto i, 0, n, Search, int) {...} ILP_END;` | `ilp::for_each<ilp::optimal_N<ilp::LoopType::Search, int>>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_RANGE(auto&& v, r, 4) {...} ILP_END;` | `ilp::for_each_range<4>(r, [&](auto&& v, auto& ctrl){...});` |
 | `ILP_FOR_T(Result, auto i, 0, n, 4) {...} ILP_END_RETURN;` | `ilp::for_loop_typed<Result, 4>(0, n, [&](auto i, auto& ctrl){...});` |
 | `ILP_BREAK` | `return ctrl.break_loop();` |
 | `ILP_CONTINUE` | `return;` |
-| `ILP_RETURN(x)` | `return ctrl.return_with(x);` |
+| `ILP_RETURN(x)` | `return ctrl.return_with(x);` (only on `for_loop`/`for_loop_typed` ctrl - poisoned on `for_each`) |
 | `ILP_END_RETURN` | `if (r) return *std::move(r);` |
 
 ### Per-loop debug mode (function-API exclusive)

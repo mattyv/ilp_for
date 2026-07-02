@@ -6,8 +6,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdio>
-#include <cstdlib>
 #include <new>
 #include <optional>
 #include <type_traits>
@@ -33,6 +31,22 @@ namespace ilp {
         struct is_optional<std::optional<T>> : std::true_type {};
         template<typename T>
         inline constexpr bool is_optional_v = is_optional<T>::value;
+
+        // Always-false, but dependent on T so it only fires at instantiation time.
+        template<typename T>
+        inline constexpr bool always_false = false;
+
+        // Tags selecting which ctrl type (and therefore which capability set) the
+        // macro body lambda is instantiated against. ILP_END appends end_tag_t;
+        // ILP_END_RETURN appends end_return_tag_t. See ilp_for.hpp macro layer.
+        struct end_tag_t {};
+        struct end_return_tag_t {};
+
+        // Result of the ILP_END (no-return) macro path. Deliberately NOT
+        // [[nodiscard]] - unlike ForResult/ForResultTyped, a break/continue-only
+        // loop has nothing meaningful to discard.
+        struct NoResult {};
+
     } // namespace detail
 
     template<typename R = void>
@@ -95,6 +109,26 @@ namespace ilp {
             R tmp = static_cast<R&&>(*ptr);
             ptr->~R();
             return tmp;
+        }
+    };
+
+    // Break-only ctrl for loops that cannot return a value: ilp::for_each,
+    // ilp::for_each_range, and the macro layer's ILP_END (as opposed to
+    // ILP_END_RETURN) path. return_with is poisoned - calling it is a
+    // compile error, which is what turns an ILP_RETURN inside an ILP_END-closed
+    // loop into a compile-time failure instead of the historical runtime abort.
+    struct EachCtrl {
+        bool ok = true;
+
+        ILP_ALWAYS_INLINE void break_loop() { ok = false; }
+
+        template<typename T>
+        void return_with(T&&) {
+            static_assert(detail::always_false<T>,
+                          "This loop cannot return a value. "
+                          "If using macros: ILP_RETURN was used inside a loop closed with ILP_END - "
+                          "change ILP_END to ILP_END_RETURN in the enclosing function. "
+                          "If using ilp::for_each: use ilp::for_loop instead.");
         }
     };
 
@@ -197,17 +231,5 @@ namespace ilp {
 
         ILP_ALWAYS_INLINE Proxy operator*() { return {storage}; }
     };
-
-    namespace detail {
-
-        [[noreturn]] inline void ilp_end_with_return_error() {
-            std::fprintf(stderr, "\n*** ILP_FOR ERROR ***\n"
-                                 "ILP_RETURN was called but ILP_END was used instead of ILP_END_RETURN.\n"
-                                 "The return value would be silently discarded. This is a bug.\n"
-                                 "Fix: Change ILP_END to ILP_END_RETURN in the enclosing function.\n\n");
-            std::abort();
-        }
-
-    } // namespace detail
 
 } // namespace ilp

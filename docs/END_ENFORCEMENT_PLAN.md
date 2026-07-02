@@ -1,9 +1,16 @@
 # Compile-Time ILP_END / ILP_END_RETURN Enforcement — Implementation Plan
 
-**Status:** Proposal, ready to implement. Prototype validated on GCC 13.3 and
-Clang 18.1 (correct pairings compile clean under `-Wall -Wextra` and run
-correctly, including nested loops; the mismatch fails to compile with the
-intended message).
+**Status:** Implemented (see `ilp::EachCtrl`, `ilp::for_each`/`for_each_range` in
+`ilp_for/detail/loops_ilp.hpp`, the tag-dispatch macros in `ilp_for.hpp`,
+`tests/compile_fail/`, `tests/correctness/test_end_enforcement.cpp`, and the
+README's "ILP_END vs ILP_END_RETURN" and "Macro-free API" updates). Verified on
+GCC 13.3 and Clang 18.1, both build modes, plus a manual ASan+UBSan subset run.
+
+One incidental, pre-existing (not introduced or fixed by this work) limitation
+was found while adding test coverage: an `ILP_RETURN` inside a loop nested
+*within another loop's body* does not propagate its value out of the true
+enclosing function. Documented as a new finding in
+[DESIGN_NOTES.md](DESIGN_NOTES.md).
 
 **Supersedes:** [DESIGN_NOTES.md](DESIGN_NOTES.md) item 2's documentation-only
 proposal. This makes the `ILP_RETURN`-with-`ILP_END` mismatch a **compile

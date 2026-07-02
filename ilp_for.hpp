@@ -43,6 +43,18 @@ namespace ilp::detail {
 //   - statement expressions: GCC-only, not portable
 // The current if/else pattern is the most portable way to achieve for-loop syntax with early exit.
 //
+// ILP_END vs ILP_END_RETURN, and why mismatching them is a compile error:
+// The opening macro and the closing macro jointly form a single call to one of the
+// ::ilp::detail::macro_for* entry points (see loops_ilp.hpp), with the closing macro appending
+// the final argument: ILP_END appends ::ilp::detail::end_tag_t{}, ILP_END_RETURN appends
+// ::ilp::detail::end_return_tag_t{}. Overload resolution on that tag selects which ctrl type the
+// body lambda is instantiated against - EachCtrl (break-only) for ILP_END, ForCtrl/ForCtrlTyped
+// (break or return) for ILP_END_RETURN. EachCtrl::return_with is poisoned with a static_assert, so
+// a body that calls ILP_RETURN but is closed with ILP_END fails to compile, pointing the user at
+// the fix. The ctrl lambda parameter is therefore declared `auto&`, not a concrete ctrl type, and
+// the IIFE's return type is deduced rather than declared - both are required for the same lambda
+// to be instantiable against either ctrl type depending on which macro_for* overload is selected.
+//
 // Internal identifiers use the ilp_detail_ prefix. Identifiers containing a double underscore (and
 // those beginning with an underscore followed by an uppercase letter) are reserved to the
 // implementation per [lex.name]; a library is not permitted to introduce such names, so we
@@ -50,61 +62,62 @@ namespace ilp::detail {
 // variables to keep collisions with user code unlikely.
 
 #define ILP_FOR(loop_var_decl, start, end, N)                                                                          \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResult { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop<N>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for<N>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_RANGE(loop_var_decl, range, N)                                                                         \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResult { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range<N>(range, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_range<N>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_AUTO(loop_var_decl, start, end, loop_type, element_type)                                               \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResult { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_auto<element_type, ::ilp::LoopType::loop_type>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_auto<element_type, ::ilp::LoopType::loop_type>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_RANGE_AUTO(loop_var_decl, range, loop_type, element_type)                                              \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResult { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_auto<element_type, ::ilp::LoopType::loop_type>(range, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrl& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_range_auto<element_type, ::ilp::LoopType::loop_type>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_T(type, loop_var_decl, start, end, N)                                                                  \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResultTyped<type> { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_typed<type, N>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_typed<type, N>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_RANGE_T(type, loop_var_decl, range, N)                                                                 \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResultTyped<type> { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_typed<type, N>(range, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<type>& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_range_typed<type, N>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_T_AUTO(ret_type, loop_var_decl, start, end, loop_type, element_type)                                   \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResultTyped<ret_type> { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(start, end, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<ret_type>& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(start, end, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
 #define ILP_FOR_RANGE_T_AUTO(ret_type, loop_var_decl, range, loop_type, element_type)                                  \
-    if ([[maybe_unused]] auto ilp_detail_ret = [&]() -> ::ilp::ForResultTyped<ret_type> { \
+    if ([[maybe_unused]] auto ilp_detail_ret = [&]() { \
         [[maybe_unused]] auto ilp_detail_ctx = ::ilp::detail::For_Context_USE_ILP_END{}; \
-        return ::ilp::for_loop_range_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(range, \
-            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] ::ilp::ForCtrlTyped<ret_type>& ilp_detail_ctrl)
+        return ::ilp::detail::macro_for_range_typed_auto<element_type, ret_type, ::ilp::LoopType::loop_type>(range, \
+            [&]([[maybe_unused]] loop_var_decl, [[maybe_unused]] auto& ilp_detail_ctrl)
 
-// IMPORTANT: if ILP_RETURN is used, you MUST use ILP_END_RETURN instead!
-#define ILP_END );                                                                                                     \
+// A body using ILP_RETURN closed with plain ILP_END fails to compile - see the
+// "ILP_END vs ILP_END_RETURN" note above.
+#define ILP_END , ::ilp::detail::end_tag_t{});                                                                        \
     }                                                                                                                  \
     ();                                                                                                                \
-    ilp_detail_ret.has_return ? (::ilp::detail::ilp_end_with_return_error(), false) : false) {}                        \
+    false) {}                                                                                                         \
     else(void) 0
 
-#define ILP_END_RETURN );                                                                                              \
+#define ILP_END_RETURN , ::ilp::detail::end_return_tag_t{});                                                          \
     }                                                                                                                  \
     (); ilp_detail_ret) \
     return *std::move(ilp_detail_ret);                                                                                 \
@@ -120,15 +133,13 @@ namespace ilp::detail {
 
 #define ILP_BREAK                                                                                                      \
     do {                                                                                                               \
-        ilp_detail_ctrl.ok = false;                                                                                    \
+        ilp_detail_ctrl.break_loop();                                                                                  \
         return;                                                                                                        \
     } while (0)
 
 #define ILP_RETURN(x)                                                                                                  \
     do {                                                                                                               \
-        ilp_detail_ctrl.storage.set(x);                                                                                \
-        ilp_detail_ctrl.return_set = true;                                                                             \
-        ilp_detail_ctrl.ok = false;                                                                                    \
+        ilp_detail_ctrl.return_with(x);                                                                               \
         return;                                                                                                        \
     } while (0)
 

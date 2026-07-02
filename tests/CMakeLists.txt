@@ -78,6 +78,15 @@ add_custom_target(test-all-modes
     COMMENT "Running tests for all ILP modes"
 )
 
+# Compile-fail tests: ILP_END/ILP_END_RETURN mismatch enforcement. Default
+# mode only - in ILP_MODE_SIMPLE the mismatch legitimately compiles, so the
+# harness is meaningless there (see tests/compile_fail/check_compile_fail.sh).
+add_custom_target(compile-fail-tests
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/check_compile_fail.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail
+    COMMENT "Running compile-fail tests (ILP_END/ILP_END_RETURN enforcement)"
+)
+
 # Coverage targets (only available when ENABLE_COVERAGE is ON)
 if(ENABLE_COVERAGE)
     # Clean coverage data
