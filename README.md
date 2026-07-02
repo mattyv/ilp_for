@@ -115,6 +115,8 @@ int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 
 I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
 
+Everything the macros do is sugar over a plain function API — if your codebase bans macros, use that directly ([Macro-free API](#macro-free-api)).
+
 ---
 
 ## Contents
@@ -122,6 +124,7 @@ I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of 
 - [Quick Start](#quick-start)
 - [Large Return Types](#large-return-types)
 - [API Reference](#api-reference)
+- [Macro-free API](#macro-free-api)
 - [Important Notes](#important-notes)
 - [When to Use ILP](#when-to-use-ilp)
 - [Advanced](#advanced)
@@ -255,6 +258,73 @@ Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 
 ---
 
+## Macro-free API
+
+The macros are sugar over a plain function API (`ilp::for_loop` and friends in
+`ilp_for/detail/loops_ilp.hpp`). If your style guide bans macros, call it directly —
+same unrolling, same semantics, no `ILP_*` tokens:
+
+```cpp
+// Macro version
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    if (data[i] == 0) ILP_CONTINUE;
+    if (data[i] == target) ILP_RETURN(i);
+    sum += data[i];
+} ILP_END_RETURN;
+
+// Function API equivalent
+auto r = ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl) {
+    if (data[i] < 0)       return ctrl.break_loop();  // ILP_BREAK
+    if (data[i] == 0)      return;                    // ILP_CONTINUE
+    if (data[i] == target) return ctrl.return_with(i); // ILP_RETURN(i)
+    sum += data[i];
+});
+if (r) return *std::move(r);   // ILP_END_RETURN
+```
+
+A bare `return;` from the body lambda means *continue* — the natural, idiomatic
+meaning for a lambda, and not a footgun the way it is inside the `ILP_FOR` macro
+expansion (see [DESIGN_NOTES.md](docs/DESIGN_NOTES.md)).
+
+Note: `for_loop`/`for_loop_range` return a `[[nodiscard]]` `ForResult`, even for
+loops that never call `return_with`. If you don't need the result, capture it as
+`[[maybe_unused]] auto r = ilp::for_loop(...)` rather than discarding it.
+
+### Equivalence table
+
+| Macro | Function API |
+|-------|--------------|
+| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END;` | `ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_AUTO(auto i, 0, n, Search, int) {...} ILP_END;` | `ilp::for_loop_auto<int, ilp::LoopType::Search>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_RANGE(auto&& v, r, 4) {...} ILP_END;` | `ilp::for_loop_range<4>(r, [&](auto&& v, auto& ctrl){...});` |
+| `ILP_FOR_T(Result, auto i, 0, n, 4) {...} ILP_END_RETURN;` | `ilp::for_loop_typed<Result, 4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_BREAK` | `return ctrl.break_loop();` |
+| `ILP_CONTINUE` | `return;` |
+| `ILP_RETURN(x)` | `return ctrl.return_with(x);` |
+| `ILP_END_RETURN` | `if (r) return *std::move(r);` |
+
+### Per-loop debug mode (function-API exclusive)
+
+`ILP_MODE_SIMPLE` is a translation-unit-wide define. The function API also accepts
+an explicit `ilp::Mode` template argument, which overrides `ilp::default_mode` for
+just that one loop — useful for stepping through a single hot loop without
+de-ILPing the whole file:
+
+```cpp
+// Whole file built normally, but de-ILP just this loop while debugging it:
+auto r = ilp::for_loop<4, ilp::Mode::Simple>(0, n, [&](auto i, auto& ctrl) { ... });
+```
+
+`ilp::Mode::Simple` runs only the tail/remainder loop — the same single
+bounds-check-per-iteration code path `ILP_MODE_SIMPLE` produces for the macros.
+One caveat: macro `ILP_MODE_SIMPLE` lowers to a literal `for`/`break`, which is
+maximally plain to single-step at `-O0`. The function API's simple mode still
+invokes the body through a lambda, so there's one extra stack frame when
+stepping — same semantics, marginally less pristine debugger experience.
+
+---
+
 ## Important Notes
 
 ### Use `auto&&` for Range Loops
@@ -356,6 +426,13 @@ This turns the macros into simple `for` loops with the same semantics:
 | `ILP_BREAK` | `break` |
 | `ILP_RETURN(x)` | `return x` |
 | `ILP_END` / `ILP_END_RETURN` | *(empty)* |
+
+`ILP_MODE_SIMPLE` also switches the function API's default (via `ilp::default_mode`),
+so `ilp::for_loop(...)` calls in the same translation unit degrade the same way.
+For a per-loop alternative that doesn't require a global define — e.g. to de-ILP a
+single loop while leaving the rest of the file unrolled — see
+[Per-loop debug mode](#per-loop-debug-mode-function-api-exclusive) in the
+[Macro-free API](#macro-free-api) section.
 
 ### LoopType Reference
 

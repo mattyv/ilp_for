@@ -103,6 +103,18 @@ namespace ilp {
         bool ok = true;
         bool return_set = false;
         SmallStorage storage;
+
+        // Equivalent to ILP_BREAK. Call as `return ctrl.break_loop();` to break
+        // and exit the body in one statement.
+        ILP_ALWAYS_INLINE void break_loop() { ok = false; }
+
+        // Equivalent to ILP_RETURN(val). Call as `return ctrl.return_with(val);`.
+        template<typename T>
+        ILP_ALWAYS_INLINE void return_with(T&& val) {
+            storage.set(static_cast<T&&>(val));
+            return_set = true;
+            ok = false;
+        }
     };
 
     // ok=false means early exit (typed version - exact size storage)
@@ -111,6 +123,18 @@ namespace ilp {
         bool ok = true;
         bool return_set = false;
         TypedStorage<R> storage;
+
+        // Equivalent to ILP_BREAK. Call as `return ctrl.break_loop();` to break
+        // and exit the body in one statement.
+        ILP_ALWAYS_INLINE void break_loop() { ok = false; }
+
+        // Equivalent to ILP_RETURN(val). Call as `return ctrl.return_with(val);`.
+        template<typename T>
+        ILP_ALWAYS_INLINE void return_with(T&& val) {
+            storage.set(static_cast<T&&>(val));
+            return_set = true;
+            ok = false;
+        }
     };
 
     struct [[nodiscard("ILP_RETURN value ignored - did you mean ILP_END_RETURN?")]] ForResult {

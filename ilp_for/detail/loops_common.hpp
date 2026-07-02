@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "ctrl.hpp"
+#include "mode.hpp"
 
 namespace ilp {
     namespace detail {
