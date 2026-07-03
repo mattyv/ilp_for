@@ -12,6 +12,16 @@ was found while adding test coverage: an `ILP_RETURN` inside a loop nested
 enclosing function. Documented as a new finding in
 [DESIGN_NOTES.md](DESIGN_NOTES.md).
 
+Post-implementation review caught one genuine regression this plan's rename of
+the macro layer's callee (`ilp::for_loop*` → `::ilp::detail::macro_for*`)
+introduced: the `ilp-loop-analysis` clang-tidy check's AST matcher keyed on the
+old `for_loop.*` callee name and went silently blind on every macro-expanded
+loop, breaking the CI job that greps its output. Fixed (matcher widened to
+cover `macro_for`/`for_each` too) in a follow-up commit; see the new incidental
+finding at the end of [DESIGN_NOTES.md](DESIGN_NOTES.md) for the full writeup
+(it also covers a second, unrelated pre-existing bug found in the same file
+during that fix).
+
 **Supersedes:** [DESIGN_NOTES.md](DESIGN_NOTES.md) item 2's documentation-only
 proposal. This makes the `ILP_RETURN`-with-`ILP_END` mismatch a **compile
 error**, deletes the runtime `abort()` path entirely, and — as a bonus — fixes

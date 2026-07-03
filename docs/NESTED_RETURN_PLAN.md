@@ -10,6 +10,21 @@ confirmed the sentinel itself is silent in non-nested code; the nested-loop
 shadow warnings it does trigger are the pre-existing, already-tracked
 DESIGN_NOTES item 4 category (unchanged by this work).
 
+Post-implementation review caveat (see DESIGN_NOTES.md item 3's cross-reference
+and the README's "Mode parity caveat"): the "identical results under
+`ILP_MODE_SIMPLE`" claims below hold for the test battery as written, where the
+propagated type is uniform at every nesting level. They do not hold in general —
+propagation reuses the type-erased SBO recovery from item 3, so an *untyped*
+`ILP_RETURN` propagating into a differently-typed outer loop reinterprets bytes
+in default mode where `ILP_MODE_SIMPLE`'s plain nested `return` would convert.
+Not a regression from this plan (the pun is inherited, not introduced), but the
+mode-parity wording below should be read with that qualification. Separately,
+`docs/DESIGN_NOTES.md` item 5 documents a distinct, still-unfixed gap in this
+plan's `ilp_detail_ctrl` sentinel mechanism itself (a macro loop nested inside a
+*function-API* lambda, rather than another macro loop, resolves to the sentinel
+and can hit undefined behavior) - found while writing this plan's test coverage,
+not caused by any later change.
+
 Mechanism prototype-validated against the in-repo headers on GCC 13.3 and
 Clang 18.1: 2-level and 3-level nesting, typed×untyped combinations, and
 control flow around nested loops all produce correct values; the identical

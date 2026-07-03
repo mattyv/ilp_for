@@ -1,5 +1,6 @@
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -205,6 +206,33 @@ TEST_CASE("for_each basic accumulation", "[function_api][for_each][basic]") {
         int sum = 0;
         ilp::for_each<8>(0, 3, [&](int i, auto& /*ctrl*/) { sum += i; });
         REQUIRE(sum == 3); // 0+1+2, all handled by the remainder loop
+    }
+}
+
+TEST_CASE("for_each does not overflow the unrolled-block bound near INT_MAX",
+          "[function_api][for_each][boundary]") {
+    // The unrolled block loop's bound used to be computed as `i + N <= end`, which
+    // is signed-integer-overflow UB (reproduced under -fsanitize=signed-integer-
+    // overflow) once `end` is within N of the type's maximum. It is now precomputed
+    // in unsigned arithmetic (see detail::unrolled_block_end in loops_ilp.hpp), so
+    // this must run clean under UBSan and still visit every index exactly once.
+    SECTION("range ends exactly at INT_MAX") {
+        long count = 0;
+        int last = 0;
+        ilp::for_each<4>(std::numeric_limits<int>::max() - 10, std::numeric_limits<int>::max(),
+                          [&](int i, auto& /*ctrl*/) {
+                              ++count;
+                              last = i;
+                          });
+        REQUIRE(count == 10);
+        REQUIRE(last == std::numeric_limits<int>::max() - 1);
+    }
+
+    SECTION("range of exactly N ending at INT_MAX") {
+        long count = 0;
+        ilp::for_each<4>(std::numeric_limits<int>::max() - 4, std::numeric_limits<int>::max(),
+                          [&](int /*i*/, auto& /*ctrl*/) { ++count; });
+        REQUIRE(count == 4);
     }
 }
 

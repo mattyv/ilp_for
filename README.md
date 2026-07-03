@@ -402,13 +402,32 @@ each one carries the value one level further. Closing an enclosing loop with pla
 `ILP_END` instead is a **compile-time error** naming the fix, since a break-only
 loop has nowhere to put the value.
 
+**Mode parity caveat:** this matches `ILP_MODE_SIMPLE` only when the propagated
+value's type is the same at every level it passes through. An untyped `ILP_FOR`
+(no `ILP_FOR_T`) recovers a nested value via the same type-erased SBO recovery
+used at the top level (see [Large Return Types](#large-return-types) and
+[DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 3) — it reinterprets the stored bytes
+as whatever type the *next* level outward expects, rather than converting. In
+`ILP_MODE_SIMPLE`, the equivalent nested plain `return` performs a real implicit
+conversion. So `ILP_RETURN(some_int)` propagating out through an untyped loop into
+an `int`-returning function is fine either way; propagating that same `int` out
+through an `ILP_FOR_T(long, ...)` outer loop is not — the two modes would disagree.
+As always, keep the propagated type consistent, or use `ILP_FOR_T` at every level
+that isn't already returning the exact type you want.
+
 Two things this does *not* cover:
-- **A loop macro nested inside a function-API `for_loop`/`for_each` body.** The
-  ctrl variable there has whatever name your lambda parameter used, so the macro's
-  `ILP_RETURN` can't find it and treats itself as top-level — the returned value is
-  silently swallowed by your lambda's own deduced return type. Don't mix the two;
-  use nested `for_loop` calls and propagate explicitly (extract the inner result
-  into a local, then call `ctrl.return_with(that_local)` on the outer ctrl).
+- **A loop macro nested inside a function-API `for_loop`/`for_each` body — do not do
+  this, it is undefined behavior, not just a wrong answer.** The ctrl variable
+  there has whatever name your lambda parameter used, so the macro's `ILP_RETURN`
+  can't find it and treats itself as top-level. The `ILP_END_RETURN` it expands to
+  ends up injecting a `return` directly into your outer lambda's body — on any outer
+  iteration where the nested macro loop's search doesn't find a match, control falls
+  off the end of that (now non-void) lambda with no `return` at all. That's UB,
+  reproducible as a compiler-sanitizer trap, not a safe silent discard — see
+  [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 5 for the verified repro. Don't mix
+  the two APIs; use nested `for_loop` calls instead and propagate explicitly
+  (extract the inner result into a local, then call `ctrl.return_with(that_local)`
+  on the outer ctrl).
 - **An intervening non-ILP callback** (e.g. an `ILP_FOR` inside a `std::for_each`
   lambda inside an outer `ILP_FOR`). The value still propagates once the inner
   `ILP_FOR` completes, but the enclosing algorithm (`std::for_each`, etc.) finishes
