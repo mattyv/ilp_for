@@ -18,21 +18,31 @@
 namespace ilp {
     namespace detail {
 
-        template<typename F, typename T>
-        concept ForEachBody = std::invocable<F, T, EachCtrl&>;
+        // Largest B with start <= B <= end and (B - start) % N == 0, computed in
+        // unsigned arithmetic. The naive block-loop bound `i + N <= end` overflows
+        // (UB) for signed T when end is within N of its maximum; precomputing the
+        // block end and iterating `i != block_end` avoids that while keeping a
+        // single comparison in the hot loop.
+        template<std::size_t N, std::integral T>
+        ILP_ALWAYS_INLINE constexpr T unrolled_block_end(T start, T end) {
+            using U = std::make_unsigned_t<T>;
+            if (start >= end)
+                return start; // empty range: block loop must not run
+            const U total = static_cast<U>(end) - static_cast<U>(start);
+            return static_cast<T>(static_cast<U>(start) + (total - total % static_cast<U>(N)));
+        }
 
-        template<typename F, typename Ref>
-        concept ForEachRangeBody = std::invocable<F, Ref, EachCtrl&>;
-
-        template<std::size_t N, Mode M, std::integral T, typename F>
-            requires ForEachBody<F, T>
-        void for_each_impl(T start, T end, F&& body) {
+        // Shared Mode-aware main+remainder skeleton over an integral index range.
+        // Every index-loop impl below is a thin wrapper choosing a ctrl type and
+        // packaging the result; the unroll/remainder/early-exit shape lives only here.
+        template<std::size_t N, Mode M, std::integral T, typename Ctrl, typename F>
+        ILP_ALWAYS_INLINE void index_loop_core(T start, T end, Ctrl& ctrl, F&& body) {
             validate_unroll_factor<N>();
-            EachCtrl ctrl;
             T i = start;
 
             if constexpr (M == Mode::Unrolled) {
-                for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
+                const T block_end = unrolled_block_end<N>(start, end);
+                for (; i != block_end; i += static_cast<T>(N)) {
                     for (std::size_t j = 0; j < N; ++j) {
                         body(i + static_cast<T>(j), ctrl);
                         if (!ctrl.ok) [[unlikely]]
@@ -46,181 +56,82 @@ namespace ilp {
                 if (!ctrl.ok) [[unlikely]]
                     return;
             }
+        }
+
+        // Same skeleton over a random-access range (size_t indices).
+        template<std::size_t N, Mode M, typename Ctrl, std::ranges::random_access_range Range, typename F>
+        ILP_ALWAYS_INLINE void range_loop_core(Range&& range, Ctrl& ctrl, F&& body) {
+            validate_unroll_factor<N>();
+            auto it = std::ranges::begin(range);
+            const std::size_t size = std::ranges::size(range);
+            std::size_t i = 0;
+
+            if constexpr (M == Mode::Unrolled) {
+                const std::size_t block_end = size - size % N;
+                for (; i != block_end; i += N) {
+                    for (std::size_t j = 0; j < N; ++j) {
+                        body(it[i + j], ctrl);
+                        if (!ctrl.ok) [[unlikely]]
+                            return;
+                    }
+                }
+            }
+
+            for (; i < size; ++i) {
+                body(it[i], ctrl);
+                if (!ctrl.ok) [[unlikely]]
+                    return;
+            }
+        }
+
+        template<std::size_t N, Mode M, std::integral T, typename F>
+            requires ForEachBody<F, T>
+        void for_each_impl(T start, T end, F&& body) {
+            EachCtrl ctrl;
+            index_loop_core<N, M>(start, end, ctrl, std::forward<F>(body));
         }
 
         template<std::size_t N, Mode M, std::ranges::random_access_range Range, typename F>
             requires ForEachRangeBody<F, std::ranges::range_reference_t<Range>>
         void for_each_range_impl(Range&& range, F&& body) {
-            validate_unroll_factor<N>();
             EachCtrl ctrl;
-            auto it = std::ranges::begin(range);
-            auto size = std::ranges::size(range);
-            std::size_t i = 0;
-
-            if constexpr (M == Mode::Unrolled) {
-                for (; i + N <= size; i += N) {
-                    for (std::size_t j = 0; j < N; ++j) {
-                        body(it[i + j], ctrl);
-                        if (!ctrl.ok) [[unlikely]]
-                            return;
-                    }
-                }
-            }
-
-            for (; i < size; ++i) {
-                body(it[i], ctrl);
-                if (!ctrl.ok) [[unlikely]]
-                    return;
-            }
+            range_loop_core<N, M>(std::forward<Range>(range), ctrl, std::forward<F>(body));
         }
 
         template<std::size_t N, Mode M, std::integral T, typename F>
             requires ForUntypedCtrlBody<F, T>
         ForResult for_loop_untyped_impl(T start, T end, F&& body) {
-            validate_unroll_factor<N>();
             ForCtrl ctrl;
-            T i = start;
-
-            if constexpr (M == Mode::Unrolled) {
-                for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-                    for (std::size_t j = 0; j < N; ++j) {
-                        body(i + static_cast<T>(j), ctrl);
-                        if (!ctrl.ok) [[unlikely]]
-                            return ForResult{ctrl.return_set, std::move(ctrl.storage)};
-                    }
-                }
-            }
-
-            for (; i < end; ++i) {
-                body(i, ctrl);
-                if (!ctrl.ok) [[unlikely]]
-                    return ForResult{ctrl.return_set, std::move(ctrl.storage)};
-            }
-
-            return ForResult{false, {}};
+            index_loop_core<N, M>(start, end, ctrl, std::forward<F>(body));
+            // Only move the storage when a value was actually stored; otherwise the
+            // buffer holds indeterminate bytes that must not be copied.
+            return ctrl.return_set ? ForResult{true, std::move(ctrl.storage)} : ForResult{false, {}};
         }
 
         template<typename R, std::size_t N, Mode M, std::integral T, typename F>
             requires ForTypedCtrlBody<F, T, R>
         ForResultTyped<R> for_loop_typed_impl(T start, T end, F&& body) {
-            validate_unroll_factor<N>();
             ForCtrlTyped<R> ctrl;
-            T i = start;
-
-            if constexpr (M == Mode::Unrolled) {
-                for (; i + static_cast<T>(N) <= end; i += static_cast<T>(N)) {
-                    for (std::size_t j = 0; j < N; ++j) {
-                        body(i + static_cast<T>(j), ctrl);
-                        if (!ctrl.ok) [[unlikely]]
-                            return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
-                    }
-                }
-            }
-
-            for (; i < end; ++i) {
-                body(i, ctrl);
-                if (!ctrl.ok) [[unlikely]]
-                    return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
-            }
-
-            return ForResultTyped<R>{false, {}};
-        }
-
-        template<std::size_t N, Mode M, std::ranges::random_access_range Range, typename F>
-        void for_loop_range_impl(Range&& range, F&& body) {
-            validate_unroll_factor<N>();
-            using Ref = std::ranges::range_reference_t<Range>;
-            constexpr bool has_ctrl = ForRangeCtrlBody<F, Ref>;
-
-            auto it = std::ranges::begin(range);
-            auto size = std::ranges::size(range);
-            std::size_t i = 0;
-
-            if constexpr (has_ctrl) {
-                LoopCtrl<void> ctrl;
-
-                if constexpr (M == Mode::Unrolled) {
-                    for (; i + N <= size && ctrl.ok; i += N) {
-                        for (std::size_t j = 0; j < N && ctrl.ok; ++j) {
-                            body(it[i + j], ctrl);
-                        }
-                    }
-                }
-
-                for (; i < size && ctrl.ok; ++i) {
-                    body(it[i], ctrl);
-                }
-            } else {
-                static_assert(ForRangeBody<F, Ref>, "Lambda must be invocable with (Ref) or (Ref, LoopCtrl<void>&)");
-
-                if constexpr (M == Mode::Unrolled) {
-                    for (; i + N <= size; i += N) {
-                        for (std::size_t j = 0; j < N; ++j) {
-                            body(it[i + j]);
-                        }
-                    }
-                }
-
-                for (; i < size; ++i) {
-                    body(it[i]);
-                }
-            }
+            index_loop_core<N, M>(start, end, ctrl, std::forward<F>(body));
+            return ctrl.return_set ? ForResultTyped<R>{true, std::move(ctrl.storage)}
+                                   : ForResultTyped<R>{false, {}};
         }
 
         template<std::size_t N, Mode M, std::ranges::random_access_range Range, typename F>
             requires ForRangeUntypedCtrlBody<F, std::ranges::range_reference_t<Range>>
         ForResult for_loop_range_untyped_impl(Range&& range, F&& body) {
-            validate_unroll_factor<N>();
             ForCtrl ctrl;
-            auto it = std::ranges::begin(range);
-            auto size = std::ranges::size(range);
-            std::size_t i = 0;
-
-            if constexpr (M == Mode::Unrolled) {
-                for (; i + N <= size; i += N) {
-                    for (std::size_t j = 0; j < N; ++j) {
-                        body(it[i + j], ctrl);
-                        if (!ctrl.ok) [[unlikely]]
-                            return ForResult{ctrl.return_set, std::move(ctrl.storage)};
-                    }
-                }
-            }
-
-            for (; i < size; ++i) {
-                body(it[i], ctrl);
-                if (!ctrl.ok) [[unlikely]]
-                    return ForResult{ctrl.return_set, std::move(ctrl.storage)};
-            }
-
-            return ForResult{false, {}};
+            range_loop_core<N, M>(std::forward<Range>(range), ctrl, std::forward<F>(body));
+            return ctrl.return_set ? ForResult{true, std::move(ctrl.storage)} : ForResult{false, {}};
         }
 
         template<typename R, std::size_t N, Mode M, std::ranges::random_access_range Range, typename F>
             requires ForRangeTypedCtrlBody<F, std::ranges::range_reference_t<Range>, R>
         ForResultTyped<R> for_loop_range_typed_impl(Range&& range, F&& body) {
-            validate_unroll_factor<N>();
             ForCtrlTyped<R> ctrl;
-            auto it = std::ranges::begin(range);
-            auto size = std::ranges::size(range);
-            std::size_t i = 0;
-
-            if constexpr (M == Mode::Unrolled) {
-                for (; i + N <= size; i += N) {
-                    for (std::size_t j = 0; j < N; ++j) {
-                        body(it[i + j], ctrl);
-                        if (!ctrl.ok) [[unlikely]]
-                            return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
-                    }
-                }
-            }
-
-            for (; i < size; ++i) {
-                body(it[i], ctrl);
-                if (!ctrl.ok) [[unlikely]]
-                    return ForResultTyped<R>{ctrl.return_set, std::move(ctrl.storage)};
-            }
-
-            return ForResultTyped<R>{false, {}};
+            range_loop_core<N, M>(std::forward<Range>(range), ctrl, std::forward<F>(body));
+            return ctrl.return_set ? ForResultTyped<R>{true, std::move(ctrl.storage)}
+                                   : ForResultTyped<R>{false, {}};
         }
 
         template<std::size_t N, Mode M, std::ranges::random_access_range Range, typename F>
@@ -310,102 +221,60 @@ namespace ilp {
         // poisoned) instead of the historical runtime abort. See
         // docs/END_ENFORCEMENT_PLAN.md for the full design rationale.
         //
+        // R = void selects the untyped (SBO) return path; a non-void R selects the
+        // typed path (ILP_FOR_T family). A typed loop closed with plain ILP_END
+        // (no ILP_RETURN in the body) is pointless but legal; the end_tag_t
+        // overloads run the untyped break-only path and ignore R.
+        //
+        // The *_auto entries exist as distinct names (rather than the macros
+        // passing optimal_N directly) so tooling can tell ILP_FOR_AUTO expansions
+        // apart from ILP_FOR by callee name - the ilp-loop-analysis clang-tidy
+        // check relies on this to skip loops that already use auto N selection.
+        //
         // Macro entries always use default_mode: when ILP_MODE_SIMPLE is defined
         // these macros aren't compiled at all (macros_simple.hpp takes over), so
         // no per-call Mode plumbing is needed here.
 
-        template<std::size_t N, std::integral T, typename F>
+        template<std::size_t N, typename R = void, std::integral T, typename F>
         NoResult macro_for(T start, T end, F&& body, end_tag_t) {
             for_each_impl<N, default_mode>(start, end, std::forward<F>(body));
             return {};
         }
 
-        template<std::size_t N, std::integral T, typename F>
-        ForResult macro_for(T start, T end, F&& body, end_return_tag_t) {
-            return for_loop_untyped_impl<N, default_mode>(start, end, std::forward<F>(body));
+        template<std::size_t N, typename R = void, std::integral T, typename F>
+        auto macro_for(T start, T end, F&& body, end_return_tag_t) {
+            if constexpr (std::is_void_v<R>)
+                return for_loop_untyped_impl<N, default_mode>(start, end, std::forward<F>(body));
+            else
+                return for_loop_typed_impl<R, N, default_mode>(start, end, std::forward<F>(body));
         }
 
-        template<std::size_t N, std::ranges::random_access_range Range, typename F>
+        template<std::size_t N, typename R = void, std::ranges::random_access_range Range, typename F>
         NoResult macro_for_range(Range&& range, F&& body, end_tag_t) {
             for_each_range_impl<N, default_mode>(std::forward<Range>(range), std::forward<F>(body));
             return {};
         }
 
-        template<std::size_t N, std::ranges::random_access_range Range, typename F>
-        ForResult macro_for_range(Range&& range, F&& body, end_return_tag_t) {
-            return for_loop_range_untyped_impl<N, default_mode>(std::forward<Range>(range), std::forward<F>(body));
+        template<std::size_t N, typename R = void, std::ranges::random_access_range Range, typename F>
+        auto macro_for_range(Range&& range, F&& body, end_return_tag_t) {
+            if constexpr (std::is_void_v<R>)
+                return for_loop_range_untyped_impl<N, default_mode>(std::forward<Range>(range),
+                                                                    std::forward<F>(body));
+            else
+                return for_loop_range_typed_impl<R, N, default_mode>(std::forward<Range>(range),
+                                                                     std::forward<F>(body));
         }
 
-        template<typename ElementT, LoopType LT, std::integral T, typename F>
-        NoResult macro_for_auto(T start, T end, F&& body, end_tag_t) {
-            for_each_impl<optimal_N<LT, ElementT>, default_mode>(start, end, std::forward<F>(body));
-            return {};
+        template<typename ElementT, LoopType LT, typename R = void, std::integral T, typename F, typename Tag>
+        auto macro_for_auto(T start, T end, F&& body, Tag tag) {
+            return macro_for<optimal_N<LT, ElementT>, R>(start, end, std::forward<F>(body), tag);
         }
 
-        template<typename ElementT, LoopType LT, std::integral T, typename F>
-        ForResult macro_for_auto(T start, T end, F&& body, end_return_tag_t) {
-            return for_loop_untyped_impl<optimal_N<LT, ElementT>, default_mode>(start, end, std::forward<F>(body));
-        }
-
-        template<typename ElementT, LoopType LT, std::ranges::random_access_range Range, typename F>
-        NoResult macro_for_range_auto(Range&& range, F&& body, end_tag_t) {
-            for_each_range_impl<optimal_N<LT, ElementT>, default_mode>(std::forward<Range>(range), std::forward<F>(body));
-            return {};
-        }
-
-        template<typename ElementT, LoopType LT, std::ranges::random_access_range Range, typename F>
-        ForResult macro_for_range_auto(Range&& range, F&& body, end_return_tag_t) {
-            return for_loop_range_untyped_impl<optimal_N<LT, ElementT>, default_mode>(std::forward<Range>(range),
-                                                                                        std::forward<F>(body));
-        }
-
-        // ILP_FOR_T closed with plain ILP_END (no ILP_RETURN in the body) is
-        // pointless but legal today; the end_tag_t overload keeps it legal by
-        // delegating to the untyped for_each_impl (R is unused in that path).
-        template<typename R, std::size_t N, std::integral T, typename F>
-        NoResult macro_for_typed(T start, T end, F&& body, end_tag_t) {
-            for_each_impl<N, default_mode>(start, end, std::forward<F>(body));
-            return {};
-        }
-
-        template<typename R, std::size_t N, std::integral T, typename F>
-        ForResultTyped<R> macro_for_typed(T start, T end, F&& body, end_return_tag_t) {
-            return for_loop_typed_impl<R, N, default_mode>(start, end, std::forward<F>(body));
-        }
-
-        template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
-        NoResult macro_for_range_typed(Range&& range, F&& body, end_tag_t) {
-            for_each_range_impl<N, default_mode>(std::forward<Range>(range), std::forward<F>(body));
-            return {};
-        }
-
-        template<typename R, std::size_t N, std::ranges::random_access_range Range, typename F>
-        ForResultTyped<R> macro_for_range_typed(Range&& range, F&& body, end_return_tag_t) {
-            return for_loop_range_typed_impl<R, N, default_mode>(std::forward<Range>(range), std::forward<F>(body));
-        }
-
-        template<typename ElementT, typename R, LoopType LT, std::integral T, typename F>
-        NoResult macro_for_typed_auto(T start, T end, F&& body, end_tag_t) {
-            for_each_impl<optimal_N<LT, ElementT>, default_mode>(start, end, std::forward<F>(body));
-            return {};
-        }
-
-        template<typename ElementT, typename R, LoopType LT, std::integral T, typename F>
-        ForResultTyped<R> macro_for_typed_auto(T start, T end, F&& body, end_return_tag_t) {
-            return for_loop_typed_impl<R, optimal_N<LT, ElementT>, default_mode>(start, end, std::forward<F>(body));
-        }
-
-        template<typename ElementT, typename R, LoopType LT, std::ranges::random_access_range Range, typename F>
-        NoResult macro_for_range_typed_auto(Range&& range, F&& body, end_tag_t) {
-            for_each_range_impl<optimal_N<LT, ElementT>, default_mode>(std::forward<Range>(range),
-                                                                        std::forward<F>(body));
-            return {};
-        }
-
-        template<typename ElementT, typename R, LoopType LT, std::ranges::random_access_range Range, typename F>
-        ForResultTyped<R> macro_for_range_typed_auto(Range&& range, F&& body, end_return_tag_t) {
-            return for_loop_range_typed_impl<R, optimal_N<LT, ElementT>, default_mode>(std::forward<Range>(range),
-                                                                                         std::forward<F>(body));
+        template<typename ElementT, LoopType LT, typename R = void, std::ranges::random_access_range Range,
+                  typename F, typename Tag>
+        auto macro_for_range_auto(Range&& range, F&& body, Tag tag) {
+            return macro_for_range<optimal_N<LT, ElementT>, R>(std::forward<Range>(range), std::forward<F>(body),
+                                                               tag);
         }
 
     } // namespace detail

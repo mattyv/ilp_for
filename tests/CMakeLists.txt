@@ -81,8 +81,11 @@ add_custom_target(test-all-modes
 # Compile-fail tests: ILP_END/ILP_END_RETURN mismatch enforcement. Default
 # mode only - in ILP_MODE_SIMPLE the mismatch legitimately compiles, so the
 # harness is meaningless there (see tests/compile_fail/check_compile_fail.sh).
+# Forward the configured compiler so clang-only toolchains don't fall back to
+# the script's generic default.
 add_custom_target(compile-fail-tests
-    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/check_compile_fail.sh
+    COMMAND ${CMAKE_COMMAND} -E env CXX=${CMAKE_CXX_COMPILER}
+            bash ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/check_compile_fail.sh
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail
     COMMENT "Running compile-fail tests (ILP_END/ILP_END_RETURN enforcement)"
 )

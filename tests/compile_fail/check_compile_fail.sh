@@ -13,7 +13,9 @@
 set -u
 cd "$(dirname "$0")"
 
-CXX="${CXX:-g++}"
+# Default to the platform's generic C++ driver (present on Linux and macOS alike);
+# the CMake compile-fail-tests target overrides this with the configured compiler.
+CXX="${CXX:-c++}"
 CXXFLAGS="-std=c++20 -I../.."
 FAILED=0
 

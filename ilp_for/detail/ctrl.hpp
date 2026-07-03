@@ -303,7 +303,17 @@ namespace ilp {
                     outer.return_with(r.storage.extract()); // typed inner -> typed outer
                 }
             } else {
-                return *r; // top level: Proxy converts to the function's return type
+                // Top level: `outer` must be the global ilp_detail_ctrl() sentinel
+                // function. Anything else here means either a new ctrl type was added
+                // without a propagate_return branch, or a user-declared identifier
+                // named ilp_detail_ctrl shadowed the sentinel - both would otherwise
+                // silently swallow the value (the pre-fix bug class), so fail loudly.
+                static_assert(std::is_function_v<C>,
+                              "ILP_END_RETURN reached an unrecognized ctrl type. This is either an "
+                              "ilp_for internal error (a ctrl type missing a propagate_return "
+                              "branch) or a collision with a user-declared 'ilp_detail_ctrl' "
+                              "identifier shadowing the ilp_for sentinel.");
+                return *r; // Proxy converts to the enclosing function's return type
             }
         }
 
