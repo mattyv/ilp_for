@@ -119,6 +119,31 @@ SCEV cannot determine how many iterations will execute - it depends on runtime d
 
 ---
 
+## Could This Be Fixed Upstream?
+
+Probably, in principle. Nothing about "unknown trip count" *requires* a bounds
+check per element — it only requires a bounds check per unrolled *block*, which
+is exactly the code `ILP_FOR` hand-generates. An unroller that speculatively
+executes a full block of N iterations and only re-checks the exit condition
+after the block (rolling back or masking off the speculatively-executed tail
+elements past the true exit point, since the loop body here has no
+externally-visible side effects to undo before the check — `ILP_FOR`'s own
+correctness argument for exactly this pattern) is a known, implementable shape;
+it's a missed optimization in current SCEV-driven unrolling, not a fundamental
+impossibility. This is a phase-ordering / cost-model gap, similar in spirit to
+other unroll-heuristic gaps compilers have closed over time.
+
+If LLVM or GCC ever taught their unrollers to do this, the gap `ILP_FOR`
+exists to fill would shrink or close outright — and that would be a genuinely
+good outcome: this library's job is to make a hand-rolled workaround for a
+compiler limitation unnecessary to write by hand, not to be a permanent
+alternative to the compiler doing its job. Worst case if that ever happens,
+`ILP_FOR` degrades to emitting the same code the compiler would produce on its
+own (see [Where ilp_for loses](../README.md#where-ilp_for-loses) for the class
+of loop where this is already largely true today).
+
+---
+
 ## Verification: Loops Without Break
 
 For loops **without** early exit, all approaches produce identical SIMD code:

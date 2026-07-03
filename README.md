@@ -471,6 +471,12 @@ data into vector registers.
 
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md) for why pragma doesn't help.
 
+The underlying gap this library works around — SCEV falling back to a bounds check
+per element instead of per unrolled block for early-exit loops — is a missed
+optimization, not a fundamental limit of what compilers can do; see
+[Could This Be Fixed Upstream?](docs/PRAGMA_UNROLL.md#could-this-be-fixed-upstream)
+for why, and what it would mean for this library if a compiler ever closed it.
+
 ---
 
 ## Advanced
