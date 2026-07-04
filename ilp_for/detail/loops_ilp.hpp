@@ -248,9 +248,10 @@ namespace ilp {
         // apart from ILP_FOR by callee name - the ilp-loop-analysis clang-tidy
         // check relies on this to skip loops that already use auto N selection.
         //
-        // Macro entries always use default_mode: when ILP_MODE_SIMPLE is defined
-        // these macros aren't compiled at all (macros_simple.hpp takes over), so
-        // no per-call Mode plumbing is needed here.
+        // Macro entries always use default_mode: ILP_MODE_SIMPLE only flips
+        // ilp::default_mode to Mode::Simple (see mode.hpp) - the macro layer is
+        // unconditional and these entry points run in both build modes - so no
+        // per-call Mode plumbing is needed here.
 
         template<std::size_t N, typename R = void, std::integral T, typename F>
         NoResult macro_for(T start, T end, F&& body, end_tag_t) {

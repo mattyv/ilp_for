@@ -161,8 +161,8 @@ Consequences of the unification, beyond closing this item:
   previously default-build-only because SIMPLE mode's separate expansion didn't go
   through the same machinery. `tests/test_all_modes.sh` now runs
   `tests/compile_fail`/`tests/runtime_fail` once per mode instead of default-mode-only.
-- **Breaking changes**, all closing divergence rather than introducing new
-  restriction: (1) bare `return;` in a loop body now means *continue* under
+- **Breaking changes** for `ILP_MODE_SIMPLE`-only code (the default build is
+  unchanged): (1) bare `return;` in a loop body now means *continue* under
   `ILP_MODE_SIMPLE` too (previously: returned from the enclosing function) — anyone
   relying on the old behavior was already writing mode-divergent code; (2)
   `ILP_MODE_SIMPLE` no longer lowers to a literal `for` loop, so single-stepping goes
@@ -170,7 +170,16 @@ Consequences of the unification, beyond closing this item:
   README's [Debugging](../README.md#debugging) section); (3) bodies using raw
   `break;`/`continue;`/`goto` out of the loop no longer compile under
   `ILP_MODE_SIMPLE` (they never compiled in the default build — this removes a
-  mode-only allowance, not a previously-working pattern in the default build).
+  mode-only allowance); (4) `ILP_FOR_RANGE*` under `ILP_MODE_SIMPLE` previously
+  lowered to an unconstrained literal range-for, so it accepted *any* range —
+  the unified macro layer requires `std::ranges::random_access_range` (the
+  unrolled path needs indexed access; see `macro_for_range` in
+  `loops_ilp.hpp`), so SIMPLE-only code iterating a `std::list`, `std::set`, or
+  other non-random-access range with `ILP_FOR_RANGE` stops compiling with a
+  constraint error. This is the one genuinely *new* restriction of the
+  unification (such ranges were getting a plain loop anyway — no ILP — so the
+  fix is an ordinary range-for; the default build always rejected them). The
+  requirement is now documented in the README's range-loop section.
 - `ilp_for/detail/macros_simple.hpp` is deleted; `ilp_for/detail/iota.hpp` (which it
   had included) is kept — it's a public header with its own tests
   (`tests/correctness/test_iota.cpp`).
@@ -478,16 +487,30 @@ intentional large-N deprecation warning would be swallowed too (verified). MSVC
 a GCC/Clang extension); CI is green there today, so this is out of scope rather
 than a gap.
 
+**PCH/header-unit limitation (verified on GCC 13 and Clang 18).** Both compilers
+ignore the pragma — with a warning, fatal under `-Werror` — when `ilp_for.hpp` is
+compiled as the *main* file, i.e. precompiled directly (`-x c++-header
+ilp_for.hpp`) or built as a C++20 header unit. TUs consuming such a PCH then see
+the nested-loop `-Wshadow` warnings again (verified through an actual `.gch`).
+Users who precompile this header should either define `ILP_NO_SYSTEM_HEADER` for
+the PCH build (accepting the `-Wshadow` noise) or precompile a wrapper header
+that `#include`s this one, which restores normal included-file behavior. Noted
+in the pragma's own comment in `ilp_for.hpp`.
+
 **Side effect on clang-tidy (found and fixed on this branch).** Marking the macro
 definitions as a system header also makes `clang-tidy` treat macro-expanded call
 sites in *user* code as non-user/system code by default, which silently drops the
 `ilp-loop-analysis` custom check's diagnostics there too (`tools/clang-tidy/`) —
-not just `-Wshadow`. Fixed by passing `-header-filter='.*' -system-headers` to
-every `clang-tidy` invocation against this codebase (the CI `clang-tidy-check`
-job, `tools/clang-tidy/test/test_clang_tidy.cpp`'s test harness, the VS Code
-tasks, and the README usage examples were all updated). Anyone running
-`clang-tidy` against code that uses `ilp_for.hpp` needs those same two flags for
-their own checks to fire on ILP loop call sites.
+not just `-Wshadow`. Fixed at two depths: a repo-root `.clang-tidy` sets
+`HeaderFilterRegex: '.*'` and `SystemHeaders: true`, which clang-tidy's config
+discovery applies to every invocation on files inside this tree (including ones
+that don't exist yet); and the invocations whose inputs live *outside* the tree
+(the unit-test harness writes its cases to `/tmp`) pass the equivalent
+`-header-filter='.*' -system-headers` flags explicitly, as do the CI job, the
+VS Code tasks, and the README usage examples for self-documentation. Anyone
+running `clang-tidy` against their own code that uses `ilp_for.hpp` needs those
+same two settings (flags or `.clang-tidy` lines) for checks to fire on ILP loop
+call sites — the tool README's Configuration section shows both forms.
 
 ---
 
@@ -595,16 +618,24 @@ was reattempted and partially succeeds.** Implemented per
 impossible (unchanged from the analysis above — the macro genuinely cannot inspect
 what identifiers exist in an enclosing scope), but the bug's *signature* is
 detectable: a loop-result `Proxy` (`ForResult::Proxy`, `ForResultTyped<R>::Proxy`)
-destroyed without ever being converted to a value. Every legitimate flow converts
-its Proxy (top level: into the declared return type; function API: via
-`*std::move(r)`); the mixed-API bug is the one path that doesn't. Under the
-existing `ILP_TYPECHECK_ENABLED` debug gate, `Proxy` now carries a
-`ilp_debug_consumed` flag (set by every conversion operator) and a destructor that
-aborts naming the mixed-API cause and the fix if the flag was never set —
-verified against the repro above (`tests/runtime_fail/swallowed_proxy.cpp`,
-`// RUN_ABORT: swallowed return value`) and zero false positives across the full
-test suite. Zero-cost in release (`NDEBUG`): verified byte-identical assembly
-(same probe/flags as item 3's check).
+holding a value but destroyed without ever being converted. Every legitimate flow
+converts its value-bearing Proxy exactly once (top level: into the declared
+return type; function API: via `*std::move(r)`); the mixed-API bug is the one
+path that doesn't. Under the existing `ILP_TYPECHECK_ENABLED` debug gate, `Proxy`
+now carries an `ilp_debug_has_value` flag (from `has_return` at creation) and an
+`ilp_debug_consumed` flag (set by every conversion operator), and a destructor
+that aborts naming the mixed-API cause and the fix if a value was present but
+never consumed — verified against the repro above
+(`tests/runtime_fail/swallowed_proxy.cpp`, `// RUN_ABORT: swallowed return
+value`) and zero false positives across the full test suite. Two deliberate
+non-aborts, pinned by `tests/runtime_fail/proxy_discard_ok.cpp`: an *empty*
+result's Proxy may be discarded freely (`*std::move(r);` on a no-match result is
+a silent no-op — nothing was swallowed), and *copying* a live Proxy transfers
+the consume obligation to the copy (the source counts as consumed; matters on
+MSVC, whose conversions are lvalue-callable so proxies can be named and copied).
+Zero-cost in release (`NDEBUG`): verified byte-identical assembly (same
+probe/flags as item 3's check; on GCC, identical modulo internal `.LFB`/`.LFE`
+label numbering).
 
 **What this does and doesn't cover.** The check fires deterministically on the
 first outer iteration whose inner search finds a match — any test that exercises

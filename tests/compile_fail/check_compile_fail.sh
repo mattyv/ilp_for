@@ -24,12 +24,16 @@ BASE_CXXFLAGS="-std=c++20 -I../.. ${ILP_EXTRA_CXXFLAGS:-}"
 FAILED=0
 
 for src in *.cpp; do
-    expectation=$(sed -n '1p' "$src")
-    second_line=$(sed -n '2p' "$src")
+    # Strip trailing CR so CRLF-saved test files don't produce baffling
+    # failures (an invisible \r makes "// COMPILE_OK" unrecognizable and
+    # poisons the last EXTRA_FLAGS flag).
+    expectation=$(sed -n '1p' "$src"); expectation="${expectation%$'\r'}"
+    second_line=$(sed -n '2p' "$src"); second_line="${second_line%$'\r'}"
 
     extra_flags=""
     if [[ "$second_line" == "// EXTRA_FLAGS:"* ]]; then
-        extra_flags="${second_line#// EXTRA_FLAGS: }"
+        extra_flags="${second_line#// EXTRA_FLAGS:}"
+        extra_flags="${extra_flags# }" # tolerate both "FLAGS: -x" and "FLAGS:-x"
     fi
 
     obj="$(mktemp /tmp/ilp_compile_fail.XXXXXX.o)"

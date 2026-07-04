@@ -385,6 +385,8 @@ ILP_FOR_RANGE(auto val, strings, 4) {
 
 ...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. You probably didn't need me to tell you this... but for completeness :). For a `std::vector<std::string>`, using `auto` would copy every string!
 
+Range loops require a **random-access range** (`std::vector`, `std::array`, `std::span`, raw arrays...) — the unrolled blocks need indexed access. A `std::list`, `std::set`, or non-random-access view won't compile; those containers can't benefit from ILP anyway, so use an ordinary range-for there.
+
 For index-based loops, just use `auto` since indices are just integers:
 
 ```cpp

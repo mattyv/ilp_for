@@ -44,7 +44,12 @@ Once you've got it built, here's how to run it.
 item 4, to keep `-Wshadow` quiet on nested `ILP_FOR` expansions). That makes
 clang-tidy treat macro-expanded call sites as non-user code by default, so
 pass `-header-filter='.*' -system-headers` or its diagnostics get silently
-dropped.
+dropped. Equivalently, put those two settings in a `.clang-tidy` file
+(`HeaderFilterRegex: '.*'` / `SystemHeaders: true`) so every invocation in
+your tree gets them automatically — this repo's root `.clang-tidy` does
+exactly that, so runs *inside this repo* work without the flags; the explicit
+flags below are what you need in your own project (or add the two lines to
+your own `.clang-tidy`).
 
 ```bash
 # Analyze a file
@@ -177,10 +182,14 @@ You can tweak these options via `.clang-tidy` or command line:
 | `TargetCPU` | `skylake` | CPU profile for N values (`skylake`, `alderlake`, `zen5`, `apple_m1`) |
 | `PreferPortableFix` | `true` | Use `ILP_FOR_AUTO` fix instead of architecture-specific `ILP_FOR` |
 
-Example `.clang-tidy`:
+Example `.clang-tidy` (the `HeaderFilterRegex`/`SystemHeaders` lines are
+required — without them clang-tidy silently drops this check's diagnostics,
+because `ilp_for.hpp` is a `#pragma GCC system_header`; see Command Line above):
 
 ```yaml
 Checks: '-*,ilp-*'
+HeaderFilterRegex: '.*'
+SystemHeaders: true
 CheckOptions:
   - key: ilp-loop-analysis.TargetCPU
     value: apple_m1

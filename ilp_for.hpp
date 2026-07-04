@@ -33,6 +33,13 @@
 // loops_common.hpp's large-N deprecation warning still fires) and BEFORE the
 // macro definitions below. Opt out with ILP_NO_SYSTEM_HEADER - this repo's own
 // test builds do, so the header stays warning-visible during development.
+// PCH/header-unit caveat: GCC and Clang ignore this pragma (with a warning,
+// fatal under -Werror) when this header is compiled as the MAIN file - i.e.
+// when precompiling it directly (g++/clang++ -x c++-header ilp_for.hpp) or
+// building it as a C++20 header unit - and the -Wshadow exemption is then
+// lost for TUs using that PCH. If you precompile this header, define
+// ILP_NO_SYSTEM_HEADER for the PCH build (accepting the -Wshadow noise on
+// nested loops) or precompile a wrapper header that #includes this one.
 #if !defined(ILP_NO_SYSTEM_HEADER) && (defined(__GNUC__) || defined(__clang__))
 #pragma GCC system_header
 #endif
@@ -70,9 +77,9 @@ inline void ilp_detail_ctrl() {}
 // to be instantiable against either ctrl type depending on which macro_for* overload is selected.
 //
 // Nested ILP_RETURN propagation:
-// ILP_RETURN returns from the enclosing C++ function at any nesting depth (matching
-// ILP_MODE_SIMPLE, where nested loops are plain `for` loops and the inner `return` naturally
-// escapes everything). This works because ILP_END_RETURN's return statement -
+// ILP_RETURN returns from the enclosing C++ function at any nesting depth, in both build modes
+// (the macro layer is unconditional - ILP_MODE_SIMPLE only flips ilp::default_mode; see
+// mode.hpp). This works because ILP_END_RETURN's return statement -
 // `return ::ilp::detail::propagate_return(ilp_detail_ret, ilp_detail_ctrl);` - is textually
 // embedded at whatever scope contains the macro invocation, and `ilp_detail_ctrl` there is looked
 // up unqualified. At plain function scope, no enclosing ILP_FOR body lambda has declared that

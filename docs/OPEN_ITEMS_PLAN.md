@@ -6,8 +6,17 @@ compile_fail/runtime_fail harnesses, sanitizer subset, NDEBUG asm identity). See
 DESIGN_NOTES.md items 1/4/5 for the final resolution write-ups, including a
 clang-tidy invocation caveat discovered during item 4's verification (not
 anticipated by this plan — `#pragma GCC system_header` also affects clang-tidy's
-own diagnostic suppression, fixed by adding `-header-filter='.*' -system-headers`
-everywhere `tools/clang-tidy/` is invoked).
+own diagnostic suppression, fixed by a repo-root `.clang-tidy` setting
+`HeaderFilterRegex`/`SystemHeaders` plus explicit `-header-filter='.*'
+-system-headers` flags on invocations whose inputs live outside the tree).
+A post-implementation review pass added further hardening: the abort is now
+gated on a value actually being present (empty-result Proxies discard freely),
+Proxy copies transfer the consume obligation (the MSVC caveat this plan's item 5
+notes anticipated), the range-category breaking change of item 1 is documented
+(DESIGN_NOTES item 1, README), the PCH/main-file limitation of item 4 is
+documented, and the compile-fail/runtime-fail harnesses now run in CI
+(`harness-tests` job) with additional `-Wshadow` probes covering macro-argument
+and body-declaration shadowing.
 
 ---
 

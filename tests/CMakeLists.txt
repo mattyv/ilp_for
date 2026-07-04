@@ -10,12 +10,17 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /W4 /EHsc")
     add_compile_options(/Zc:__cplusplus /permissive-)
 else()
-    # ILP_NO_SYSTEM_HEADER: this repo's own test build opts out of the library's
-    # #pragma GCC system_header (DESIGN_NOTES.md item 4), so the header stays
-    # warning-visible during development. tests/compile_fail's wshadow_nested_ok.cpp
-    # compiles without this define to demonstrate the suppression itself works.
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -DILP_NO_SYSTEM_HEADER")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
 endif()
+
+# ILP_NO_SYSTEM_HEADER: this repo's own test build opts out of the library's
+# #pragma GCC system_header (DESIGN_NOTES.md item 4), so the header stays
+# warning-visible during development. tests/compile_fail's wshadow_nested_ok.cpp
+# compiles without this define to demonstrate the suppression itself works.
+# Set config-independently (not spliced into CMAKE_CXX_FLAGS_RELEASE) so it
+# survives a change of CMAKE_BUILD_TYPE; harmless on MSVC, where the pragma is
+# compiled out anyway.
+add_compile_definitions(ILP_NO_SYSTEM_HEADER)
 
 # Coverage option
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
@@ -74,7 +79,8 @@ add_custom_target(test
     COMMENT "Running all tests"
 )
 
-# Test all ILP modes (default, SIMPLE, PRAGMA)
+# Test all ILP modes (default, SIMPLE), including the compile-fail and
+# runtime-fail harnesses once per mode
 add_custom_target(test-all-modes
     COMMAND ${CMAKE_COMMAND} -E echo "Testing all ILP modes..."
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_all_modes.sh
@@ -82,11 +88,13 @@ add_custom_target(test-all-modes
     COMMENT "Running tests for all ILP modes"
 )
 
-# Compile-fail tests: ILP_END/ILP_END_RETURN mismatch enforcement. Default
-# mode only - in ILP_MODE_SIMPLE the mismatch legitimately compiles, so the
-# harness is meaningless there (see tests/compile_fail/check_compile_fail.sh).
-# Forward the configured compiler so clang-only toolchains don't fall back to
-# the script's generic default.
+# Compile-fail tests: ILP_END/ILP_END_RETURN mismatch enforcement and -Wshadow
+# suppression probes. The macro layer is unconditional, so every case holds in
+# both build modes (see tests/compile_fail/check_compile_fail.sh); this target
+# runs the default-mode leg - set ILP_EXTRA_CXXFLAGS=-DILP_MODE_SIMPLE in the
+# environment (or use test-all-modes) for the SIMPLE leg. Forward the
+# configured compiler so clang-only toolchains don't fall back to the script's
+# generic default.
 add_custom_target(compile-fail-tests
     COMMAND ${CMAKE_COMMAND} -E env CXX=${CMAKE_CXX_COMPILER}
             bash ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/check_compile_fail.sh
@@ -94,9 +102,11 @@ add_custom_target(compile-fail-tests
     COMMENT "Running compile-fail tests (ILP_END/ILP_END_RETURN enforcement)"
 )
 
-# Runtime-fail tests: debug-mode SBO type check (DESIGN_NOTES.md item 3).
-# Forward the configured compiler so clang-only toolchains don't fall back to
-# the script's generic default.
+# Runtime-fail tests: debug-mode SBO type check (DESIGN_NOTES.md item 3) and
+# unconsumed-Proxy detection (item 5). Meaningful in both build modes, same as
+# compile-fail-tests above (ILP_EXTRA_CXXFLAGS selects the mode). Forward the
+# configured compiler so clang-only toolchains don't fall back to the script's
+# generic default.
 add_custom_target(runtime-fail-tests
     COMMAND ${CMAKE_COMMAND} -E env CXX=${CMAKE_CXX_COMPILER}
             bash ${CMAKE_CURRENT_SOURCE_DIR}/runtime_fail/check_runtime_fail.sh

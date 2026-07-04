@@ -327,31 +327,17 @@ void test_fix(const double* a, const double* b, std::size_t n) {
 
 TEST_CASE("Auto-fix application", "[clang-tidy][autofix]") {
     std::string tmpFile = "/tmp/ilp_clang_tidy_fix_test.cpp";
-    std::string ilpForDir = fs::current_path().parent_path().parent_path().string();
 
     // Write test input
     writeFile(tmpFile, TEST_FIX_INPUT);
 
-    // Run clang-tidy with --fix
-    static std::string clangTidyPath = getClangTidyPath();
-    std::string cmd = clangTidyPath + " -load ";
-    cmd += fs::current_path().string() + "/build/ILPTidyModule.so";
-    cmd += " -checks='-*,ilp-*' -header-filter='.*' -system-headers --fix ";
-    cmd += tmpFile;
-    cmd += " -- -std=c++20 -I" + ilpForDir + " 2>&1";
-
-    FILE* pipe = popen(cmd.c_str(), "r");
-    REQUIRE(pipe != nullptr);
-
-    std::string output;
-    char buffer[256];
-    while (fgets(buffer, sizeof(buffer), pipe)) {
-        output += buffer;
-    }
-    pclose(pipe);
+    // Run clang-tidy with --fix via the shared helper, so this test always
+    // uses the same invocation (module, checks, header-filter flags) as every
+    // other test in this file.
+    auto result = runClangTidy(tmpFile, /*fix=*/true);
 
     // Check fix was applied
-    REQUIRE(output.find("applied") != std::string::npos);
+    REQUIRE(result.output.find("applied") != std::string::npos);
 
     // Verify the file was modified correctly
     std::string fixedContent = readFile(tmpFile);

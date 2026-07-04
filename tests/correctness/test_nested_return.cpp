@@ -5,22 +5,22 @@
 // Coverage for nested ILP_RETURN propagation (see docs/NESTED_RETURN_PLAN.md).
 // ILP_RETURN returns from the enclosing C++ function at any nesting depth,
 // provided every enclosing ILP_FOR on the path out is closed with
-// ILP_END_RETURN - matching ILP_MODE_SIMPLE semantics, where nested loops are
-// plain `for` loops and the inner `return` naturally escapes everything. The
-// negative case (an enclosing loop closed with plain ILP_END, which cannot
-// carry a value out) lives in tests/compile_fail/nested_return_in_end_loop.cpp.
+// ILP_END_RETURN. The macro layer is unconditional (ILP_MODE_SIMPLE only
+// flips ilp::default_mode - see mode.hpp), so this mechanism and every case
+// below hold identically in both build modes. The negative case (an enclosing
+// loop closed with plain ILP_END, which cannot carry a value out) lives in
+// tests/compile_fail/nested_return_in_end_loop.cpp.
 //
-// Mode-parity caveat: default-mode propagation of an *untyped* inner
+// Type caveat (applies in BOTH modes): propagation of an *untyped* inner
 // ILP_RETURN into an outer typed (ILP_FOR_T) or SBO-typed context recovers
 // the value via the same type-erased SBO pun documented in DESIGN_NOTES.md
 // item 3 - the bytes ILP_RETURN(x) stored are reinterpreted as the outer
-// type, not value-converted. ILP_MODE_SIMPLE's plain nested `return`, by
-// contrast, does a real implicit conversion. The two modes therefore only
-// produce identical results when the propagated expression's type already
-// matches the type it's being read back as at every hop (which is true of
-// every case below - see the per-test-case notes for the exact type at each
-// level). A mismatched-width example (untyped ILP_RETURN(int) propagating
-// into an ILP_FOR_T(long) outer) is analyzed, not asserted, in item 3.
+// type, not value-converted. Results are therefore only well-defined when the
+// propagated expression's type already matches the type it's being read back
+// as at every hop (true of every case below - see the per-test-case notes for
+// the exact type at each level). A mismatched-width example (untyped
+// ILP_RETURN(int) propagating into an ILP_FOR_T(long) outer) is analyzed, not
+// asserted, in item 3; debug builds abort on it, naming both types.
 
 TEST_CASE("2-level nesting: inner ILP_RETURN escapes the outer loop", "[nested_return]") {
     auto find_first_match = [](const std::vector<std::vector<int>>& rows, int target) -> int {
