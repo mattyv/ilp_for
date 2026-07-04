@@ -142,6 +142,36 @@ alternative to the compiler doing its job. Worst case if that ever happens,
 own (see [Where ilp_for loses](../README.md#where-ilp_for-loses) for the class
 of loop where this is already largely true today).
 
+### State of play (as of late 2025)
+
+The gap is still open on general targets, though there's movement:
+
+- **The infrastructure exists but is switched off.** LLVM has carried
+  runtime-unrolling support for multiple-exit loops (`-unroll-runtime-multi-exit`,
+  with prologue/epilogue remainder handling) for years, but it's a hidden option
+  defaulting to *off* — the cost model was never changed to enable it in normal
+  compilation ([D107381](https://reviews.llvm.org/D107381)). So on a stock
+  x86-64 or generic AArch64 target, an early-exit loop still gets the
+  per-element bounds checks shown above.
+- **Vendor-specific unrolling has started to appear.** In Dec 2024, LLVM gained
+  runtime unrolling of loops with early-*continues* on Apple Silicon (A14–A16,
+  M4) — [llvm/llvm-project#118499](https://github.com/llvm/llvm-project/pull/118499)
+  — plus a companion pass for small load/store loops
+  ([#118317](https://github.com/llvm/llvm-project/pull/118317)). Note the
+  distinction: an early-`continue` doesn't break the trip count (the loop still
+  runs to `n`), so this targets branch-prediction and memory-level parallelism,
+  *not* the per-block-vs-per-element bounds-check problem that a `break`/`return`
+  creates. It's a sign the door is open, not a fix for this specific case — and
+  it's gated to one vendor's out-of-order cores.
+- **The specific limitation is still reported as unresolved.** As of Oct 2025,
+  LLVM still declines to runtime-unroll loops whose exit trip count SCEV can't
+  prove non-wrapping
+  ([llvm-project#165354](http://www.mail-archive.com/llvm-bugs@lists.llvm.org/msg93415.html)) —
+  the direct descendant of the SCEV limitation described above.
+
+None of this changes the recommendation today; it's here so the "missed
+optimization, not a fundamental limit" claim above stays honest and checkable.
+
 ---
 
 ## Verification: Loops Without Break
