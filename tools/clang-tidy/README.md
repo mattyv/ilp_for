@@ -1,6 +1,6 @@
 # ilp-loop-analysis clang-tidy Check
 
-A best-effort static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
+A best-effort static analysis that recognizes the computation pattern inside your ILP loops and suggests the matching `LoopType` (or architecture-specific `N`) — including rewriting the loop for you with `--fix`.
 
 > **Note:** I'd really like this tool to be community-driven. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
 
@@ -117,7 +117,7 @@ Then run via `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Linux/Windows):
 
 Warnings will appear in the Problems panel.
 
-Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent shell glob expansion. Yeah, I know its ugly.
+Note: the `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to stop the shell glob-expanding them. Yes, it's ugly; blame the shell.
 
 ## Detected Patterns
 

@@ -1,12 +1,12 @@
 # Why Not Just `#pragma unroll`?
 
-Compilers *can* unroll loops with `break`/`continue`/`return` using `#pragma unroll`. The difference is not in whether it unrolls, but in **how many instructions it generates per iteration**.
+Compilers *will* unroll a loop with `break`/`continue`/`return` if you ask with `#pragma unroll`. The question is not whether it unrolls — it's **how many instructions each element costs once it has**.
 
 ---
 
 ## The Real Issue: Per-Iteration Bounds Checks
 
-When you add `#pragma unroll` to a loop with early exit, the compiler must preserve exact break semantics. Since it cannot determine the trip count (SCEV fails for loops with `break`), it inserts bounds checks after **each unrolled element**.
+Adding `#pragma unroll` to an early-exit loop obliges the compiler to preserve exact break semantics. It cannot determine the trip count (SCEV has no answer for a loop that might `break`), so it protects itself with a bounds check after **every unrolled element** — the unrolled body is bigger, but each element still pays the full loop overhead.
 
 ### Assembly Evidence (x86-64 Clang)
 
@@ -105,7 +105,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-SCEV cannot determine how many iterations will execute - it depends on runtime data. The compiler must conservatively assume the loop could exit at any element.
+SCEV cannot say how many iterations will run — the answer lives in the data. The compiler must assume the loop could exit at any element and plan accordingly.
 
 **Without break:** SCEV knows exactly `n` iterations will run. The compiler can:
 - Unroll cleanly into a main loop + tail loop
@@ -155,7 +155,7 @@ size_t count_pragma(const uint32_t* data, size_t n, uint32_t threshold);
 size_t count_ilp(const uint32_t* data, size_t n, uint32_t threshold);
 ```
 
-**Conclusion:** ILP_FOR only helps for loops with early exit. For simple loops without `break`/`return`, just use a regular loop - the compiler optimizes it perfectly.
+**Conclusion:** `ILP_FOR` only earns its keep on loops with early exit. Without `break`/`return`, write the plain loop — the compiler already produces optimal code.
 
 ---
 

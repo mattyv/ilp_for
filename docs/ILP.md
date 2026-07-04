@@ -1,6 +1,6 @@
 # Instruction-Level Parallelism (ILP)
 
-Modern CPUs execute multiple instructions simultaneously through **superscalar execution**. Understanding this is key to writing high-performance code.
+A modern CPU core is **superscalar**: it can issue and execute several instructions in the same cycle — but only when those instructions don't depend on each other's results. High-performance loop code is largely the art of giving the core enough independent work to fill those slots.
 
 ## Skylake Microarchitecture
 
@@ -35,7 +35,7 @@ for (int i = 0; i < n; i++) {
 }
 ```
 
-The CPU can only issue one add per ~3-4 cycles because each iteration depends on the previous result. This is called a **loop-carried dependency**.
+Every add needs the previous add's result before it can start, so the loop runs at the *latency* of the add chain — one result per add-latency — while the core sits on execution units that could be running several adds per cycle. This is a **loop-carried dependency**, and it caps throughput no matter how wide the CPU is.
 
 ### The Solution: Multiple Accumulators
 
@@ -51,7 +51,7 @@ for (int i = 0; i < n; i += 4) {
 int sum = sum0 + sum1 + sum2 + sum3;
 ```
 
-Now the CPU can execute all 4 adds in parallel, achieving ~4x throughput.
+The four chains are independent, so the core can keep all four adds in flight at once — roughly 4x the throughput from the same execution units.
 
 ## Pipeline Latency vs Throughput
 
@@ -62,10 +62,10 @@ Now the CPU can execute all 4 adds in parallel, achieving ~4x throughput.
 | FP MUL | 4 | 2 |
 | FP FMA | 4 | 2 |
 
-**Latency** = cycles until result is ready
-**Throughput** = operations per cycle when independent
+**Latency** = cycles from starting an operation until its result is usable
+**Throughput** = how many independent operations can start per cycle
 
-With 4-cycle latency and 2/cycle throughput, you need **8 independent operations** in flight to saturate the FP units.
+The two multiply into the unroll factor: with 4-cycle latency and 2-per-cycle throughput, the FP units only saturate with **8 independent operations** in flight — which is exactly where the library's `optimal_N` values come from.
 
 ## How ILP_FOR Works
 
@@ -87,9 +87,9 @@ for (i = 0; i + 4 <= n; i += 4) {
 // + remainder loop
 ```
 
-For **copy** and **transform** patterns, each iteration is independent—the compiler can vectorize or execute them in parallel.
+For **copy** and **transform** patterns every iteration is independent, so the compiler is free to vectorize the block or interleave its operations.
 
-**Note:** ILP_FOR is optimized for loops with early exit (`break`, `return`). For pure accumulation patterns without early exit, compilers can often auto-vectorize a simple loop just as effectively.
+**Note:** `ILP_FOR` earns its keep on loops with early exit (`break`, `return`), where the auto-vectorizer can't help. For pure accumulation with no early exit, a plain loop usually auto-vectorizes just as well — see the README's [When to Use ILP](../README.md#when-to-use-ilp).
 
 ## Further Reading
 

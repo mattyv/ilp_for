@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` typically generates, enabling better instruction-level parallelism.
+Compile-time loop unrolling for early-exit loops (`break`, `continue`, `return`). Unrolls without the per-iteration bounds checks `#pragma unroll` generates, so the CPU can actually exploit the instruction-level parallelism the unroll was supposed to buy.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -23,7 +23,7 @@ Full benchmarks in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## How It Works
 
-Let's say you want to write the below code ..
+Start with a loop you'd write on any ordinary day:
 
 ```cpp
 int sum = 0;
@@ -33,8 +33,8 @@ for (size_t i = 0; i < n; ++i) {
     sum += data[i];
 }
 ```
-... then you remember you can get a boost in performance from ILP so you rewrite it.
-Compilers *can* unroll this with `#pragma unroll` and will do a better job if dependency chains are broken down like so...
+
+The early exit rules out vectorization, but there's still instruction-level parallelism on the table: split the accumulator into four independent chains, ask the compiler to unroll, and four additions can be in flight at once...
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
@@ -46,7 +46,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
-But they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break` so you end up with something like:
+...except the compiler doesn't hold up its end. [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot compute a trip count for a loop that might `break`, so the unroller plays it safe and re-checks the bounds after **every element**. What you get is:
 
 ```
 loop:
@@ -75,7 +75,7 @@ done:
   sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-So what can you do? Create a main loop + remainder pattern that checks bounds only once per block? The compiler will give you nice machine code without the extra bounds checking, but this is messy and error prone and looks ghastly:
+The way out is the classic main-loop-plus-remainder pattern: check the bounds once per block of four, then mop up the stragglers. The compiler rewards you with clean machine code. Your code reviewers will be less impressed:
 
 ```cpp
 constexpr size_t N = 4;
@@ -99,9 +99,9 @@ for (; i < n; ++i) {              // Remainder
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.5x speedup).
+See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for the assembly evidence (~1.5x speedup).
 
-But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
+`ILP_FOR` generates that same block-plus-remainder structure from something you can actually read. A bit of macro CAPITALISATION aside, it's the loop you started with:
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
@@ -113,7 +113,7 @@ ILP_FOR(auto i, size_t{0}, n, N) {
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
+The `ILP_FOR_AUTO` variants go a step further and choose the unroll factor for you, from per-architecture instruction-timing tables — the same source stays properly tuned across targets instead of hard-coding one machine's sweet spot ([details below](#cpu-architecture-portability-and-_auto-functions)).
 
 Everything the macros do is sugar over a plain function API — if your codebase bans macros, use that directly ([Macro-free API](#macro-free-api)).
 
@@ -158,7 +158,7 @@ ILP_FOR_AUTO(auto i, 0, n, Search, int) {
 } ILP_END;
 ```
 
-Use the clang-tidy tool to check its suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
+Not sure which LoopType fits? The bundled clang-tidy check will suggest one — and flag the one you guessed wrong (see [tools/clang-tidy/](tools/clang-tidy/README.md)):
 
 ```cpp
 ILP_FOR_AUTO(auto i, 0, n, Add, int) { //incorrect LoopType
@@ -202,7 +202,7 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Large Return Types
 
-To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in a small buffer (SBO). The buffer size matches `sizeof(std::intmax_t)` on your target architecture (typically 8 bytes on 64-bit platforms). This works for types that are:
+So you never have to spell the return type at the loop site, `ILP_FOR` and `ILP_FOR_AUTO` carry returned values in a small inline buffer (SBO), sized to `sizeof(std::intmax_t)` on your target — typically 8 bytes on 64-bit platforms. That works for any type that is:
 - **≤ SBO size** in size (typically 8 bytes)
 - **≤ SBO size** alignment
 - **Trivially destructible** (no custom destructor)
@@ -226,7 +226,7 @@ pointer to the SBO when enabled; don't mix TUs built with and without it. When i
 doubt, just make sure your `ILP_RETURN` argument's type matches what you're recovering
 it as, or use `ILP_FOR_T` to make the type explicit and skip this whole class of bug.
 
-For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types.
+Types that don't fit take `ILP_FOR_T`, which names the return type explicitly. In practice most hot loops traffic in integers, indices, and pointers, so the SBO covers the common case and `ILP_FOR_T` is the exception.
 
 To override the SBO size, define `ILP_SBO_SIZE` before including the header:
 ```bash
@@ -369,7 +369,7 @@ difference in debugger experience here).
 
 ### Use `auto&&` for Range Loops
 
-When using `ILP_FOR_RANGE`, make sure you use `auto&&` to avoid copying each element (unless that's your thing):
+With `ILP_FOR_RANGE`, declare the loop variable `auto&&` so elements bind in place instead of being copied (unless copying is the point):
 
 ```cpp
 // Good - uses forwarding reference (zero copies)
@@ -383,11 +383,11 @@ ILP_FOR_RANGE(auto val, strings, 4) {
 } ILP_END;
 ```
 
-...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. You probably didn't need me to tell you this... but for completeness :). For a `std::vector<std::string>`, using `auto` would copy every string!
+None of this is news if you've written a range-for before — but it bites harder in a loop you chose specifically for speed: over a `std::vector<std::string>`, `auto` copies every single string.
 
 Range loops require a **random-access range** (`std::vector`, `std::array`, `std::span`, raw arrays...) — the unrolled blocks need indexed access. A `std::list`, `std::set`, or non-random-access view won't compile; those containers can't benefit from ILP anyway, so use an ordinary range-for there.
 
-For index-based loops, just use `auto` since indices are just integers:
+Index-based loops are immune — the loop variable is an integer, so plain `auto` is right:
 
 ```cpp
 ILP_FOR(auto i, 0, n, 4) {
@@ -456,9 +456,9 @@ Two things this does *not* cover:
 
 ## When to Use ILP
 
-**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.5x speedup).
+**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). `#pragma unroll` will unroll these, but the per-iteration bounds checks it inserts eat the benefit. `ILP_FOR` skips that overhead (~1.5x speedup).
 
-**Skip ILP for simple loops without early exit.** Compilers *can (almost all of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
+**Skip ILP for straight-line loops with no early exit.** The auto-vectorizer handles those well on its own, and the simple, pragma, and ILP versions almost always compile to the same assembly. Using `ILP_FOR` there is harmless — in most of my tests the code was identical — just unnecessary.
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
@@ -500,8 +500,7 @@ for why, and what it would mean for this library if a compiler ever closed it.
 
 ### CPU Architecture, Portability and _AUTO functions
 
-You can target specific CPU architectures for optimal unroll factors. You really should do this if you plan to be portable or highly optimised.
-If you don't specify anything the _AUTO function will expand to the *default* unroll values.
+The `_AUTO` macros pick their unroll factors from a CPU profile. With no profile defined they fall back to conservative defaults — fine, but if you're chasing the last few percent, or building one codebase for several machines, tell them which silicon they're on:
 
 ```bash
 clang++ -std=c++20 -DILP_CPU_SKYLAKE      # Intel Skylake
@@ -510,8 +509,8 @@ clang++ -std=c++20 -DILP_CPU_APPLE_M1     # Apple M1
 clang++ -std=c++20 -DILP_CPU_ZEN5         # AMD Zen 4/5
 ```
 
-I source the locations where I have gathered data on each architecture so I believe this to be accurate.
-If you do add a new architecture please let me know and I'll get it added.
+Each profile cites the sources its instruction-timing data came from, so the numbers are checkable rather than folklore.
+If you build a profile for a new architecture, send it my way and I'll get it added.
 
 ### Debugging
 
@@ -568,22 +567,22 @@ When using `_AUTO` variants, you **must** specify a 'LoopType' to auto-select th
 
 ### Selecting LoopType Guide
 
-**The basic principle:** Pick the LoopType for your loop's **bottleneck operation** - AKA the slowest or most congested one.
+**The basic principle:** pick the LoopType for your loop's **bottleneck operation** — the slowest or most congested one.
 
-**Why?** The optimal unroll factor N follows `N ≈ Latency × Throughput` to keep enough operations in flight to saturate the execution unit and hide latency.
+**Why?** The optimal unroll factor follows `N ≈ Latency × Throughput`: enough independent operations in flight to hide the bottleneck's latency and keep its execution unit saturated.
 
-**Have mixed operations??? (e.g., adds AND multiplies):**
+**Mixed operations (adds and multiplies in the same body):**
 
-1. **Identify the critical path** - operations with dependencies form a chain; independent operations can overlap
+1. **Identify the critical path** — dependent operations form a chain; independent ones overlap for free
 2. **Pick the slowest operation on that path:**
    - `acc += data[i] * weight[i]` → This is FMA, use `DotProduct`
    - `acc += data[i]; acc *= factor;` → Multiply is slower, use `Multiply`
    - Mostly adds with occasional multiply → `Sum`
    - Mostly multiplies with occasional add → `Multiply`
 
-3. **Early exit dominates everything:**
-   - If your loop has `ILP_BREAK` or `ILP_RETURN`, branch prediction is usually the bottleneck
-   - Use `Search` regardless of what computation happens inside
+3. **Early exit trumps everything:**
+   - With `ILP_BREAK` or `ILP_RETURN` in the body, branch prediction is usually the real bottleneck
+   - Use `Search`, whatever the arithmetic inside
 
 **Quick decision tree:**
 ```
@@ -598,7 +597,7 @@ Unsure?                            → Search (safe default)
 
 ### clang-tidy LoopType analysis
 
-If all else fails, the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. It's pretty beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+If all else fails, the `ilp-loop-analysis` clang-tidy check recognizes common loop patterns and suggests the right LoopType for you — with `--fix` it will even rewrite the loop. Still beta-quality, but worth a run. See [tools/clang-tidy/](tools/clang-tidy/README.md).
 
 ### Reading CPU Profiles
 
@@ -657,7 +656,7 @@ Default Header values by type:
 
 ## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusions which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
+An experiment: what if a library shipped a formal, machine-readable knowledge base that LLMs could query, instead of inferring the rules from documentation and source? Prose docs have gaps and ambiguities, and models fill them with plausible-sounding falsehoods. A graph of precise contracts — each node grounded, link by link, all the way down to the C/C++ standard — leaves much less room for that.
 
 ### How it works
 
@@ -668,7 +667,7 @@ The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contai
 - Template SFINAE conditions and concept requirements
 - Violation behavior (compile error, runtime error, undefined behavior)
 
-When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers or learns the details correctly.
+When you ask Claude Code or another AI tool about `ilp_for`, it can consult these specifications to generate correct code and explain *why* a given pattern fails — a precise statement of the library's contracts, rather than a hope that the model remembers them.
 
 The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
 - **Automated extraction** - parses your C++20 library source to extract preconditions, postconditions, invariants

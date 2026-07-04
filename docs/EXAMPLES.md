@@ -1,11 +1,11 @@
 # Assembly Examples
 
-View side-by-side comparisons on Compiler Explorer (Godbolt).
+Don't take the README's word for it — these Compiler Explorer (Godbolt) links show the generated assembly side by side.
 
-Each example shows three versions:
-- **ILP**: Multi-accumulator pattern with parallel operations
-- **Hand-rolled**: Manual 4x unroll for comparison
-- **Simple**: Baseline single-iteration loop
+Each example compiles three versions of the same loop:
+- **ILP**: multi-accumulator pattern with parallel operations
+- **Hand-rolled**: manual 4x unroll, for comparison
+- **Simple**: baseline one-element-at-a-time loop
 
 ---
 
@@ -52,13 +52,12 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 
 ## How to Use
 
-1. Click a Godbolt link for your target architecture
-2. The code will load with optimizations enabled
-3. Compare the generated assembly between implementations
-4. Look for:
-   - Parallel comparisons in ILP version vs sequential in hand-rolled
+1. Pick the Godbolt link for your target architecture — the code loads with optimizations already enabled
+2. Compare the assembly across the three implementations
+3. Worth looking for:
+   - Comparisons issued back-to-back in the ILP version vs interleaved bounds checks in the others
+   - Where the bounds check lands: once per block (ILP) vs once per element (pragma)
    - Register usage and instruction scheduling differences
-   - Branch prediction patterns
 
 ## Compiler Settings
 
