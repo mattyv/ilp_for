@@ -8,22 +8,33 @@ section). Verified on GCC 13.3 and Clang 18.1, both build modes, plus a manual
 ASan+UBSan subset run — all green, no new warnings. The `-Wshadow` spot check
 confirmed the sentinel itself is silent in non-nested code; the nested-loop
 shadow warnings it does trigger are the pre-existing, already-tracked
-DESIGN_NOTES item 4 category (unchanged by this work).
+DESIGN_NOTES item 4 category (unchanged by this work, and since resolved — see
+that item).
 
-Post-implementation review caveat (see DESIGN_NOTES.md item 3's cross-reference
-and the README's "Mode parity caveat"): the "identical results under
-`ILP_MODE_SIMPLE`" claims below hold for the test battery as written, where the
-propagated type is uniform at every nesting level. They do not hold in general —
-propagation reuses the type-erased SBO recovery from item 3, so an *untyped*
-`ILP_RETURN` propagating into a differently-typed outer loop reinterprets bytes
-in default mode where `ILP_MODE_SIMPLE`'s plain nested `return` would convert.
-Not a regression from this plan (the pun is inherited, not introduced), but the
-mode-parity wording below should be read with that qualification. Separately,
-`docs/DESIGN_NOTES.md` item 5 documents a distinct, still-unfixed gap in this
-plan's `ilp_detail_ctrl` sentinel mechanism itself (a macro loop nested inside a
-*function-API* lambda, rather than another macro loop, resolves to the sentinel
-and can hit undefined behavior) - found while writing this plan's test coverage,
-not caused by any later change.
+**Historical note (mode-parity caveat superseded):** the paragraph below and the
+README's former "Mode parity caveat" described a divergence between default-mode
+byte reinterpretation and `ILP_MODE_SIMPLE`'s (then-separate) literal nested
+`return`, which performed a real implicit conversion. That divergence no longer
+exists — [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) deleted `ILP_MODE_SIMPLE`'s
+separate macro expansion, so both modes now use the identical propagation
+mechanism (and the identical type-erased SBO reinterpretation described below).
+The underlying type-pun caveat itself is unchanged and still applies uniformly in
+both modes; see the README's "Nested Loops" section (now titled "Type caveat")
+and DESIGN_NOTES.md item 3.
+
+Post-implementation review caveat (see DESIGN_NOTES.md item 3's cross-reference):
+the "identical results under `ILP_MODE_SIMPLE`" claims below hold for the test
+battery as written, where the propagated type is uniform at every nesting level.
+They do not hold in general — propagation reuses the type-erased SBO recovery
+from item 3, so an *untyped* `ILP_RETURN` propagating into a differently-typed
+outer loop reinterprets bytes rather than converting (in *either* mode now — see
+the historical note above). Not a regression from this plan (the pun is
+inherited, not introduced). Separately, `docs/DESIGN_NOTES.md` item 5 documents a
+distinct gap in this plan's `ilp_detail_ctrl` sentinel mechanism itself (a macro
+loop nested inside a *function-API* lambda, rather than another macro loop,
+resolves to the sentinel and can hit undefined behavior) - found while writing
+this plan's test coverage, not caused by any later change, and since given a
+debug-mode detection net (not a full fix) — see that item.
 
 Mechanism prototype-validated against the in-repo headers on GCC 13.3 and
 Clang 18.1: 2-level and 3-level nesting, typed×untyped combinations, and

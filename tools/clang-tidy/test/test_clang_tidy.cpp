@@ -58,6 +58,10 @@ ClangTidyResult runClangTidy(const std::string& inputFile, bool fix = false) {
     std::string cmd = clangTidyPath + " -load ";
     cmd += fs::current_path().string() + "/build/ILPTidyModule.so";
     cmd += " -checks='-*,ilp-*'";
+    // ilp_for.hpp carries #pragma GCC system_header (DESIGN_NOTES.md item 4);
+    // without these flags clang-tidy treats macro-spelled call sites as
+    // non-user/system code and drops ilp-loop-analysis's own diagnostics there.
+    cmd += " -header-filter='.*' -system-headers";
     if (fix) {
         cmd += " --fix";
     }
@@ -332,7 +336,7 @@ TEST_CASE("Auto-fix application", "[clang-tidy][autofix]") {
     static std::string clangTidyPath = getClangTidyPath();
     std::string cmd = clangTidyPath + " -load ";
     cmd += fs::current_path().string() + "/build/ILPTidyModule.so";
-    cmd += " -checks='-*,ilp-*' --fix ";
+    cmd += " -checks='-*,ilp-*' -header-filter='.*' -system-headers --fix ";
     cmd += tmpFile;
     cmd += " -- -std=c++20 -I" + ilpForDir + " 2>&1";
 

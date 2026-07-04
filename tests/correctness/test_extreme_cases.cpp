@@ -7,7 +7,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // EXTREME TESTS: Push boundaries even further
@@ -249,4 +248,3 @@ TEST_CASE("Range = 2^n for various n", "[extreme][pow2]") {
     REQUIRE(s5 == sum(32));
 }
 
-#endif // !ILP_MODE_SIMPLE

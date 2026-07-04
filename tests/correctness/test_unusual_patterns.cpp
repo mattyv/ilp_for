@@ -6,7 +6,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // UNUSUAL PATTERNS - Testing weird/rare use cases
@@ -221,4 +220,3 @@ TEST_CASE("Count comparisons", "[unusual][compare]") {
     REQUIRE(greater_than_5 == 3); // 8, 9, 7
 }
 
-#endif // !ILP_MODE_SIMPLE

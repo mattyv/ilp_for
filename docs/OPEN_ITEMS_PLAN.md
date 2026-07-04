@@ -1,7 +1,13 @@
 # Closing DESIGN_NOTES Items 1, 4, 5 — Implementation Plan
 
-**Status:** Proposal, ready to implement. All three mechanisms prototype-validated
-against the current in-repo headers on GCC 13.3 and Clang 18.1 (details per item).
+**Status:** Implemented. All three mechanisms landed as described below and
+verified against the full test matrix (both build modes, both compilers, both
+compile_fail/runtime_fail harnesses, sanitizer subset, NDEBUG asm identity). See
+DESIGN_NOTES.md items 1/4/5 for the final resolution write-ups, including a
+clang-tidy invocation caveat discovered during item 4's verification (not
+anticipated by this plan — `#pragma GCC system_header` also affects clang-tidy's
+own diagnostic suppression, fixed by adding `-header-filter='.*' -system-headers`
+everywhere `tools/clang-tidy/` is invoked).
 
 ---
 

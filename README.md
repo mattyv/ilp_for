@@ -265,10 +265,8 @@ See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Searc
 
 Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead —
 mixing them up is a **compile-time error** naming the fix, not a runtime bug: a body
-that calls `ILP_RETURN` but is closed with plain `ILP_END` fails to build. (This
-holds for the default build; under `ILP_MODE_SIMPLE` the macros degrade to plain
-`for` loops where the mismatch is semantically harmless and does compile — the
-default build, which CI always runs, is what catches it.)
+that calls `ILP_RETURN` but is closed with plain `ILP_END` fails to build. The macro
+layer is the same in both build modes, so this holds under `ILP_MODE_SIMPLE` too.
 
 ### Control Flow
 
@@ -361,11 +359,9 @@ auto r = ilp::for_loop<4, ilp::Mode::Simple>(0, n, [&](auto i, auto& ctrl) { ...
 ```
 
 `ilp::Mode::Simple` runs only the tail/remainder loop — the same single
-bounds-check-per-iteration code path `ILP_MODE_SIMPLE` produces for the macros.
-One caveat: macro `ILP_MODE_SIMPLE` lowers to a literal `for`/`break`, which is
-maximally plain to single-step at `-O0`. The function API's simple mode still
-invokes the body through a lambda, so there's one extra stack frame when
-stepping — same semantics, marginally less pristine debugger experience.
+bounds-check-per-iteration code path `ILP_MODE_SIMPLE` produces for the macros
+(both go through the same body-lambda mechanism, so there's no macro-vs-function-API
+difference in debugger experience here).
 
 ---
 
@@ -399,9 +395,8 @@ ILP_FOR(auto i, 0, n, 4) {
 
 ### Nested Loops
 
-`ILP_RETURN` returns from the enclosing C++ function at any nesting depth — matching
-`ILP_MODE_SIMPLE`, where nested loops are plain `for` loops and the inner `return`
-naturally escapes everything:
+`ILP_RETURN` returns from the enclosing C++ function at any nesting depth, in both
+build modes (the macro layer is unconditional — see [Debugging](#debugging)):
 
 ```cpp
 int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
@@ -419,20 +414,19 @@ each one carries the value one level further. Closing an enclosing loop with pla
 `ILP_END` instead is a **compile-time error** naming the fix, since a break-only
 loop has nowhere to put the value.
 
-**Mode parity caveat:** this matches `ILP_MODE_SIMPLE` only when the propagated
-value's type is the same at every level it passes through. An untyped `ILP_FOR`
-(no `ILP_FOR_T`) recovers a nested value via the same type-erased SBO recovery
-used at the top level (see [Large Return Types](#large-return-types) and
+**Type caveat:** the propagated value's type must be the same at every level it
+passes through. An untyped `ILP_FOR` (no `ILP_FOR_T`) recovers a nested value via
+the same type-erased SBO recovery used at the top level (see
+[Large Return Types](#large-return-types) and
 [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 3) — it reinterprets the stored bytes
-as whatever type the *next* level outward expects, rather than converting. In
-`ILP_MODE_SIMPLE`, the equivalent nested plain `return` performs a real implicit
-conversion. So `ILP_RETURN(some_int)` propagating out through an untyped loop into
-an `int`-returning function is fine either way; propagating that same `int` out
-through an `ILP_FOR_T(long, ...)` outer loop is not — the two modes would disagree.
-As always, keep the propagated type consistent, or use `ILP_FOR_T` at every level
-that isn't already returning the exact type you want. Debug builds catch this
-particular mismatch automatically and abort naming both types — see the debug-mode
-type check note in [Large Return Types](#large-return-types).
+as whatever type the *next* level outward expects, rather than converting. So
+`ILP_RETURN(some_int)` propagating out through an untyped loop into an
+`int`-returning function is fine; propagating that same `int` out through an
+`ILP_FOR_T(long, ...)` outer loop is not — the bytes get reinterpreted as `long`.
+Keep the propagated type consistent, or use `ILP_FOR_T` at every level that isn't
+already returning the exact type you want. Debug builds catch this particular
+mismatch automatically and abort naming both types — see the debug-mode type check
+note in [Large Return Types](#large-return-types).
 
 Two things this does *not* cover:
 - **A loop macro nested inside a function-API `for_loop`/`for_each` body — do not do
@@ -443,16 +437,18 @@ Two things this does *not* cover:
   iteration where the nested macro loop's search doesn't find a match, control falls
   off the end of that (now non-void) lambda with no `return` at all. That's UB,
   reproducible as a compiler-sanitizer trap, not a safe silent discard — see
-  [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 5 for the verified repro. Don't mix
-  the two APIs; use nested `for_loop` calls instead and propagate explicitly
-  (extract the inner result into a local, then call `ctrl.return_with(that_local)`
-  on the outer ctrl).
+  [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 5 for the verified repro. Debug
+  builds (`ILP_TYPECHECK_ENABLED`, on by default without `NDEBUG`) add a second net
+  for the one case that doesn't hit the UB path — every outer iteration's inner
+  search matching, so the value is silently discarded instead of crashing: they now
+  abort with a message naming the mixed-API cause. That's a detection net for the
+  narrower case, not a fix for the UB itself. Don't mix the two APIs; use nested
+  `for_loop` calls instead and propagate explicitly (extract the inner result into a
+  local, then call `ctrl.return_with(that_local)` on the outer ctrl).
 - **An intervening non-ILP callback** (e.g. an `ILP_FOR` inside a `std::for_each`
   lambda inside an outer `ILP_FOR`). The value still propagates once the inner
   `ILP_FOR` completes, but the enclosing algorithm (`std::for_each`, etc.) finishes
-  its own remaining iterations first — the return is deferred, not immediate. Same
-  behavior class as `ILP_MODE_SIMPLE`, where the plain `return` would only exit
-  that callback.
+  its own remaining iterations first — the return is deferred, not immediate.
 
 ---
 
@@ -523,16 +519,25 @@ If you need to debug your loop logic, you can disable ILP entirely:
 clang++ -std=c++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
-This turns the macros into simple `for` loops with the same semantics:
+`ILP_MODE_SIMPLE` does **not** change what the macros expand to — every `ILP_FOR`
+block still lowers to the same body lambda taking a `ctrl` parameter, at every
+nesting depth, exactly like the default build. What it changes is `ilp::default_mode`
+(the runtime unrolling strategy the macros dispatch on): with it defined, every loop
+runs the remainder-only path — one bounds check per iteration, no unrolling — the
+simplest code path to single-step through.
 
-| ILP Macro | Simple Mode Expansion |
+| ILP Macro | Meaning (same in both modes) |
 |-----------|----------------------|
-| `ILP_FOR(auto i, 0, n, 4)` | `for (auto i : ilp::iota(0, n))` |
-| `ILP_FOR_AUTO(auto i, 0, n, Sum, int)` | `for (auto i : ilp::iota(0, n))` |
-| `ILP_CONTINUE` | `continue` |
-| `ILP_BREAK` | `break` |
-| `ILP_RETURN(x)` | `return x` |
-| `ILP_END` / `ILP_END_RETURN` | *(empty)* |
+| `ILP_CONTINUE` | skip to the next iteration (`return;` from the body lambda) |
+| `ILP_BREAK` | exit the loop |
+| `ILP_RETURN(x)` | return `x` from the enclosing function, at any nesting depth |
+| `ILP_END` / `ILP_END_RETURN` | close the loop (must match whether the body uses `ILP_RETURN`) |
+
+Because the macro layer is unconditional, every compile-time/runtime guarantee
+(END-enforcement, debug-mode type/consumption checks) holds identically under
+`ILP_MODE_SIMPLE` — nothing here is default-build-only. A bare `return;` written
+directly in a loop body (rather than via `ILP_CONTINUE`) also means *continue* in
+both modes now, since it's returning from the same body lambda either way.
 
 `ILP_MODE_SIMPLE` also switches the function API's default (via `ilp::default_mode`),
 so `ilp::for_loop(...)` calls in the same translation unit degrade the same way.

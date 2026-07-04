@@ -9,7 +9,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 namespace {
 
@@ -222,4 +221,3 @@ TEST_CASE("TypedStorage properly destructs stored object", "[copy_count][destruc
     CHECK(DestructorTracker::destructor_calls >= 2);
 }
 
-#endif // !ILP_MODE_SIMPLE

@@ -10,7 +10,11 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /W4 /EHsc")
     add_compile_options(/Zc:__cplusplus /permissive-)
 else()
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
+    # ILP_NO_SYSTEM_HEADER: this repo's own test build opts out of the library's
+    # #pragma GCC system_header (DESIGN_NOTES.md item 4), so the header stays
+    # warning-visible during development. tests/compile_fail's wshadow_nested_ok.cpp
+    # compiles without this define to demonstrate the suppression itself works.
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -DILP_NO_SYSTEM_HEADER")
 endif()
 
 # Coverage option

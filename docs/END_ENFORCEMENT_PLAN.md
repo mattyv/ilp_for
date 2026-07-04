@@ -6,6 +6,14 @@
 README's "ILP_END vs ILP_END_RETURN" and "Macro-free API" updates). Verified on
 GCC 13.3 and Clang 18.1, both build modes, plus a manual ASan+UBSan subset run.
 
+**Historical note:** this plan describes `ILP_MODE_SIMPLE` as bypassing this
+enforcement entirely (a separate `macros_simple.hpp` expansion where the
+`ILP_END`/`ILP_END_RETURN` mismatch "legitimately compiles"). That's no longer
+true — [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) deleted `macros_simple.hpp` and
+unified the macro layer, so this enforcement now applies under `ILP_MODE_SIMPLE`
+too (see DESIGN_NOTES.md item 1's resolution). The tag-dispatch mechanism itself,
+described below, is unchanged.
+
 One incidental, pre-existing (not introduced or fixed by this work) limitation
 was found while adding test coverage: an `ILP_RETURN` inside a loop nested
 *within another loop's body* does not propagate its value out of the true

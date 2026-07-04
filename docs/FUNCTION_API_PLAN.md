@@ -6,6 +6,14 @@
 [DESIGN_NOTES.md](DESIGN_NOTES.md) (which covers macro-layer sharp edges; this
 doc covers the function-layer feature work).
 
+**Historical note:** this plan describes `ILP_MODE_SIMPLE` as a separate macro
+expansion (`ilp_for/detail/macros_simple.hpp`, lowering to literal `for` loops)
+distinct from the function API's `ilp::default_mode` switch. That has since
+changed — [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) deleted `macros_simple.hpp`
+and unified the two: `ILP_MODE_SIMPLE` now only flips `ilp::default_mode`, and the
+macro expansion is unconditional (see DESIGN_NOTES.md item 1's resolution). The
+mode-switch/ergonomics work described below is otherwise unaffected.
+
 Known wart discovered during implementation: `for_loop`/`for_loop_range` return
 a `[[nodiscard]]` `ForResult` even for break/continue-only bodies, forcing
 `[[maybe_unused]] auto r = ...` at call sites. Fixed by `ilp::for_each` in

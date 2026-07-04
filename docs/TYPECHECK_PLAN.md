@@ -20,7 +20,14 @@ GCC 13.3 and Clang 18.1:
 - Under `-DNDEBUG`, generated assembly is **byte-identical** to the pre-change
   headers on both compilers, and `sizeof(ilp::SmallStorage) == ilp::arch::sbo_size`
   (verified via static_assert) — the zero-cost claim is proven, not asserted.
-- `ILP_MODE_SIMPLE` builds are unaffected (they never touch `SmallStorage`).
+- `ILP_MODE_SIMPLE` builds were unaffected at the time (they never touched
+  `SmallStorage`, since `ILP_MODE_SIMPLE` lowered to a separate literal-`for`
+  macro expansion). **Historical note:** this is no longer why SIMPLE mode is
+  fine — [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) later deleted that separate
+  expansion, so `ILP_MODE_SIMPLE` now goes through the exact same
+  `SmallStorage`/macro layer as the default build, and this check is fully
+  **active** there too (SIMPLE-mode test coverage went from 108 to 352
+  assertions as a result — see DESIGN_NOTES.md item 1's resolution).
 - `-DILP_DEBUG_TYPECHECK` force-enables the check even under `NDEBUG`.
 
 **Correction to the "benchmarks build without NDEBUG" finding below:** verified

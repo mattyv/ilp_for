@@ -40,11 +40,18 @@ Once you've got it built, here's how to run it.
 
 ### Command Line
 
+`ilp_for.hpp` marks itself `#pragma GCC system_header` (see DESIGN_NOTES.md
+item 4, to keep `-Wshadow` quiet on nested `ILP_FOR` expansions). That makes
+clang-tidy treat macro-expanded call sites as non-user code by default, so
+pass `-header-filter='.*' -system-headers` or its diagnostics get silently
+dropped.
+
 ```bash
 # Analyze a file
 clang-tidy \
   -load path/to/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   your_file.cpp \
   -- -std=c++20
 
@@ -52,6 +59,7 @@ clang-tidy \
 /opt/homebrew/opt/llvm/bin/clang-tidy \
   -load tools/clang-tidy/build/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   your_file.cpp \
   -- -std=c++20
 ```
@@ -64,6 +72,7 @@ Add `--fix` to automatically convert `ILP_FOR` to `ILP_FOR_AUTO` with the detect
 clang-tidy \
   -load path/to/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   --fix \
   your_file.cpp \
   -- -std=c++20

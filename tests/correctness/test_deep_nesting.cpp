@@ -3,7 +3,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // DEEP NESTING STRESS TESTS
@@ -409,4 +408,3 @@ TEST_CASE("Triangular with accumulation", "[nesting][pattern]") {
     REQUIRE(sum == expected);
 }
 
-#endif // !ILP_MODE_SIMPLE

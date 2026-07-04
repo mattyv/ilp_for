@@ -1,14 +1,18 @@
 #!/bin/bash
-# Compile-fail harness for ILP_END/ILP_END_RETURN enforcement.
+# Compile-fail harness for ILP_END/ILP_END_RETURN enforcement (and, via the
+# optional EXTRA_FLAGS line, other compile-time-observable properties like
+# -Wshadow behavior).
 #
-# Each .cpp file's first line declares its expectation:
+# Each .cpp file's first line declares its expectation, with an optional second
+# line adding compile flags:
 #   // COMPILE_FAIL: <substring expected in the compiler's stderr>
 #   // COMPILE_OK
+#   // EXTRA_FLAGS: <flags appended to the compile command>   (optional 2nd line)
 #
-# Run only against the default ILP mode. In ILP_MODE_SIMPLE, ILP_RETURN
-# lowers to a plain `return` inside a plain loop, so the ILP_END/ILP_END_RETURN
-# mismatch is semantically harmless there and legitimately compiles - this
-# harness would be meaningless under that define.
+# The macro layer is unconditional (ILP_MODE_SIMPLE only flips ilp::default_mode
+# - see mode.hpp), so every case here holds in both build modes. Set
+# ILP_EXTRA_CXXFLAGS (e.g. to -DILP_MODE_SIMPLE) to run this harness against a
+# non-default mode; test_all_modes.sh does this for its SIMPLE leg.
 
 set -u
 cd "$(dirname "$0")"
@@ -16,13 +20,20 @@ cd "$(dirname "$0")"
 # Default to the platform's generic C++ driver (present on Linux and macOS alike);
 # the CMake compile-fail-tests target overrides this with the configured compiler.
 CXX="${CXX:-c++}"
-CXXFLAGS="-std=c++20 -I../.."
+BASE_CXXFLAGS="-std=c++20 -I../.. ${ILP_EXTRA_CXXFLAGS:-}"
 FAILED=0
 
 for src in *.cpp; do
-    expectation=$(head -n1 "$src")
+    expectation=$(sed -n '1p' "$src")
+    second_line=$(sed -n '2p' "$src")
+
+    extra_flags=""
+    if [[ "$second_line" == "// EXTRA_FLAGS:"* ]]; then
+        extra_flags="${second_line#// EXTRA_FLAGS: }"
+    fi
+
     obj="$(mktemp /tmp/ilp_compile_fail.XXXXXX.o)"
-    out=$("$CXX" $CXXFLAGS -c "$src" -o "$obj" 2>&1)
+    out=$("$CXX" $BASE_CXXFLAGS $extra_flags -c "$src" -o "$obj" 2>&1)
     status=$?
     rm -f "$obj"
 

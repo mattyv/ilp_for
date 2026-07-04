@@ -97,6 +97,30 @@ namespace ilp {
                          stored, recovered);
             std::abort();
         }
+
+        // DESIGN_NOTES.md item 5: a macro loop nested inside a function-API
+        // (ilp::for_loop/ilp::for_each) lambda body cannot find that lambda's ctrl
+        // (it has whatever name the caller chose, not the macro's fixed
+        // `ilp_detail_ctrl`), so propagate_return treats it as top-level and
+        // returns a Proxy - which is then just an ordinary expression statement
+        // inside the enclosing function-API lambda, discarded without conversion
+        // (and, on any code path that doesn't happen to also return, undefined
+        // behavior from falling off the end of that lambda). Every legitimate use
+        // of a Proxy converts it exactly once; one destroyed without ever
+        // converting is this bug's signature, so it's caught here instead of only
+        // in the README as a "don't do this" caveat.
+        [[noreturn]] inline void swallowed_proxy_abort() {
+            std::fprintf(stderr,
+                         "\n*** ilp_for swallowed return value ***\n"
+                         "A loop result was destroyed without ever being converted to a value.\n"
+                         "Most likely cause: an ILP_FOR/.../ILP_END_RETURN loop macro nested inside\n"
+                         "an ilp::for_loop / ilp::for_each lambda body (docs/DESIGN_NOTES.md item 5) -\n"
+                         "the macro cannot see the function-API ctrl, so its return value is silently\n"
+                         "discarded (and other code paths through that lambda are undefined behavior).\n"
+                         "Fix: don't mix the two APIs in one nesting chain - use nested ilp::for_loop\n"
+                         "calls and propagate via ctrl.return_with(...) instead.\n\n");
+            std::abort();
+        }
 #endif // ILP_TYPECHECK_ENABLED
 
         // Tags selecting which ctrl type (and therefore which capability set) the
@@ -261,17 +285,33 @@ namespace ilp {
         struct Proxy {
             using ilp_is_proxy = void; // tag detected by detail::is_proxy_v
             SmallStorage& s;
+#if ILP_TYPECHECK_ENABLED
+            // DESIGN_NOTES.md item 5: set by every conversion path below; if a
+            // Proxy is destroyed without ever converting, that's the signature of
+            // a swallowed return value (see swallowed_proxy_abort).
+            mutable bool ilp_debug_consumed = false;
+            ~Proxy() {
+                if (!ilp_debug_consumed)
+                    detail::swallowed_proxy_abort();
+            }
+#endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
             // MSVC needs explicit overloads without && qualifier
             // templated conversion operators don't deduce properly in return statements
             template<typename T>
             operator std::optional<T>() {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
                 return std::optional<T>(s.template extract<T>());
             }
 
             template<typename R, std::enable_if_t<!detail::is_optional_v<R>, int> = 0>
             operator R() {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
                 return s.template extract<R>();
             }
 #else
@@ -279,11 +319,18 @@ namespace ilp {
             template<typename R>
                 requires(!detail::is_optional_v<R>)
             ILP_ALWAYS_INLINE operator R() && {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
                 return s.template extract<R>();
             }
 #endif
 
-            void operator*() && {}
+            void operator*() && {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
+            }
         };
 
         ILP_ALWAYS_INLINE Proxy operator*() { return {storage}; }
@@ -301,13 +348,36 @@ namespace ilp {
         struct Proxy {
             using ilp_is_proxy = void; // tag detected by detail::is_proxy_v
             TypedStorage<R>& s;
+#if ILP_TYPECHECK_ENABLED
+            // See ForResult::Proxy above (DESIGN_NOTES.md item 5) for rationale.
+            mutable bool ilp_debug_consumed = false;
+            ~Proxy() {
+                if (!ilp_debug_consumed)
+                    detail::swallowed_proxy_abort();
+            }
+#endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
-            operator std::optional<R>() { return std::optional<R>(s.extract()); }
+            operator std::optional<R>() {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
+                return std::optional<R>(s.extract());
+            }
 
-            operator R() { return s.extract(); }
+            operator R() {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
+                return s.extract();
+            }
 #else
-            ILP_ALWAYS_INLINE operator R() && { return s.extract(); }
+            ILP_ALWAYS_INLINE operator R() && {
+#if ILP_TYPECHECK_ENABLED
+                ilp_debug_consumed = true;
+#endif
+                return s.extract();
+            }
 #endif
         };
 

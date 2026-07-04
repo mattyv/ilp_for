@@ -7,7 +7,6 @@
 #include <span>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // MORE EDGE CASES - Seeking additional issues
@@ -199,4 +198,3 @@ TEST_CASE("Odd N values - N=7", "[edge][oddN]") {
     REQUIRE(sum == 45);
 }
 
-#endif // !ILP_MODE_SIMPLE

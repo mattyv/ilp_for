@@ -20,6 +20,23 @@
 #include "ilp_for/detail/iota.hpp"
 #include "ilp_for/detail/loops_ilp.hpp"
 
+// Mark the REMAINDER of this header (the macro definitions below) as a system
+// header. Nested ILP_FOR expansions necessarily reuse fixed names
+// (ilp_detail_ret/ilp_detail_ctx/ilp_detail_ctrl) at each nesting level, which is
+// what makes propagate_return's unqualified lookup work (see the "Nested
+// ILP_RETURN propagation" note below) - but it also makes -Wshadow/-Wshadow-all
+// fire once per nesting level, purely from the macro expansion. Tokens spelled in
+// a system-header macro are exempt from -Wshadow; the user's own body tokens are
+// macro arguments and keep their user-file spelling locations, so real shadowing
+// in user code is still fully warned. Placement matters: this must come AFTER the
+// #includes above (library implementation headers stay non-system, so e.g.
+// loops_common.hpp's large-N deprecation warning still fires) and BEFORE the
+// macro definitions below. Opt out with ILP_NO_SYSTEM_HEADER - this repo's own
+// test builds do, so the header stays warning-visible during development.
+#if !defined(ILP_NO_SYSTEM_HEADER) && (defined(__GNUC__) || defined(__clang__))
+#pragma GCC system_header
+#endif
+
 // Fallback target for unqualified `ilp_detail_ctrl` lookup when ILP_END_RETURN is
 // expanded at plain function scope - i.e. NOT nested inside another ILP_FOR body,
 // where the body lambda's `ilp_detail_ctrl` parameter would otherwise shadow this.
@@ -27,12 +44,6 @@
 // -Wshadow/-Wshadow-all, which only cover variables/parameters/types, not ordinary
 // functions. See the "Nested ILP_RETURN" design note below for how this is used.
 inline void ilp_detail_ctrl() {}
-
-#ifdef ILP_MODE_SIMPLE
-
-#include "ilp_for/detail/macros_simple.hpp"
-
-#else // !ILP_MODE_SIMPLE
 
 // Macro Design Notes:
 // The ILP_FOR macro uses an if-statement with an immediately-invoked lambda to capture the user's
@@ -137,7 +148,6 @@ inline void ilp_detail_ctrl() {}
     else(void) 0
 
 // ILP_CONTINUE returns from the loop body lambda (skips to next iteration).
-// Note: In ILP_MODE_SIMPLE this maps to 'continue', but here it's 'return' from lambda.
 // The do-while(0) wrapper ensures proper statement semantics in all contexts.
 #define ILP_CONTINUE                                                                                                   \
     do {                                                                                                               \
@@ -155,5 +165,3 @@ inline void ilp_detail_ctrl() {}
         ilp_detail_ctrl.return_with(x);                                                                               \
         return;                                                                                                        \
     } while (0)
-
-#endif // !ILP_MODE_SIMPLE

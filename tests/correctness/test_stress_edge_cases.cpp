@@ -16,7 +16,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 #include <string>
 
 // =============================================================================
@@ -649,4 +648,3 @@ TEST_CASE("All N values 1-8", "[edge][comprehensive]") {
     REQUIRE(sum8 == expected(20));
 }
 
-#endif // !ILP_MODE_SIMPLE

@@ -10,7 +10,10 @@
 #
 # Deliberately does NOT define NDEBUG (except where a case's own EXTRA_FLAGS
 # does), so the type check defaults to enabled - this harness IS the type
-# check's regression net.
+# check's regression net. The macro layer is unconditional (ILP_MODE_SIMPLE only
+# flips ilp::default_mode - see mode.hpp), so every case here holds in both build
+# modes. Set ILP_EXTRA_CXXFLAGS (e.g. to -DILP_MODE_SIMPLE) to run this harness
+# against a non-default mode; test_all_modes.sh does this for its SIMPLE leg.
 
 set -u
 cd "$(dirname "$0")"
@@ -18,7 +21,7 @@ cd "$(dirname "$0")"
 # Default to the platform's generic C++ driver; the CMake runtime-fail-tests
 # target overrides this with the configured compiler.
 CXX="${CXX:-c++}"
-BASE_CXXFLAGS="-std=c++20 -I../.."
+BASE_CXXFLAGS="-std=c++20 -I../.. ${ILP_EXTRA_CXXFLAGS:-}"
 FAILED=0
 
 for src in *.cpp; do

@@ -189,9 +189,16 @@ jobs:
       - name: Test clang-tidy module
         run: |
           cd tools/clang-tidy
+          # -header-filter/-system-headers: ilp_for.hpp carries #pragma GCC
+          # system_header (DESIGN_NOTES.md item 4, to silence -Wshadow on
+          # macro-expanded nesting); without these flags clang-tidy treats the
+          # macro-spelled call sites as non-user/system code and silently
+          # drops ilp-loop-analysis's own diagnostics there.
           clang-tidy-18 \
             -load build/ILPTidyModule.so \
             -checks='-*,ilp-*' \
+            -header-filter='.*' \
+            -system-headers \
             test/loop_patterns.cpp \
             -- -std=c++20 -I../.. 2>&1 | tee output.txt
           # Verify expected patterns are detected
