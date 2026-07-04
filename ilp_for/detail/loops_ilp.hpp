@@ -15,6 +15,23 @@
 #include "loops_common.hpp"
 #include "mode.hpp"
 
+// unrolled_block_end (below) computes `end - start` by casting both signed operands
+// to their unsigned counterpart and subtracting - the two's-complement bit pattern
+// makes this unsigned, wrapping subtraction equal the true mathematical difference
+// even when start is negative (e.g. start=-5, end=5: 5u - 4294967291u wraps to the
+// correct 10, since -5 % 2^32 == 4294967291). This is well-defined per the C++
+// standard (unsigned arithmetic wraps, it is not UB) and is the standard technique
+// for computing a signed difference without risking signed-overflow UB - but
+// Clang's opt-in `-fsanitize=unsigned-integer-overflow` flags any unsigned wrap as
+// suspicious regardless of intent, so it needs an explicit, scoped opt-out. GCC has
+// no equivalent check and warns on the unrecognized attribute under -Wall -Wextra,
+// so this is Clang-only.
+#if defined(__clang__)
+#define ILP_NO_SANITIZE_UNSIGNED_OVERFLOW __attribute__((no_sanitize("unsigned-integer-overflow")))
+#else
+#define ILP_NO_SANITIZE_UNSIGNED_OVERFLOW
+#endif
+
 namespace ilp {
     namespace detail {
 
@@ -24,7 +41,7 @@ namespace ilp {
         // block end and iterating `i != block_end` avoids that while keeping a
         // single comparison in the hot loop.
         template<std::size_t N, std::integral T>
-        ILP_ALWAYS_INLINE constexpr T unrolled_block_end(T start, T end) {
+        ILP_ALWAYS_INLINE constexpr T ILP_NO_SANITIZE_UNSIGNED_OVERFLOW unrolled_block_end(T start, T end) {
             using U = std::make_unsigned_t<T>;
             if (start >= end)
                 return start; // empty range: block loop must not run
