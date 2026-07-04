@@ -38,6 +38,15 @@ echo "=========================================="
 bash compile_fail/check_compile_fail.sh
 echo ""
 
+# Runtime-fail harness (debug-mode SBO type check) is meaningful only in
+# default mode - under ILP_MODE_SIMPLE, ILP_FOR/ILP_RETURN never touch
+# SmallStorage at all (they lower to plain for-loops and plain `return`).
+echo "=========================================="
+echo "Testing: runtime-fail harness (default mode only)"
+echo "=========================================="
+bash runtime_fail/check_runtime_fail.sh
+echo ""
+
 run_tests "SIMPLE" "-DCMAKE_CXX_FLAGS=-DILP_MODE_SIMPLE"
 
 echo "=========================================="

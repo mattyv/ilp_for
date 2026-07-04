@@ -1,7 +1,10 @@
 # Debug-Mode SBO Type Check — Implementation Plan
 
-**Status:** Proposal, ready to implement. Mechanism prototype-validated against the
-in-repo headers on GCC 13.3 and Clang 18.1:
+**Status:** Implemented (see the `ILP_TYPECHECK_ENABLED` gate, `TypeTag`/`type_tag_v`/
+`type_mismatch_abort` and the `SmallStorage` changes in `ilp_for/detail/ctrl.hpp`,
+`tests/runtime_fail/`, and the README's "Large Return Types" / "Nested Loops"
+updates). Mechanism prototype-validated, then re-verified against the final code, on
+GCC 13.3 and Clang 18.1:
 
 - The exact DESIGN_NOTES item-3 repro (`ILP_RETURN(int)` in a `long`-returning
   function) — which that doc records as *"silent pun, wrong at -O0, accidentally
@@ -12,12 +15,21 @@ in-repo headers on GCC 13.3 and Clang 18.1:
 - The same-size pun (`int` stored, `float` recovered) is caught — this is why the
   check is type-identity-based, not size/alignment-based.
 - Matched-type programs (including nested propagation) run silently and correctly;
-  the full 350-assertion test suite passes with the check **active**.
-- Under `-DNDEBUG`, generated assembly is **byte-identical** to the current
+  the full 352-assertion test suite passes with the check **active** (the default
+  in this repo's test builds, which never define `NDEBUG`).
+- Under `-DNDEBUG`, generated assembly is **byte-identical** to the pre-change
   headers on both compilers, and `sizeof(ilp::SmallStorage) == ilp::arch::sbo_size`
   (verified via static_assert) — the zero-cost claim is proven, not asserted.
 - `ILP_MODE_SIMPLE` builds are unaffected (they never touch `SmallStorage`).
 - `-DILP_DEBUG_TYPECHECK` force-enables the check even under `NDEBUG`.
+
+**Correction to the "benchmarks build without NDEBUG" finding below:** verified
+false on implementation. `benchmarks/CMakeLists.txt` doesn't override
+`CMAKE_CXX_FLAGS_RELEASE`, and CMake's own default for that variable is
+`-O3 -DNDEBUG` — confirmed by fetching Google Benchmark and inspecting the actual
+`bench_reduce.cpp` compile command line, which does contain `-DNDEBUG`. The original
+finding was based on a `grep` for the literal string in the CMakeLists.txt, which
+missed CMake's implicit default. No change made to `benchmarks/CMakeLists.txt`.
 
 **Implements:** DESIGN_NOTES item 3's proposed plan (debug-mode stored-vs-recovered
 type check), extended per the branch review to cover `propagate_return`'s
@@ -141,14 +153,16 @@ debug/test run that exercises the path".
 
 ---
 
-## Also in scope: benchmarks build without NDEBUG (found during this analysis)
+## Benchmarks and NDEBUG — checked during implementation, turned out fine
 
-`benchmarks/CMakeLists.txt` compiles with `-O3` but **no `-DNDEBUG`** — so once
-this lands, benchmarks would silently measure the checked (tag-store) path. The
-cost is exit-path-only (set/extract run once per loop, not per iteration), but
-benchmarks must measure release semantics. Add `-DNDEBUG` to the benchmark flags
-in the same commit. (Arguably a pre-existing bug: `assert` was already live in
-benchmark builds.)
+`benchmarks/CMakeLists.txt` doesn't explicitly pass `-DNDEBUG` anywhere in its own
+text, which looked concerning on a `grep`. Verified empirically instead of assumed:
+`benchmarks/CMakeLists.txt` never overrides `CMAKE_CXX_FLAGS_RELEASE`, and CMake's
+own default for that variable is `-O3 -DNDEBUG` for GCC/Clang — confirmed by
+fetching Google Benchmark and building the real target, then inspecting the actual
+compile command line (`... -O3 -DNDEBUG -std=gnu++20 -O3 -march=native ...`). So
+`NDEBUG` was already defined for benchmark builds before this change, and the type
+check is already off there by default. No change made.
 
 ---
 
@@ -205,7 +219,8 @@ benchmark builds.)
 ## Implementation order
 
 1. `ctrl.hpp`: gate + tag machinery + `SmallStorage` changes (prototype-exact).
-2. `benchmarks/CMakeLists.txt`: add `-DNDEBUG`.
+2. `benchmarks/CMakeLists.txt`: verify NDEBUG status — turned out to be a no-op,
+   see above.
 3. `tests/runtime_fail/` harness + cases + CMake/`test_all_modes.sh` wiring.
 4. Verification: full matrix + NDEBUG asm identity check.
 5. Docs last.

@@ -207,7 +207,24 @@ To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store r
 - **≤ SBO size** alignment
 - **Trivially destructible** (no custom destructor)
 
-This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
+This covers `int`, `size_t`, pointers, and simple structs. Size/alignment/destructibility
+violations are caught at compile time via `static_assert`. The implementation uses
+placement new and `std::launder` for well-defined object access.
+
+**One thing `static_assert` can't catch:** the untyped path is type-erased, so if the
+value you `ILP_RETURN` and the type you recover it as (usually the enclosing
+function's declared return type) are two *different* same-size-or-smaller types —
+say, `ILP_RETURN(some_int)` inside a function that returns `long` — the bytes get
+reinterpreted, not converted. That's silently wrong in a release build. Debug builds
+(any build without `-DNDEBUG`) catch this automatically: on a mismatch, the program
+aborts with a message naming both types, rather than returning a wrong value. This
+also covers mismatches across [nested](#nested-loops) propagation, not just the
+top-level case. Force it on in a release build with `-DILP_DEBUG_TYPECHECK`, or force
+it off in a debug build with `-DILP_NO_DEBUG_TYPECHECK` — the latter is only useful if
+you need debug-build binary layout to match release exactly, since the check adds one
+pointer to the SBO when enabled; don't mix TUs built with and without it. When in
+doubt, just make sure your `ILP_RETURN` argument's type matches what you're recovering
+it as, or use `ILP_FOR_T` to make the type explicit and skip this whole class of bug.
 
 For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types.
 
@@ -413,7 +430,9 @@ conversion. So `ILP_RETURN(some_int)` propagating out through an untyped loop in
 an `int`-returning function is fine either way; propagating that same `int` out
 through an `ILP_FOR_T(long, ...)` outer loop is not — the two modes would disagree.
 As always, keep the propagated type consistent, or use `ILP_FOR_T` at every level
-that isn't already returning the exact type you want.
+that isn't already returning the exact type you want. Debug builds catch this
+particular mismatch automatically and abort naming both types — see the debug-mode
+type check note in [Large Return Types](#large-return-types).
 
 Two things this does *not* cover:
 - **A loop macro nested inside a function-API `for_loop`/`for_each` body — do not do

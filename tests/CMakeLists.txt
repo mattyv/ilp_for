@@ -90,6 +90,16 @@ add_custom_target(compile-fail-tests
     COMMENT "Running compile-fail tests (ILP_END/ILP_END_RETURN enforcement)"
 )
 
+# Runtime-fail tests: debug-mode SBO type check (DESIGN_NOTES.md item 3).
+# Forward the configured compiler so clang-only toolchains don't fall back to
+# the script's generic default.
+add_custom_target(runtime-fail-tests
+    COMMAND ${CMAKE_COMMAND} -E env CXX=${CMAKE_CXX_COMPILER}
+            bash ${CMAKE_CURRENT_SOURCE_DIR}/runtime_fail/check_runtime_fail.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/runtime_fail
+    COMMENT "Running runtime-fail tests (debug-mode SBO type check)"
+)
+
 # Coverage targets (only available when ENABLE_COVERAGE is ON)
 if(ENABLE_COVERAGE)
     # Clean coverage data

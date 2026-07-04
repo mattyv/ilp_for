@@ -22,6 +22,20 @@
 #define ILP_ALWAYS_INLINE inline
 #endif
 
+// Debug-mode stored-vs-recovered type check for the type-erased SBO path
+// (DESIGN_NOTES.md item 3). Enabled by default whenever NDEBUG is not defined
+// (assert-style); force-enable with ILP_DEBUG_TYPECHECK, force-disable with
+// ILP_NO_DEBUG_TYPECHECK (e.g. to keep debug-build layout identical to release
+// when mixing TUs - see the README's Large Return Types section for the ODR
+// caveat this implies). Zero members / zero code when disabled.
+#if !defined(ILP_NO_DEBUG_TYPECHECK) && (defined(ILP_DEBUG_TYPECHECK) || !defined(NDEBUG))
+#define ILP_TYPECHECK_ENABLED 1
+#include <cstdio>
+#include <cstdlib>
+#else
+#define ILP_TYPECHECK_ENABLED 0
+#endif
+
 namespace ilp {
 
     namespace detail {
@@ -47,6 +61,43 @@ namespace ilp {
         // Always-false, but dependent on T so it only fires at instantiation time.
         template<typename T>
         inline constexpr bool always_false = false;
+
+#if ILP_TYPECHECK_ENABLED
+        // RTTI-free type identity for the debug-mode SBO type check: the ADDRESS of
+        // type_tag_v<T> is the identity (C++17 inline variables have one address
+        // program-wide, so cross-TU comparison is exact), and the embedded compiler
+        // signature string names the type in diagnostics without RTTI or constexpr
+        // string parsing.
+        template<typename T>
+        constexpr const char* type_name() {
+#if defined(_MSC_VER) && !defined(__clang__)
+            return __FUNCSIG__;
+#else
+            return __PRETTY_FUNCTION__;
+#endif
+        }
+
+        struct TypeTag {
+            const char* name;
+        };
+
+        template<typename T>
+        inline constexpr TypeTag type_tag_v{type_name<T>()};
+
+        [[noreturn]] inline void type_mismatch_abort(const char* stored, const char* recovered) {
+            std::fprintf(stderr,
+                         "\n*** ilp_for type mismatch ***\n"
+                         "ILP_RETURN (or return_with) stored a value of type\n    %s\n"
+                         "but it is being recovered as\n    %s\n"
+                         "The untyped SBO path requires these to match exactly "
+                         "(docs/DESIGN_NOTES.md item 3).\n"
+                         "Fix: make the returned expression's type match the enclosing "
+                         "function/loop return type exactly, or use ILP_FOR_T / "
+                         "for_loop_typed with an explicit type.\n\n",
+                         stored, recovered);
+            std::abort();
+        }
+#endif // ILP_TYPECHECK_ENABLED
 
         // Tags selecting which ctrl type (and therefore which capability set) the
         // macro body lambda is instantiated against. ILP_END appends end_tag_t;
@@ -85,6 +136,9 @@ namespace ilp {
     // Use ILP_FOR_T for non-trivial or larger return types.
     struct SmallStorage {
         alignas(arch::sbo_size) char buffer[arch::sbo_size];
+#if ILP_TYPECHECK_ENABLED
+        const detail::TypeTag* ilp_debug_stored_tag = nullptr;
+#endif
 
         template<typename T>
         ILP_ALWAYS_INLINE void set(T&& val) {
@@ -100,10 +154,18 @@ namespace ilp {
                           "SmallStorage only supports trivially-destructible types. "
                           "Use ILP_FOR_T(type, ...) for non-trivial return types.");
             new (buffer) U(static_cast<T&&>(val));
+#if ILP_TYPECHECK_ENABLED
+            ilp_debug_stored_tag = &detail::type_tag_v<U>;
+#endif
         }
 
         template<typename R>
         ILP_ALWAYS_INLINE R extract() {
+#if ILP_TYPECHECK_ENABLED
+            using Rt = std::remove_cvref_t<R>;
+            if (ilp_debug_stored_tag != nullptr && ilp_debug_stored_tag != &detail::type_tag_v<Rt>)
+                detail::type_mismatch_abort(ilp_debug_stored_tag->name, detail::type_tag_v<Rt>.name);
+#endif
             return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
         }
     };

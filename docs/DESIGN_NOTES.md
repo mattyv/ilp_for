@@ -13,7 +13,9 @@ extensions:
    item.
 3. The type-erased SBO recovers the value as the *enclosing function's* return type,
    not the type that was stored — a silent type pun. Also applies to nested
-   propagation hops (see the cross-reference within the item).
+   propagation hops (see the cross-reference within the item). **Resolved** — a
+   debug-mode check now aborts on mismatch; the release-mode pun itself is
+   unchanged (by design — see the item).
 4. `-Wshadow` fires on nested `ILP_FOR` because the expansion locals collide.
 5. A macro loop nested inside a function-API lambda is undefined behavior, not a
    clean discard.
@@ -318,6 +320,25 @@ check above should cover `propagate_return`'s extracts, not only the top-level
 the README's [Nested Loops](../README.md#nested-loops) section and in
 `tests/correctness/test_nested_return.cpp` in the meantime.
 
+**Status: resolved (debug-mode check).** Implemented per
+[TYPECHECK_PLAN.md](TYPECHECK_PLAN.md): `SmallStorage::set` records an RTTI-free
+type tag (the address of a per-type `inline constexpr` variable — unique
+program-wide, so cross-TU comparison is exact) and `SmallStorage::extract<R>`
+aborts with a message naming both types if `R` doesn't match what was stored.
+Gated assert-style (`!NDEBUG`, with `ILP_DEBUG_TYPECHECK`/`ILP_NO_DEBUG_TYPECHECK`
+overrides), so the release-mode contract described above is **unchanged** — types
+must still match exactly; the check only converts the silent wrong-value bug into
+a loud debug-build abort. Because every recovery in the library — the top-level
+`Proxy` conversion *and* every `propagate_return` hop across nested loops — funnels
+through this one `extract<R>`, the nested-propagation extension called for above is
+covered automatically, with no changes to `propagate_return` itself. Verified
+zero-cost under `-DNDEBUG`: generated assembly is byte-identical to the pre-check
+headers on GCC and Clang, and `sizeof(SmallStorage)` is unchanged (see
+`tests/runtime_fail/release_layout.cpp`, a permanent CI regression test for this).
+The `tests/runtime_fail/` harness covers the top-level pun, the same-size pun
+(`int`→`float`, proving the check is type-identity-based rather than
+size-based), and the nested-hop pun from the paragraph above.
+
 ---
 
 ## 4. `-Wshadow` on nested `ILP_FOR`
@@ -605,14 +626,25 @@ function - at any nesting depth, matching `ILP_MODE_SIMPLE`.
 
 ---
 
-## Suggested sequencing
+## Suggested sequencing (historical)
 
-1. **#3 debug type check** and **#2 doc caveat** first — smallest, highest-value, no
-   public-API or codegen impact (#3 is behind a debug guard).
-2. **#1 control-token** next — the biggest correctness win, but a breaking change and
-   the one that *requires* the godbolt asm verification before merge.
-3. **#4 `-Wshadow`** last — quality-of-life; prototype the pragma approach, else
-   document.
+This section originally sequenced items #1-#4 by cost/value before any of them were
+implemented. Superseded by events: #2 and #3 both shipped (via different mechanisms
+than sequenced here — #2 as a compile-time tag-dispatch redesign rather than leaning
+on #3's type check; #3 as a debug-mode runtime check rather than #2's originally
+imagined side effect of it), and #5 was discovered afterward. Current state:
+
+- **#1** (bare `return;` meaning continue) — open.
+- **#2** (`ILP_END`/`ILP_END_RETURN` mismatch) — resolved, compile-time error.
+- **#3** (SBO type pun) — resolved, debug-mode abort; release-mode pun unchanged
+  by design.
+- **#4** (`-Wshadow` on nested loops) — open.
+- **#5** (macro nested in function-API lambda is UB) — open, no known detection
+  mechanism.
+
+#1 remains the only item here that would require a breaking macro-expansion change
+(it changes what bare `return;` means in a loop body) and should still land behind a
+clear changelog entry if ever attempted, per the original note below.
 
 None of these change public macro *names*. #1 changes public macro *expansion* and is
 a breaking source change for code relying on bare `return;`; it should land behind a

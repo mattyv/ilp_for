@@ -409,3 +409,26 @@ TEST_CASE("per-loop Mode override does not require the global define", "[functio
         ilp::for_loop<4, ilp::Mode::Unrolled>(0, 10, [&](int i, auto& /*ctrl*/) { sum += i; });
     REQUIRE(sum == 45);
 }
+
+TEST_CASE("matched-type return_with/extract round-trip is unaffected by the debug-mode type check",
+          "[function_api][typecheck]") {
+    // DESIGN_NOTES.md item 3's debug-mode SBO type check (see ctrl.hpp,
+    // ILP_TYPECHECK_ENABLED) only aborts on a stored-vs-recovered type
+    // mismatch; matched types must keep working exactly as before. The
+    // negative cases (mismatched types, which must abort) live in
+    // tests/runtime_fail/ since they can't be expressed as a passing
+    // Catch2 assertion.
+    auto find_and_double = [](const std::vector<int>& v, int target) -> int {
+        auto r = ilp::for_loop<4>(0, static_cast<int>(v.size()), [&](int i, auto& ctrl) {
+            if (v[i] == target)
+                return ctrl.return_with(v[i] * 2);
+        });
+        if (r)
+            return *std::move(r);
+        return -1;
+    };
+
+    std::vector<int> v = {1, 2, 3, 42, 5};
+    REQUIRE(find_and_double(v, 42) == 84);
+    REQUIRE(find_and_double(v, 99) == -1);
+}
