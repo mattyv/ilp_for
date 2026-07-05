@@ -654,16 +654,6 @@ alternative (nested `ilp::for_loop` calls, propagating explicitly via
 
 ---
 
-## Incidental finding (not in scope, noted for tracking)
-
-The standalone `godbolt_examples/*.cpp` still use the C++23 `0uz` literal (e.g.
-`loop_with_break.cpp:175`), which warns under `-std=c++20`
-(`use of C++23 'size_t' integer constant`). The in-repo `README.md` was already
-migrated off `0uz`; the godbolt copies were not. These files are deliberately
-line-for-line copies of library source per `godbolt_examples/INSTRUCTIONS.md`, so any
-fix should go through that regeneration process. Out of scope for this investigation;
-listed so it isn't lost.
-
 ## Incidental finding: `ilp-loop-analysis` clang-tidy check was broken on `main` — found and fixed
 
 Found while re-verifying the clang-tidy module during the branch review that

@@ -86,34 +86,82 @@ int main() {
 
 Copy LINE-FOR-LINE from these files:
 
-| Component | Source File | Lines |
-|-----------|-------------|-------|
-| `ForCtrl` | `ilp_for/detail/ctrl.hpp` | check file |
-| `ForResult` | `ilp_for/detail/ctrl.hpp` | check file |
-| `for_loop` | `ilp_for/detail/loops_ilp.hpp` | check file |
-| Macros | `ilp_for.hpp` | check file |
+| Component | Source File |
+|-----------|-------------|
+| `arch::sbo_size`, `arch::max_integral_size` | `ilp_for/detail/arch.hpp` |
+| `SmallStorage`, `TypedStorage`, `EachCtrl`, `ForCtrl`, `ForCtrlTyped`, `ForResult`, `ForResultTyped` (+ their `Proxy`s), `propagate_return`, the debug-typecheck machinery (`TypeTag`/`type_mismatch_abort`/`swallowed_proxy_abort`, gated on `ILP_TYPECHECK_ENABLED`) | `ilp_for/detail/ctrl.hpp` |
+| `Mode`, `default_mode` | `ilp_for/detail/mode.hpp` |
+| `validate_unroll_factor`/`warn_large_unroll_factor`, the `ForEachBody`/`ForUntypedCtrlBody`/`ForTypedCtrlBody` concepts | `ilp_for/detail/loops_common.hpp` |
+| `unrolled_block_end`, `index_loop_core`, `for_each_impl`, `for_loop_untyped_impl`, `for_loop_typed_impl`, `macro_for` (both tag overloads) | `ilp_for/detail/loops_ilp.hpp` |
+| Macros, `ilp_detail_ctrl()` sentinel | `ilp_for.hpp` |
+
+None of the four examples use `ILP_FOR_RANGE`/`ILP_FOR_AUTO`, so the range-based
+(`range_loop_core`, `for_each_range_impl`, `for_loop_range_*_impl`,
+`macro_for_range*`) and auto-N (`optimal_N`, `LoopType`, `cpu_profiles/`)
+machinery is genuinely unused across all four files and stays out.
 
 ---
 
 ## Which Files Need Which Components
 
-| Example | Components Needed |
-|---------|-------------------|
-| `loop_with_break.cpp` | `ForCtrl`, `ForResult`, `for_loop`, `ILP_FOR` macros |
-| `loop_with_return.cpp` | `ForCtrl`, `ForResult`, `for_loop`, `ILP_FOR` + `ILP_RETURN` macros |
-| `loop_with_return_typed.cpp` | `ForCtrlTyped`, `ForResultTyped`, `for_loop_typed`, `ILP_FOR_T` macros |
-| `pragma_vs_ilp.cpp` | Full `ILP_FOR` implementation for pragma comparison |
+The dependency graph is less modular than it looks, because `propagate_return`
+(used by every `ILP_END_RETURN`) branches on `if constexpr (std::is_same_v<C,
+EachCtrl>)` / `ForCtrl` / `ctrl_typed_return<C>::is_typed` - so **every one of
+those ctrl types must be a declared name**, even in a file that never
+instantiates most of them. Concretely:
+
+- **`ILP_END`-only files** (no `ILP_RETURN` anywhere): need only the lean
+  break-only path - `EachCtrl`, `NoResult`, `end_tag_t`,
+  `validate_unroll_factor`/`warn_large_unroll_factor`, `unrolled_block_end`,
+  `index_loop_core`, `for_each_impl`, the `macro_for(..., end_tag_t)` overload,
+  `Mode`/`default_mode`. No `SmallStorage`/`ForResult`/`ForCtrl`/debug-typecheck
+  machinery, no `ilp_detail_ctrl()` sentinel (nothing calls `propagate_return`).
+  `loop_with_break.cpp` and `pragma_vs_ilp.cpp` are this shape.
+- **`ILP_END_RETURN` files** (untyped `ILP_RETURN`, or `ILP_FOR_T`/typed
+  `ILP_RETURN`): need the FULL zoo regardless of which path the demo actually
+  exercises - `arch::sbo_size`, `SmallStorage`, `TypedStorage`, `EachCtrl`,
+  `ForCtrl`, `ForCtrlTyped<R>`, `ForResult`+`Proxy`, `ForResultTyped<R>`+`Proxy`,
+  the debug-typecheck machinery, `ctrl_typed_return`, `propagate_return`, both
+  tags, `for_loop_untyped_impl` AND `for_loop_typed_impl` (macro_for's generic
+  body names both unconditionally - see the comment at its definition), the
+  `macro_for(..., end_return_tag_t)` overload, and the `ilp_detail_ctrl()`
+  sentinel. `loop_with_return.cpp` and `loop_with_return_typed.cpp` are this
+  shape and are near-identical except for their demo functions/macros - don't
+  try to trim one below the other's dependencies without re-verifying the
+  interdependency above.
+
+| Example | Path |
+|---------|------|
+| `loop_with_break.cpp` | `ILP_END`-only (lean) |
+| `pragma_vs_ilp.cpp` | `ILP_END`-only (lean) |
+| `loop_with_return.cpp` | `ILP_END_RETURN` (full zoo) |
+| `loop_with_return_typed.cpp` | `ILP_END_RETURN` (full zoo) |
 
 ---
 
 ## Verification
 
-Test compilation:
+Test compilation on both compilers, both with and without `-DNDEBUG` (the
+debug-typecheck machinery in `loop_with_return*.cpp` only compiles under one
+of the two, so both must be checked):
+
 ```bash
 for f in godbolt_examples/*.cpp; do
-    echo "Testing $f"
-    clang++ -std=c++20 -O3 -Wall "$f" -o /tmp/test && /tmp/test && echo "PASS"
+    for cxx in clang++ g++; do
+        for flags in "" "-DNDEBUG"; do
+            echo "Testing $f ($cxx $flags)"
+            $cxx -std=c++20 -O3 -Wall -Wextra $flags "$f" -o /tmp/test && /tmp/test && echo "PASS"
+        done
+    done
 done
+```
+
+Then spot-check extraction fidelity by diffing individual structs/functions
+against the real source (adjust the `sed` range per component):
+
+```bash
+diff <(sed -n '/struct SmallStorage {/,/^    };$/p' ilp_for/detail/ctrl.hpp) \
+     <(sed -n '/struct SmallStorage {/,/^    };$/p' godbolt_examples/loop_with_return.cpp)
 ```
 
 ---
