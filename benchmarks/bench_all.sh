@@ -69,7 +69,9 @@ run_benchmark() {
 GCC_CMD=""
 CLANG_CMD=""
 
-if command -v g++-14 &> /dev/null; then
+if command -v g++-15 &> /dev/null; then
+    GCC_CMD="g++-15"
+elif command -v g++-14 &> /dev/null; then
     GCC_CMD="g++-14"
 elif command -v g++-13 &> /dev/null; then
     GCC_CMD="g++-13"

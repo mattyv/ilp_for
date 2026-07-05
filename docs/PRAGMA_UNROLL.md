@@ -172,6 +172,19 @@ The gap is still open on general targets, though there's movement:
 None of this changes the recommendation today; it's here so the "missed
 optimization, not a fundamental limit" claim above stays honest and checkable.
 
+**GCC predicate-order caveat (as of Jul 2026, confirmed on 14.3.0 and 15.2.0):**
+GCC fails to reorder independent predicates through `ILP_FOR`'s macro
+expansion the way it does for a hand-written loop. If a loop body's *first*
+condition is poorly predictable (e.g. a 50/50 parity check) and a later,
+almost-always-false condition (e.g. a rarely-true threshold check) is checked
+second, GCC leaves the coin-flip check as the per-element branch instead of
+reordering the selective check first — where it would otherwise fuse or hoist
+it as it does for the equivalent raw loop. Once the data exceeds cache, this
+shows up as a ~10x throughput cliff from branch misprediction alone (measured:
+0.43 IPC / 26% branch-misses vs. 2.96 IPC / 0% for the reordered/hand-written
+equivalent). Clang is unaffected. Workaround: order the most-predictable or
+most-selective condition first in the loop body.
+
 ---
 
 ## Verification: Loops Without Break
