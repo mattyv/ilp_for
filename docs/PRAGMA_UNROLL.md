@@ -173,17 +173,28 @@ None of this changes the recommendation today; it's here so the "missed
 optimization, not a fundamental limit" claim above stays honest and checkable.
 
 **GCC predicate-order caveat (as of Jul 2026, confirmed on 14.3.0 and 15.2.0):**
-GCC fails to reorder independent predicates through `ILP_FOR`'s macro
-expansion the way it does for a hand-written loop. If a loop body's *first*
-condition is poorly predictable (e.g. a 50/50 parity check) and a later,
-almost-always-false condition (e.g. a rarely-true threshold check) is checked
-second, GCC leaves the coin-flip check as the per-element branch instead of
-reordering the selective check first — where it would otherwise fuse or hoist
-it as it does for the equivalent raw loop. Once the data exceeds cache, this
-shows up as a ~10x throughput cliff from branch misprediction alone (measured:
-0.43 IPC / 26% branch-misses vs. 2.96 IPC / 0% for the reordered/hand-written
-equivalent). Clang is unaffected. Workaround: order the most-predictable or
-most-selective condition first in the loop body.
+When a loop body has two or more independent predicates, GCC's `ifcombine`
+pass — the one that fuses independent conditions into a single branch — runs
+*before* `ILP_FOR`'s nested lambda layers get inlined. On a hand-written loop
+those predicates are fused or hoisted normally; through the macro expansion,
+ifcombine sees nothing to fuse yet, and by the time the lambdas do inline,
+ifcombine has already run. If the loop body's *first* condition is poorly
+predictable (e.g. a 50/50 parity check) and a later, almost-always-false
+condition (e.g. a rarely-true threshold check) is checked second, the unfused
+coin-flip check is left as the per-element branch. Once the data exceeds
+cache, this shows up as a ~10-15x throughput cliff from branch misprediction
+alone (measured: 0.32 G/s vs. 4.78 G/s on one such loop, ~26% branch-misses
+in the slow case). Clang is unaffected, since its predicate fusion happens
+after inlining regardless.
+
+Two independent fixes, either is sufficient:
+- **Reorder the body:** put the most-predictable or most-selective condition
+  first, so the coin-flip check is no longer the one left exposed.
+- **Force early inlining:** mark the enclosing function `ILP_FLATTEN` (see
+  `ilp_for.hpp`). This expands to `[[gnu::flatten]]` on GCC/Clang, which
+  force-inlines the whole `ILP_FOR` call tree before ifcombine runs, letting
+  it fuse the predicates as it would for a hand-written loop. No-op on other
+  compilers.
 
 ---
 

@@ -172,3 +172,19 @@ inline void ilp_detail_ctrl() {}
         ilp_detail_ctrl.return_with(x);                                                                               \
         return;                                                                                                        \
     } while (0)
+
+// Opt-in annotation for a user function whose hot ILP_FOR loop body has
+// multiple independent predicates. On GCC, ifcombine (the pass that fuses
+// independent conditions into one branch) runs before ILP_FOR's nested
+// lambda layers get inlined, so the fusion GCC would do for a hand-written
+// loop never happens and the least-predictable predicate is left as the
+// per-element branch - see the GCC predicate-order caveat in
+// docs/PRAGMA_UNROLL.md. [[gnu::flatten]] forces the whole ILP_FOR call tree
+// to inline into the annotated function before ifcombine runs, restoring the
+// fusion. No-op (and safe to leave in place) on compilers other than
+// GCC/Clang.
+#if defined(__GNUC__) || defined(__clang__)
+#define ILP_FLATTEN [[gnu::flatten]]
+#else
+#define ILP_FLATTEN
+#endif
