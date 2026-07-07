@@ -173,28 +173,43 @@ None of this changes the recommendation today; it's here so the "missed
 optimization, not a fundamental limit" claim above stays honest and checkable.
 
 **GCC predicate-order caveat (as of Jul 2026, confirmed on 14.3.0 and 15.2.0):**
-When a loop body has two or more independent predicates, GCC's `ifcombine`
-pass — the one that fuses independent conditions into a single branch — runs
-*before* `ILP_FOR`'s nested lambda layers get inlined. On a hand-written loop
-those predicates are fused or hoisted normally; through the macro expansion,
-ifcombine sees nothing to fuse yet, and by the time the lambdas do inline,
-ifcombine has already run. If the loop body's *first* condition is poorly
-predictable (e.g. a 50/50 parity check) and a later, almost-always-false
-condition (e.g. a rarely-true threshold check) is checked second, the unfused
-coin-flip check is left as the per-element branch. Once the data exceeds
-cache, this shows up as a ~10-15x throughput cliff from branch misprediction
-alone (measured: 0.32 G/s vs. 4.78 G/s on one such loop, ~26% branch-misses
-in the slow case). Clang is unaffected, since its predicate fusion happens
-after inlining regardless.
+When a loop body has two or more independent predicates, GCC can fail to fuse
+them through `ILP_FOR`'s macro expansion the way it does for a hand-written
+loop. The macro's nested lambda layers *are* inlined before GCC's `ifcombine`
+pass (the one that fuses independent conditions into a single branch) — but
+not by the *early* inliner, so the body reaches ifcombine in a shape its
+pattern-match rejects, and the predicates are never fused. (The exact IL
+property that blocks the match isn't pinned down; what is confirmed is that
+forcing *early* inlining fixes it, while merely marking the wrapper functions
+`always_inline` — which also inlines them before ifcombine — does not.) If the
+loop body's *first* condition is poorly predictable (e.g. a 50/50 parity check)
+and a later, almost-always-false condition (e.g. a rarely-true threshold check)
+is checked second, the unfused coin-flip check is left as the per-element
+branch. Once the data exceeds cache, this shows up as a ~10-15x throughput
+cliff from branch misprediction alone (measured: ~0.3 G/s vs. ~4.8 G/s on one
+such loop, ~26% vs. ~0% branch-misses). Clang is unaffected — it emits the
+fused, branchless form for this shape through the macro expansion (verified
+Clang 20).
 
 Two independent fixes, either is sufficient:
 - **Reorder the body:** put the most-predictable or most-selective condition
   first, so the coin-flip check is no longer the one left exposed.
 - **Force early inlining:** mark the enclosing function `ILP_FLATTEN` (see
   `ilp_for.hpp`). This expands to `[[gnu::flatten]]` on GCC/Clang, which
-  force-inlines the whole `ILP_FOR` call tree before ifcombine runs, letting
-  it fuse the predicates as it would for a hand-written loop. No-op on other
+  force-inlines the whole `ILP_FOR` call tree into the annotated function
+  early, letting ifcombine fuse the predicates (and, under `-march=native`,
+  auto-vectorize the recovered loop — so the measured speedup above includes
+  vectorization unlocked by the fusion, not fusion alone). No-op on other
   compilers.
+
+  Two caveats on `ILP_FLATTEN`: (1) it only takes effect when `NDEBUG` is
+  defined (or `-DILP_NO_DEBUG_TYPECHECK` is set) — otherwise the debug
+  typecheck layer keeps the predicates unfusable even with flatten, and the
+  annotation silently does nothing. Release builds define `NDEBUG`, so they
+  are fine; plain `-O3` debug-ish builds are not. (2) `[[gnu::flatten]]`
+  force-inlines *every* call the annotated function makes, so apply it to a
+  small function containing the hot loop — on a large function, or one with
+  heavy unrelated calls, it costs code size and compile time.
 
 ---
 

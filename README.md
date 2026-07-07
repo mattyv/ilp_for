@@ -458,6 +458,8 @@ Two things this does *not* cover:
 
 **Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). `#pragma unroll` will unroll these, but the per-iteration bounds checks it inserts eat the benefit. `ILP_FOR` skips that overhead (~1.5x speedup).
 
+> **GCC note:** a loop body with two or more *independent* predicates (e.g. skip-if-even, then match-if-over-threshold) can hit a branch-misprediction cliff on GCC through the macro expansion. Order the most-selective condition first, or mark the enclosing function `ILP_FLATTEN`. See the GCC predicate-order caveat in [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
+
 **Skip ILP for straight-line loops with no early exit.** The auto-vectorizer handles those well on its own, and the simple, pragma, and ILP versions almost always compile to the same assembly. Using `ILP_FOR` there is harmless — in most of my tests the code was identical — just unnecessary.
 
 ```cpp

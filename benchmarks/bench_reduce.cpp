@@ -230,7 +230,11 @@ BENCHMARK_REGISTER_F(ForRetFixture, PragmaUnroll)
 
 // ==================== ILP_FOR WITH ILP_CONTINUE BENCHMARKS ====================
 // Pattern: filtered search - skip even numbers, find first value > threshold
-// The comparisons are independent, so ILP helps
+// The comparisons are independent, so ILP helps - EXCEPT on GCC, where this
+// exact shape (unpredictable parity check before a rarely-true threshold check)
+// hits a branch-misprediction cliff through the macro expansion. See the GCC
+// predicate-order caveat in docs/PRAGMA_UNROLL.md; ILP_FLATTEN on the enclosing
+// function, or reordering the two predicates, recovers it.
 
 NOINLINE static size_t continue_simple(const uint32_t* data, size_t size, uint32_t threshold) {
     for (size_t i = 0; i < size; ++i) {
