@@ -276,6 +276,53 @@ layer is the same in both build modes, so this holds under `ILP_MODE_SIMPLE` too
 | `ILP_BREAK` | Loops | Exit loop |
 | `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
 
+### Optimization Hints
+
+| Macro | Description |
+|-------|-------------|
+| `ILP_FLATTEN` | Function annotation — force-inline the loop's call tree so GCC fuses independent body predicates |
+
+`ILP_FLATTEN` prefixes a **function** (not a loop), and applies equally to the macro
+and the function API — the annotation goes on the enclosing function in both cases:
+
+```cpp
+// Macro API
+ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
+    ILP_FOR(auto i, size_t{0}, n, 4) {
+        if (d[i] % 2 == 0) ILP_CONTINUE;
+        if (d[i] > t)      ILP_RETURN(i);
+    } ILP_END_RETURN;
+    return n;
+}
+
+// Function API - same annotation, same place
+ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
+    auto r = ilp::for_loop<4>(size_t{0}, n, [&](auto i, auto& ctrl) {
+        if (d[i] % 2 == 0) return;                  // continue
+        if (d[i] > t)      return ctrl.return_with(i);
+    });
+    if (r) return *std::move(r);
+    return n;
+}
+```
+
+**When to use it:** only on GCC, only when a loop body has **two or more independent
+predicates** and the least-predictable one is checked first (e.g. a 50/50 parity skip
+before a rarely-true threshold check), and only if you actually measure a
+branch-misprediction cliff (it appears once the data spills cache). It is not a
+general "make it faster" knob — on a well-predicted loop it does nothing useful.
+
+**Why it works:** GCC only fuses those predicates into one branch if the loop's call
+tree is inlined by its *early* inliner; through both APIs several layers inline later
+than that, so the fusion is missed and the coin-flip check stays per-element.
+`[[gnu::flatten]]` forces the whole tree to inline early, restoring the fusion (~10-15x
+on the affected loops; verified 26% → 0% branch-misses, GCC 14/15). Clang doesn't need
+it. Two limits: it only takes effect under `NDEBUG` (or `-DILP_NO_DEBUG_TYPECHECK`),
+and `[[gnu::flatten]]` force-inlines *everything* the function calls, so keep the
+annotated function small. Reordering the predicates (selective condition first) fixes
+the same cliff with no annotation. Full story: the GCC predicate-order caveat in
+[docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
+
 ---
 
 ## Macro-free API
