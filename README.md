@@ -316,8 +316,9 @@ general "make it faster" knob — on a well-predicted loop it does nothing usefu
 tree is inlined by its *early* inliner; through both APIs several layers inline later
 than that, so the fusion is missed and the coin-flip check stays per-element.
 `[[gnu::flatten]]` forces the whole tree to inline early, restoring the fusion (~10-15x
-on the affected loops; verified 26% → 0% branch-misses, GCC 14/15). Clang doesn't need
-it. Two limits: it only takes effect under `NDEBUG` (or `-DILP_NO_DEBUG_TYPECHECK`),
+on the affected loops with `-march=native` — the fusion also unlocks auto-vectorization,
+so that figure isn't from branch-fusion alone; verified 26% → 0% branch-misses, GCC
+14/15). Clang doesn't need it. Two limits: it only takes effect under `NDEBUG` (or `-DILP_NO_DEBUG_TYPECHECK`),
 and `[[gnu::flatten]]` force-inlines *everything* the function calls, so keep the
 annotated function small. Reordering the predicates (selective condition first) fixes
 the same cliff with no annotation. Full story: the GCC predicate-order caveat in

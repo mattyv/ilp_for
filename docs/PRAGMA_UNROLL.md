@@ -211,6 +211,13 @@ Two independent fixes, either is sufficient:
   small function containing the hot loop — on a large function, or one with
   heavy unrelated calls, it costs code size and compile time.
 
+We believe this is a GCC missed-optimization, not a fundamental limit or a
+correctness bug: the generated code is correct, just slow, and Clang fuses the
+same predicates through the identical code with no hint. Forcing early inlining
+recovers it on GCC too. We have *not* pinned the exact IL property that blocks
+the fuse, and we have not reported it upstream — so treat `ILP_FLATTEN` and
+predicate reordering as workarounds for current GCC, not a permanent tax.
+
 ---
 
 ## Verification: Loops Without Break
