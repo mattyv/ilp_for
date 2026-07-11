@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml/badge.svg)](https://github.com/mattyv/ilp_for/actions/workflows/ci.yml)
 
-Compile-time loop unrolling for early exit loops (`break`, `continue`, `return`). Avoids per-iteration bounds checks that `#pragma unroll` typically generates, enabling better instruction-level parallelism.
+Compile-time loop unrolling for early-exit loops (`break`, `continue`, `return`). Unrolls without the per-iteration bounds checks `#pragma unroll` generates, so the CPU can actually exploit the instruction-level parallelism the unroll was supposed to buy.
 [What is ILP?](docs/ILP.md)
 
 ```cpp
@@ -23,7 +23,7 @@ Full benchmarks in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## How It Works
 
-Let's say you want to write the below code ..
+Start with a loop you'd write on any ordinary day:
 
 ```cpp
 int sum = 0;
@@ -33,8 +33,8 @@ for (size_t i = 0; i < n; ++i) {
     sum += data[i];
 }
 ```
-... then you remember you can get a boost in performance from ILP so you rewrite it.
-Compilers *can* unroll this with `#pragma unroll` and will do a better job if dependency chains are broken down like so...
+
+The early exit rules out vectorization, but there's still instruction-level parallelism on the table: split the accumulator into four independent chains, ask the compiler to unroll, and four additions can be in flight at once...
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
@@ -46,7 +46,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
-But they do a bit of a crappy job and insert bounds checks after **each element** because [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot determine the trip count for loops with `break` so you end up with something like:
+...except the compiler doesn't hold up its end. [SCEV](https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf) cannot compute a trip count for a loop that might `break`, so the unroller plays it safe and re-checks the bounds after **every element**. What you get is:
 
 ```
 loop:
@@ -75,7 +75,7 @@ done:
   sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-So what can you do? Create a main loop + remainder pattern that checks bounds only once per block? The compiler will give you nice machine code without the extra bounds checking, but this is messy and error prone and looks ghastly:
+The way out is the classic main-loop-plus-remainder pattern: check the bounds once per block of four, then mop up the stragglers. The compiler rewards you with clean machine code. Your code reviewers will be less impressed:
 
 ```cpp
 constexpr size_t N = 4;
@@ -99,9 +99,9 @@ for (; i < n; ++i) {              // Remainder
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for assembly evidence (~1.5x speedup).
+See [why not pragma unroll?](docs/PRAGMA_UNROLL.md) for the assembly evidence (~1.5x speedup).
 
-But using ILP_FOR all you write is the below, which expands to effectively the same code as above. And despite a bit of macro CAPITALISATION doesn't look too bad:
+`ILP_FOR` generates that same block-plus-remainder structure from something you can actually read. A bit of macro CAPITALISATION aside, it's the loop you started with:
 ```cpp
 constexpr size_t N = 4;
 int sums[N] = {0};
@@ -113,7 +113,9 @@ ILP_FOR(auto i, size_t{0}, n, N) {
 int sum = (sums[0] + sums[1]) + (sums[2] + sums[3]);
 ```
 
-I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of the unroll factor for your hardware to help take the guesswork out and make portability between architectures more manageable (see below) (also probably saving you a few cycles if you want to make sure you're tuning to your hardware properly).
+The `ILP_FOR_AUTO` variants go a step further and choose the unroll factor for you, from per-architecture instruction-timing tables — the same source stays properly tuned across targets instead of hard-coding one machine's sweet spot ([details below](#cpu-architecture-portability-and-_auto-functions)).
+
+Everything the macros do is sugar over a plain function API — if your codebase bans macros, use that directly ([Macro-free API](#macro-free-api)).
 
 ---
 
@@ -122,6 +124,7 @@ I also decided to add `ILP_FOR_AUTO` variations which simplify the selection of 
 - [Quick Start](#quick-start)
 - [Large Return Types](#large-return-types)
 - [API Reference](#api-reference)
+- [Macro-free API](#macro-free-api)
 - [Important Notes](#important-notes)
 - [When to Use ILP](#when-to-use-ilp)
 - [Advanced](#advanced)
@@ -155,7 +158,7 @@ ILP_FOR_AUTO(auto i, 0, n, Search, int) {
 } ILP_END;
 ```
 
-Use the clang-tidy tool to check its suggested loop or unroll factor: see [tools/clang-tidy/](tools/clang-tidy/README.md)
+Not sure which LoopType fits? The bundled clang-tidy check will suggest one — and flag the one you guessed wrong (see [tools/clang-tidy/](tools/clang-tidy/README.md)):
 
 ```cpp
 ILP_FOR_AUTO(auto i, 0, n, Add, int) { //incorrect LoopType
@@ -199,14 +202,31 @@ int find_index(const std::vector<int>& data, int target) {
 
 ### Large Return Types
 
-To save you typing the return type each time, `ILP_FOR` & `ILP_FOR_AUTO` store return values in a small buffer (SBO). The buffer size matches `sizeof(std::intmax_t)` on your target architecture (typically 8 bytes on 64-bit platforms). This works for types that are:
+So you never have to spell the return type at the loop site, `ILP_FOR` and `ILP_FOR_AUTO` carry returned values in a small inline buffer (SBO), sized to `sizeof(std::intmax_t)` on your target — typically 8 bytes on 64-bit platforms. That works for any type that is:
 - **≤ SBO size** in size (typically 8 bytes)
 - **≤ SBO size** alignment
 - **Trivially destructible** (no custom destructor)
 
-This covers `int`, `size_t`, pointers, and simple structs. Violations are caught at compile time via `static_assert`, so there's no risk of undefined behavior from type misuse. The implementation uses placement new and `std::launder` for well-defined object access.
+This covers `int`, `size_t`, pointers, and simple structs. Size/alignment/destructibility
+violations are caught at compile time via `static_assert`. The implementation uses
+placement new and `std::launder` for well-defined object access.
 
-For types that don't meet these requirements, just use `ILP_FOR_T` where you specify the return type explicitly. Though I would imagine that for most performant loops the average use case for ILP is going to operate with integral types.
+**One thing `static_assert` can't catch:** the untyped path is type-erased, so if the
+value you `ILP_RETURN` and the type you recover it as (usually the enclosing
+function's declared return type) are two *different* same-size-or-smaller types —
+say, `ILP_RETURN(some_int)` inside a function that returns `long` — the bytes get
+reinterpreted, not converted. That's silently wrong in a release build. Debug builds
+(any build without `-DNDEBUG`) catch this automatically: on a mismatch, the program
+aborts with a message naming both types, rather than returning a wrong value. This
+also covers mismatches across [nested](#nested-loops) propagation, not just the
+top-level case. Force it on in a release build with `-DILP_DEBUG_TYPECHECK`, or force
+it off in a debug build with `-DILP_NO_DEBUG_TYPECHECK` — the latter is only useful if
+you need debug-build binary layout to match release exactly, since the check adds one
+pointer to the SBO when enabled; don't mix TUs built with and without it. When in
+doubt, just make sure your `ILP_RETURN` argument's type matches what you're recovering
+it as, or use `ILP_FOR_T` to make the type explicit and skip this whole class of bug.
+
+Types that don't fit take `ILP_FOR_T`, which names the return type explicitly. In practice most hot loops traffic in integers, indices, and pointers, so the SBO covers the common case and `ILP_FOR_T` is the exception.
 
 To override the SBO size, define `ILP_SBO_SIZE` before including the header:
 ```bash
@@ -243,7 +263,10 @@ Result find_result(const std::vector<int>& data, int target) {
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
-Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
+Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead —
+mixing them up is a **compile-time error** naming the fix, not a runtime bug: a body
+that calls `ILP_RETURN` but is closed with plain `ILP_END` fails to build. The macro
+layer is the same in both build modes, so this holds under `ILP_MODE_SIMPLE` too.
 
 ### Control Flow
 
@@ -253,13 +276,155 @@ Always end with `ILP_END`. If using `ILP_RETURN`, use `ILP_END_RETURN` instead.
 | `ILP_BREAK` | Loops | Exit loop |
 | `ILP_RETURN(val)` | Loops with return type | Return `val` from enclosing function |
 
+### Optimization Hints
+
+| Macro | Description |
+|-------|-------------|
+| `ILP_FLATTEN` | Function annotation — force-inline the loop's call tree so GCC fuses independent body predicates |
+
+`ILP_FLATTEN` prefixes a **function** (not a loop), and applies equally to the macro
+and the function API — the annotation goes on the enclosing function in both cases:
+
+```cpp
+// Macro API
+ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
+    ILP_FOR(auto i, size_t{0}, n, 4) {
+        if (d[i] % 2 == 0) ILP_CONTINUE;
+        if (d[i] > t)      ILP_RETURN(i);
+    } ILP_END_RETURN;
+    return n;
+}
+```
+
+```cpp
+// Function API - same annotation, same place
+ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
+    auto r = ilp::for_loop<4>(size_t{0}, n, [&](auto i, auto& ctrl) {
+        if (d[i] % 2 == 0) return;                  // continue
+        if (d[i] > t)      return ctrl.return_with(i);
+    });
+    if (r) return *std::move(r);
+    return n;
+}
+```
+
+**When to use it:** only on GCC, only when a loop body has **two or more independent
+predicates** and the least-predictable one is checked first (e.g. a 50/50 parity skip
+before a rarely-true threshold check), and only if you actually measure a
+branch-misprediction cliff (it appears once the data spills cache). It is not a
+general "make it faster" knob — on a well-predicted loop it does nothing useful.
+
+**Why it works:** in practice GCC only fuses those predicates into one branch when the
+loop's call tree is inlined by its *early* inliner (the exact blocker isn't pinned
+down — see the caveat doc); through both APIs several layers inline later than that,
+so the fusion is missed and the coin-flip check stays per-element. `[[gnu::flatten]]`
+forces the whole tree to inline early, restoring the fusion (~10-16x on the affected
+loops with `-march=native` — the fusion also unlocks auto-vectorization, so that figure
+isn't from branch-fusion alone; verified 26% → 0% branch-misses, GCC 14/15). Yes,
+auto-vectorization of an early-exit loop: GCC 14+'s early-break vectorizer can reach
+this simple fused shape, an exception to the general rule that [early exits block
+vectorization](#how-it-works) — most loops ilp_for targets remain out of its reach.
+Clang doesn't need the hint. Two limits: it only takes effect when the debug-mode type
+check is disabled (`NDEBUG` without `-DILP_DEBUG_TYPECHECK`, or
+`-DILP_NO_DEBUG_TYPECHECK`), and `[[gnu::flatten]]` force-inlines *everything* the
+function calls, so keep the annotated function small. Reordering the predicates
+(selective condition first) fixes the same cliff with no annotation. Full story: the
+GCC predicate-order caveat in [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
+
+---
+
+## Macro-free API
+
+The macros are sugar over a plain function API (`ilp::for_loop` and friends in
+`ilp_for/detail/loops_ilp.hpp`). If your style guide bans macros, call it directly —
+same unrolling, same semantics, no `ILP_*` tokens:
+
+```cpp
+// Macro version
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    if (data[i] == 0) ILP_CONTINUE;
+    if (data[i] == target) ILP_RETURN(i);
+    sum += data[i];
+} ILP_END_RETURN;
+
+// Function API equivalent
+auto r = ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl) {
+    if (data[i] < 0)       return ctrl.break_loop();  // ILP_BREAK
+    if (data[i] == 0)      return;                    // ILP_CONTINUE
+    if (data[i] == target) return ctrl.return_with(i); // ILP_RETURN(i)
+    sum += data[i];
+});
+if (r) return *std::move(r);   // ILP_END_RETURN
+```
+
+A bare `return;` from the body lambda means *continue* — the natural, idiomatic
+meaning for a lambda, and not a footgun the way it is inside the `ILP_FOR` macro
+expansion (see [DESIGN_NOTES.md](docs/DESIGN_NOTES.md)).
+
+### Break/continue-only loops: `ilp::for_each`
+
+`for_loop`/`for_loop_range` return a `[[nodiscard]]` `ForResult`, even for loops
+that never call `return_with` — the equivalent of `ILP_FOR ... ILP_END` (no
+`ILP_RETURN`). For that case, prefer `ilp::for_each`/`ilp::for_each_range`, which
+return `void`:
+
+```cpp
+// Macro version (no ILP_RETURN, so ILP_END)
+ILP_FOR(auto i, 0, n, 4) {
+    if (data[i] < 0) ILP_BREAK;
+    sum += data[i];
+} ILP_END;
+
+// Function API equivalent - no [[maybe_unused]] auto r = ... needed
+ilp::for_each<4>(0, n, [&](auto i, auto& ctrl) {
+    if (data[i] < 0) return ctrl.break_loop();
+    sum += data[i];
+});
+```
+
+Calling `ctrl.return_with(x)` inside a `for_each` body is a compile error pointing
+you at `ilp::for_loop` instead — `for_each` genuinely cannot return a value out of
+the enclosing function, so there is nothing to discard and nothing to `nodiscard`.
+
+### Equivalence table
+
+| Macro | Function API |
+|-------|--------------|
+| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END;` (no `ILP_RETURN`) | `ilp::for_each<4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR(auto i, 0, n, 4) {...} ILP_END_RETURN;` | `ilp::for_loop<4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_AUTO(auto i, 0, n, Search, int) {...} ILP_END;` | `ilp::for_each<ilp::optimal_N<ilp::LoopType::Search, int>>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_FOR_RANGE(auto&& v, r, 4) {...} ILP_END;` | `ilp::for_each_range<4>(r, [&](auto&& v, auto& ctrl){...});` |
+| `ILP_FOR_T(Result, auto i, 0, n, 4) {...} ILP_END_RETURN;` | `ilp::for_loop_typed<Result, 4>(0, n, [&](auto i, auto& ctrl){...});` |
+| `ILP_BREAK` | `return ctrl.break_loop();` |
+| `ILP_CONTINUE` | `return;` |
+| `ILP_RETURN(x)` | `return ctrl.return_with(x);` (only on `for_loop`/`for_loop_typed` ctrl - poisoned on `for_each`) |
+| `ILP_END_RETURN` | `if (r) return *std::move(r);` |
+
+### Per-loop debug mode (function-API exclusive)
+
+`ILP_MODE_SIMPLE` is a translation-unit-wide define. The function API also accepts
+an explicit `ilp::Mode` template argument, which overrides `ilp::default_mode` for
+just that one loop — useful for stepping through a single hot loop without
+de-ILPing the whole file:
+
+```cpp
+// Whole file built normally, but de-ILP just this loop while debugging it:
+auto r = ilp::for_loop<4, ilp::Mode::Simple>(0, n, [&](auto i, auto& ctrl) { ... });
+```
+
+`ilp::Mode::Simple` runs only the tail/remainder loop — the same single
+bounds-check-per-iteration code path `ILP_MODE_SIMPLE` produces for the macros
+(both go through the same body-lambda mechanism, so there's no macro-vs-function-API
+difference in debugger experience here).
+
 ---
 
 ## Important Notes
 
 ### Use `auto&&` for Range Loops
 
-When using `ILP_FOR_RANGE`, make sure you use `auto&&` to avoid copying each element (unless that's your thing):
+With `ILP_FOR_RANGE`, declare the loop variable `auto&&` so elements bind in place instead of being copied (unless copying is the point):
 
 ```cpp
 // Good - uses forwarding reference (zero copies)
@@ -273,9 +438,11 @@ ILP_FOR_RANGE(auto val, strings, 4) {
 } ILP_END;
 ```
 
-...this matters because range loops iterate over container elements directly. Using `auto` creates a copy of each element, while `auto&&` binds to the element in-place. You probably didn't need me to tell you this... but for completeness :). For a `std::vector<std::string>`, using `auto` would copy every string!
+None of this is news if you've written a range-for before — but it bites harder in a loop you chose specifically for speed: over a `std::vector<std::string>`, `auto` copies every single string.
 
-For index-based loops, just use `auto` since indices are just integers:
+Range loops require a **random-access range** (`std::vector`, `std::array`, `std::span`, raw arrays...) — the unrolled blocks need indexed access. A `std::list`, `std::set`, or non-random-access view won't compile; those containers can't benefit from ILP anyway, so use an ordinary range-for there.
+
+Index-based loops are immune — the loop variable is an integer, so plain `auto` is right:
 
 ```cpp
 ILP_FOR(auto i, 0, n, 4) {
@@ -283,13 +450,72 @@ ILP_FOR(auto i, 0, n, 4) {
 } ILP_END;
 ```
 
+### Nested Loops
+
+`ILP_RETURN` returns from the enclosing C++ function at any nesting depth, in both
+build modes (the macro layer is unconditional — see [Debugging](#debugging)):
+
+```cpp
+int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
+    ILP_FOR(auto r, std::size_t{0}, rows.size(), 2) {
+        ILP_FOR(auto c, std::size_t{0}, rows[r].size(), 4) {
+            if (rows[r][c] == target) ILP_RETURN(static_cast<int>(r * 100 + c));
+        } ILP_END_RETURN;   // required: this loop carries the inner value outward
+    } ILP_END_RETURN;
+    return -1;
+}
+```
+
+**Every enclosing loop on the path out must be closed with `ILP_END_RETURN`** —
+each one carries the value one level further. Closing an enclosing loop with plain
+`ILP_END` instead is a **compile-time error** naming the fix, since a break-only
+loop has nowhere to put the value.
+
+**Type caveat:** the propagated value's type must be the same at every level it
+passes through. An untyped `ILP_FOR` (no `ILP_FOR_T`) recovers a nested value via
+the same type-erased SBO recovery used at the top level (see
+[Large Return Types](#large-return-types) and
+[DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 3) — it reinterprets the stored bytes
+as whatever type the *next* level outward expects, rather than converting. So
+`ILP_RETURN(some_int)` propagating out through an untyped loop into an
+`int`-returning function is fine; propagating that same `int` out through an
+`ILP_FOR_T(long, ...)` outer loop is not — the bytes get reinterpreted as `long`.
+Keep the propagated type consistent, or use `ILP_FOR_T` at every level that isn't
+already returning the exact type you want. Debug builds catch this particular
+mismatch automatically and abort naming both types — see the debug-mode type check
+note in [Large Return Types](#large-return-types).
+
+Two things this does *not* cover:
+- **A loop macro nested inside a function-API `for_loop`/`for_each` body — do not do
+  this, it is undefined behavior, not just a wrong answer.** The ctrl variable
+  there has whatever name your lambda parameter used, so the macro's `ILP_RETURN`
+  can't find it and treats itself as top-level. The `ILP_END_RETURN` it expands to
+  ends up injecting a `return` directly into your outer lambda's body — on any outer
+  iteration where the nested macro loop's search doesn't find a match, control falls
+  off the end of that (now non-void) lambda with no `return` at all. That's UB,
+  reproducible as a compiler-sanitizer trap, not a safe silent discard — see
+  [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 5 for the verified repro. Debug
+  builds (`ILP_TYPECHECK_ENABLED`, on by default without `NDEBUG`) add a second net
+  for the one case that doesn't hit the UB path — every outer iteration's inner
+  search matching, so the value is silently discarded instead of crashing: they now
+  abort with a message naming the mixed-API cause. That's a detection net for the
+  narrower case, not a fix for the UB itself. Don't mix the two APIs; use nested
+  `for_loop` calls instead and propagate explicitly (extract the inner result into a
+  local, then call `ctrl.return_with(that_local)` on the outer ctrl).
+- **An intervening non-ILP callback** (e.g. an `ILP_FOR` inside a `std::for_each`
+  lambda inside an outer `ILP_FOR`). The value still propagates once the inner
+  `ILP_FOR` completes, but the enclosing algorithm (`std::for_each`, etc.) finishes
+  its own remaining iterations first — the return is deferred, not immediate.
+
 ---
 
 ## When to Use ILP
 
-**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). Compilers can unroll these loops with `#pragma unroll`, but they insert per-iteration bounds checks that negate the performance benefit. ILP_FOR avoids this overhead (~1.5x speedup).
+**Use ILP_FOR for loops with early exit** (`break`, `continue`, `return`). `#pragma unroll` will unroll these, but the per-iteration bounds checks it inserts eat the benefit. `ILP_FOR` skips that overhead (~1.5x speedup).
 
-**Skip ILP for simple loops without early exit.** Compilers *can (almost all of the time)* produce optimal SIMD code automatically - all approaches (simple, pragma, ILP) *can* potentially compile to the same assembly. (It *may* not hurt to use ILP if you have no early exits so don't sweat it too much. In most of my tests it produced the same assembly)
+> **GCC note:** a loop body with two or more *independent* predicates (e.g. skip-if-even, then match-if-over-threshold) can hit a branch-misprediction cliff on GCC through the macro expansion. Order the most-selective condition first, or mark the enclosing function `ILP_FLATTEN`. See the GCC predicate-order caveat in [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
+
+**Skip ILP for straight-line loops with no early exit.** The auto-vectorizer handles those well on its own, and the simple, pragma, and ILP versions almost always compile to the same assembly. Using `ILP_FOR` there is harmless — in most of my tests the code was identical — just unnecessary.
 
 ```cpp
 // Use ILP_FOR - early exit benefits from fewer bounds checks
@@ -319,14 +545,19 @@ data into vector registers.
 
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md) for why pragma doesn't help.
 
+The underlying gap this library works around — SCEV falling back to a bounds check
+per element instead of per unrolled block for early-exit loops — is a missed
+optimization, not a fundamental limit of what compilers can do; see
+[Could This Be Fixed Upstream?](docs/PRAGMA_UNROLL.md#could-this-be-fixed-upstream)
+for why, and what it would mean for this library if a compiler ever closed it.
+
 ---
 
 ## Advanced
 
 ### CPU Architecture, Portability and _AUTO functions
 
-You can target specific CPU architectures for optimal unroll factors. You really should do this if you plan to be portable or highly optimised.
-If you don't specify anything the _AUTO function will expand to the *default* unroll values.
+The `_AUTO` macros pick their unroll factors from a CPU profile. With no profile defined they fall back to conservative defaults — fine, but if you're chasing the last few percent, or building one codebase for several machines, tell them which silicon they're on:
 
 ```bash
 clang++ -std=c++20 -DILP_CPU_SKYLAKE      # Intel Skylake
@@ -335,8 +566,8 @@ clang++ -std=c++20 -DILP_CPU_APPLE_M1     # Apple M1
 clang++ -std=c++20 -DILP_CPU_ZEN5         # AMD Zen 4/5
 ```
 
-I source the locations where I have gathered data on each architecture so I believe this to be accurate.
-If you do add a new architecture please let me know and I'll get it added.
+Each profile cites the sources its instruction-timing data came from, so the numbers are checkable rather than folklore.
+If you build a profile for a new architecture, send it my way and I'll get it added.
 
 ### Debugging
 
@@ -346,16 +577,32 @@ If you need to debug your loop logic, you can disable ILP entirely:
 clang++ -std=c++20 -DILP_MODE_SIMPLE -O0 -g mycode.cpp
 ```
 
-This turns the macros into simple `for` loops with the same semantics:
+`ILP_MODE_SIMPLE` does **not** change what the macros expand to — every `ILP_FOR`
+block still lowers to the same body lambda taking a `ctrl` parameter, at every
+nesting depth, exactly like the default build. What it changes is `ilp::default_mode`
+(the runtime unrolling strategy the macros dispatch on): with it defined, every loop
+runs the remainder-only path — one bounds check per iteration, no unrolling — the
+simplest code path to single-step through.
 
-| ILP Macro | Simple Mode Expansion |
+| ILP Macro | Meaning (same in both modes) |
 |-----------|----------------------|
-| `ILP_FOR(auto i, 0, n, 4)` | `for (auto i : ilp::iota(0, n))` |
-| `ILP_FOR_AUTO(auto i, 0, n, Sum, int)` | `for (auto i : ilp::iota(0, n))` |
-| `ILP_CONTINUE` | `continue` |
-| `ILP_BREAK` | `break` |
-| `ILP_RETURN(x)` | `return x` |
-| `ILP_END` / `ILP_END_RETURN` | *(empty)* |
+| `ILP_CONTINUE` | skip to the next iteration (`return;` from the body lambda) |
+| `ILP_BREAK` | exit the loop |
+| `ILP_RETURN(x)` | return `x` from the enclosing function, at any nesting depth |
+| `ILP_END` / `ILP_END_RETURN` | close the loop (must match whether the body uses `ILP_RETURN`) |
+
+Because the macro layer is unconditional, every compile-time/runtime guarantee
+(END-enforcement, debug-mode type/consumption checks) holds identically under
+`ILP_MODE_SIMPLE` — nothing here is default-build-only. A bare `return;` written
+directly in a loop body (rather than via `ILP_CONTINUE`) also means *continue* in
+both modes now, since it's returning from the same body lambda either way.
+
+`ILP_MODE_SIMPLE` also switches the function API's default (via `ilp::default_mode`),
+so `ilp::for_loop(...)` calls in the same translation unit degrade the same way.
+For a per-loop alternative that doesn't require a global define — e.g. to de-ILP a
+single loop while leaving the rest of the file unrolled — see
+[Per-loop debug mode](#per-loop-debug-mode-function-api-exclusive) in the
+[Macro-free API](#macro-free-api) section.
 
 ### LoopType Reference
 
@@ -377,22 +624,22 @@ When using `_AUTO` variants, you **must** specify a 'LoopType' to auto-select th
 
 ### Selecting LoopType Guide
 
-**The basic principle:** Pick the LoopType for your loop's **bottleneck operation** - AKA the slowest or most congested one.
+**The basic principle:** pick the LoopType for your loop's **bottleneck operation** — the slowest or most congested one.
 
-**Why?** The optimal unroll factor N follows `N ≈ Latency × Throughput` to keep enough operations in flight to saturate the execution unit and hide latency.
+**Why?** The optimal unroll factor follows `N ≈ Latency × Throughput`: enough independent operations in flight to hide the bottleneck's latency and keep its execution unit saturated.
 
-**Have mixed operations??? (e.g., adds AND multiplies):**
+**Mixed operations (adds and multiplies in the same body):**
 
-1. **Identify the critical path** - operations with dependencies form a chain; independent operations can overlap
+1. **Identify the critical path** — dependent operations form a chain; independent ones overlap for free
 2. **Pick the slowest operation on that path:**
    - `acc += data[i] * weight[i]` → This is FMA, use `DotProduct`
    - `acc += data[i]; acc *= factor;` → Multiply is slower, use `Multiply`
    - Mostly adds with occasional multiply → `Sum`
    - Mostly multiplies with occasional add → `Multiply`
 
-3. **Early exit dominates everything:**
-   - If your loop has `ILP_BREAK` or `ILP_RETURN`, branch prediction is usually the bottleneck
-   - Use `Search` regardless of what computation happens inside
+3. **Early exit trumps everything:**
+   - With `ILP_BREAK` or `ILP_RETURN` in the body, branch prediction is usually the real bottleneck
+   - Use `Search`, whatever the arithmetic inside
 
 **Quick decision tree:**
 ```
@@ -407,7 +654,7 @@ Unsure?                            → Search (safe default)
 
 ### clang-tidy LoopType analysis
 
-If all else fails, the `ilp-loop-analysis` clang-tidy check can detect patterns and suggest the correct LoopType automatically. It's pretty beta but give it a go. See [tools/clang-tidy/](tools/clang-tidy/README.md).
+If all else fails, the `ilp-loop-analysis` clang-tidy check recognizes common loop patterns and suggests the right LoopType for you — with `--fix` it will even rewrite the loop. Still beta-quality, but worth a run. See [tools/clang-tidy/](tools/clang-tidy/README.md).
 
 ### Reading CPU Profiles
 
@@ -466,7 +713,7 @@ Default Header values by type:
 
 ## Formal Specifications with Axiom
 
-I wanted to experiment with an idea: what if library maintainers could provide a formal knowledge RAG that LLMs can use to understand and write cleaner code using their library? The goal is to reduce hallucinations and improve the quality of LLM-generated code by giving them machine-readable contracts instead of relying on documentation or code alone, which may have gaps, ambiguities or cause the LLM to draw conclusions which are false. The knowledge is a dag/tree of knowledge grounded all the way down to the C/C++ standard.
+An experiment: what if a library shipped a formal, machine-readable knowledge base that LLMs could query, instead of inferring the rules from documentation and source? Prose docs have gaps and ambiguities, and models fill them with plausible-sounding falsehoods. A graph of precise contracts — each node grounded, link by link, all the way down to the C/C++ standard — leaves much less room for that.
 
 ### How it works
 
@@ -477,7 +724,7 @@ The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contai
 - Template SFINAE conditions and concept requirements
 - Violation behavior (compile error, runtime error, undefined behavior)
 
-When you ask Claude Code or other AI tools about `ilp_for`, they can query these formal specifications to generate correct code and explain why certain patterns fail. Think of it as giving the LLM a precise understanding of the library's contracts instead of hoping it remembers or learns the details correctly.
+When you ask Claude Code or another AI tool about `ilp_for`, it can consult these specifications to generate correct code and explain *why* a given pattern fails — a precise statement of the library's contracts, rather than a hope that the model remembers them.
 
 The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
 - **Automated extraction** - parses your C++20 library source to extract preconditions, postconditions, invariants

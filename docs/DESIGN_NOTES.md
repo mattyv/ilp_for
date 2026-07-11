@@ -1,16 +1,28 @@
 # Design Notes — Investigation Findings & Proposed Plans
 
-**Status:** Investigation only. No code has been changed. Each section records what
-was found (with reproductions), then a proposed plan. Nothing here is implemented
-yet.
+**Status:** Living document. Each section records what was found (with
+reproductions), then a proposed plan; items marked **Status: resolved** have since
+been implemented (see the linked plan doc in that item). Items without a resolved
+status are still open.
 
-These notes cover four sharp edges in the non-`ILP_MODE_SIMPLE` macro layer:
+These notes cover sharp edges in the macro layer and its function-API/nesting
+extensions:
 
 1. Bare `return;` in a loop body silently means different things in the two modes.
-2. The `ILP_END` vs `ILP_END_RETURN` runtime failure mode.
+   **Resolved** — see the item.
+2. The `ILP_END` vs `ILP_END_RETURN` runtime failure mode. **Resolved** — see the
+   item.
 3. The type-erased SBO recovers the value as the *enclosing function's* return type,
-   not the type that was stored — a silent type pun.
+   not the type that was stored — a silent type pun. Also applies to nested
+   propagation hops (see the cross-reference within the item). **Resolved** — a
+   debug-mode check now aborts on mismatch; the release-mode pun itself is
+   unchanged (by design — see the item).
 4. `-Wshadow` fires on nested `ILP_FOR` because the expansion locals collide.
+   **Resolved** — see the item.
+5. A macro loop nested inside a function-API lambda is undefined behavior, not a
+   clean discard. **Debug-mode detection added** for the non-UB degenerate case
+   (silent discard); the UB itself is unchanged and remains a documented
+   API-mixing hazard — see the item.
 
 Environment used for the reproductions below: Linux x86-64, GCC 13.3.0, Clang
 (system), `-std=c++20`. The library is header-only; reproductions compiled against
@@ -130,6 +142,48 @@ SIMPLE mode cannot ban bare `return;` (it is a literal `for`), but because the d
 build now rejects it, a project that builds both ways is protected by its default/CI
 build.
 
+**Status: resolved — by unifying the modes, not by the (A) restructuring above.**
+Implemented per [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md): rather than giving the body
+lambda a non-`void` return type, `ILP_MODE_SIMPLE`'s separate macro implementation
+(`ilp_for/detail/macros_simple.hpp`, a literal `for`/`break`/`continue`/`return`
+lowering) was deleted outright. `ILP_MODE_SIMPLE` now only flips `ilp::default_mode`
+to `Mode::Simple` (the runtime unrolling strategy — remainder-loop-only, one bounds
+check per iteration), exactly as it already did for the function API; the macro
+*expansion* is unconditional and identical in both modes. Since every `ILP_FOR` body
+is always a lambda now, bare `return;` means *continue* — the same thing it already
+meant in the default build — in both modes, with no divergence left to catch. This
+also means the (A)/(B) approaches above were not needed: there's no more separate
+literal-`for` expansion for a bare `return;` to diverge against.
+
+Consequences of the unification, beyond closing this item:
+- The `ILP_END`/`ILP_END_RETURN` compile-time mismatch enforcement (item 2) and the
+  debug-mode SBO type check (item 3) now apply under `ILP_MODE_SIMPLE` too — both were
+  previously default-build-only because SIMPLE mode's separate expansion didn't go
+  through the same machinery. `tests/test_all_modes.sh` now runs
+  `tests/compile_fail`/`tests/runtime_fail` once per mode instead of default-mode-only.
+- **Breaking changes** for `ILP_MODE_SIMPLE`-only code (the default build is
+  unchanged): (1) bare `return;` in a loop body now means *continue* under
+  `ILP_MODE_SIMPLE` too (previously: returned from the enclosing function) — anyone
+  relying on the old behavior was already writing mode-divergent code; (2)
+  `ILP_MODE_SIMPLE` no longer lowers to a literal `for` loop, so single-stepping goes
+  through one lambda frame, same as the function API's `Mode::Simple` (see the
+  README's [Debugging](../README.md#debugging) section); (3) bodies using raw
+  `break;`/`continue;`/`goto` out of the loop no longer compile under
+  `ILP_MODE_SIMPLE` (they never compiled in the default build — this removes a
+  mode-only allowance); (4) `ILP_FOR_RANGE*` under `ILP_MODE_SIMPLE` previously
+  lowered to an unconstrained literal range-for, so it accepted *any* range —
+  the unified macro layer requires `std::ranges::random_access_range` (the
+  unrolled path needs indexed access; see `macro_for_range` in
+  `loops_ilp.hpp`), so SIMPLE-only code iterating a `std::list`, `std::set`, or
+  other non-random-access range with `ILP_FOR_RANGE` stops compiling with a
+  constraint error. This is the one genuinely *new* restriction of the
+  unification (such ranges were getting a plain loop anyway — no ILP — so the
+  fix is an ordinary range-for; the default build always rejected them). The
+  requirement is now documented in the README's range-loop section.
+- `ilp_for/detail/macros_simple.hpp` is deleted; `ilp_for/detail/iota.hpp` (which it
+  had included) is kept — it's a public header with its own tests
+  (`tests/correctness/test_iota.cpp`).
+
 ---
 
 ## 2. `ILP_END` vs `ILP_END_RETURN` — runtime failure mode
@@ -193,6 +247,18 @@ API/Important-Notes section next to the existing `ILP_END_RETURN` guidance, so u
 know the guard is necessary-but-not-sufficient and that tests must hit the return
 branch. (Optionally, item #3's compile-time type check would also let us strengthen
 this into a compile-time error in a follow-up; tracked there.)
+
+**Status: resolved.** Implemented as a compile-time error instead of the
+documentation-only mitigation above — see
+[END_ENFORCEMENT_PLAN.md](END_ENFORCEMENT_PLAN.md). The opening and closing macros
+jointly form one call to a `detail::macro_for*` entry point; the closing macro appends
+a tag (`end_tag_t` for `ILP_END`, `end_return_tag_t` for `ILP_END_RETURN`) that
+selects which ctrl type the body lambda is instantiated against. `ILP_END` selects a
+break-only `EachCtrl` whose `return_with` is a poisoned `static_assert`, so a body
+using `ILP_RETURN` but closed with `ILP_END` now fails to compile with a message
+naming the fix. The runtime `abort()` path (`ilp_end_with_return_error`) has been
+deleted. This also introduced `ilp::for_each`/`for_each_range` (break/continue-only,
+`void`-returning) as the function-API counterpart to `EachCtrl`.
 
 ---
 
@@ -285,6 +351,40 @@ This also gives #2 a path to a stronger guarantee later: once the stored type is
 to the result object, the `ILP_END` vs `ILP_END_RETURN` mismatch can become a
 compile-time error instead of a runtime abort.
 
+**Extends to nested propagation.** [NESTED_RETURN_PLAN.md](NESTED_RETURN_PLAN.md)'s
+`detail::propagate_return` carries a value from an inner loop's ctrl into an outer
+loop's ctrl at each nesting level, and it reuses exactly this recovery path: an
+untyped inner result is read back via `extract<R2>()` where `R2` is the *outer*
+loop's type (or, at the outermost level, the enclosing function's declared return
+type via the `Proxy`). The stored-vs-recovered type is never checked at any hop, so
+the pun described above can now occur *between nesting levels*, not just between the
+top-level `ILP_RETURN` and the function's return type — e.g. an untyped
+`ILP_RETURN(some_int)` propagating out through an `ILP_FOR_T(long, ...)` outer loop
+reinterprets the 4 stored bytes as an 8-byte `long`. The proposed debug-mode type
+check above should cover `propagate_return`'s extracts, not only the top-level
+`ForResult`/`ForResultTyped` recovery, when implemented. Documented as a caveat in
+the README's [Nested Loops](../README.md#nested-loops) section and in
+`tests/correctness/test_nested_return.cpp` in the meantime.
+
+**Status: resolved (debug-mode check).** Implemented per
+[TYPECHECK_PLAN.md](TYPECHECK_PLAN.md): `SmallStorage::set` records an RTTI-free
+type tag (the address of a per-type `inline constexpr` variable — unique
+program-wide, so cross-TU comparison is exact) and `SmallStorage::extract<R>`
+aborts with a message naming both types if `R` doesn't match what was stored.
+Gated assert-style (`!NDEBUG`, with `ILP_DEBUG_TYPECHECK`/`ILP_NO_DEBUG_TYPECHECK`
+overrides), so the release-mode contract described above is **unchanged** — types
+must still match exactly; the check only converts the silent wrong-value bug into
+a loud debug-build abort. Because every recovery in the library — the top-level
+`Proxy` conversion *and* every `propagate_return` hop across nested loops — funnels
+through this one `extract<R>`, the nested-propagation extension called for above is
+covered automatically, with no changes to `propagate_return` itself. Verified
+zero-cost under `-DNDEBUG`: generated assembly is byte-identical to the pre-check
+headers on GCC and Clang, and `sizeof(SmallStorage)` is unchanged (see
+`tests/runtime_fail/release_layout.cpp`, a permanent CI regression test for this).
+The `tests/runtime_fail/` harness covers the top-level pun, the same-size pun
+(`int`→`float`, proving the check is type-identity-based rather than
+size-based), and the nested-hop pun from the paragraph above.
+
 ---
 
 ## 4. `-Wshadow` on nested `ILP_FOR`
@@ -363,30 +463,319 @@ back to **(C)** for now and keep **(B)** out of scope. Whatever is chosen, add a
 nested-loop translation unit compiled with `-Wshadow` (GCC) and `-Wshadow-all`
 (Clang) to the test matrix so regressions are caught.
 
+**Status: resolved — via `#pragma GCC system_header`, not the (A) push/pop
+sketched above.** `_Pragma` push/pop turned out to be a dead end: it cannot be
+placed mid-statement (`ILP_FOR` expands inside an `if` init-statement), and
+whole-statement wrapping would suppress the *user body's* own legitimate shadow
+warnings along with the macro-introduced ones. Implemented per
+[OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) instead: `ilp_for.hpp` marks the region
+**after its `#include`s and before the macro definitions** with
+`#pragma GCC system_header` (GCC/Clang only; gated behind
+`ILP_NO_SYSTEM_HEADER`, which this repo's own test build defines via
+`tests/CMakeLists.txt` so the header stays warning-visible during development).
+Tokens spelled in a system-header macro are exempt from `-Wshadow`; the user's
+body tokens are macro *arguments* and keep their user-file spelling locations, so
+real shadowing in user code is still fully warned — verified by
+`tests/compile_fail/wshadow_nested_ok.cpp` (nested `ILP_FOR`, no user shadowing,
+compiles clean under `-Werror=shadow`) and
+`tests/compile_fail/wshadow_user_still_warns.cpp` (deliberate user shadowing,
+still fails to compile under the same flags). Placement matters: the pragma marks
+everything *after* it as a system header, including subsequent `#include`s, so it
+must come after this header's own `#include`s — otherwise `loops_common.hpp`'s
+intentional large-N deprecation warning would be swallowed too (verified). MSVC
+`/W4` (C4456/57/59) is not covered by this pragma (`#pragma GCC system_header` is
+a GCC/Clang extension); CI is green there today, so this is out of scope rather
+than a gap.
+
+**PCH/header-unit limitation (verified on GCC 13 and Clang 18).** Both compilers
+ignore the pragma — with a warning, fatal under `-Werror` — when `ilp_for.hpp` is
+compiled as the *main* file, i.e. precompiled directly (`-x c++-header
+ilp_for.hpp`) or built as a C++20 header unit. TUs consuming such a PCH then see
+the nested-loop `-Wshadow` warnings again (verified through an actual `.gch`).
+Users who precompile this header should either define `ILP_NO_SYSTEM_HEADER` for
+the PCH build (accepting the `-Wshadow` noise) or precompile a wrapper header
+that `#include`s this one, which restores normal included-file behavior. Noted
+in the pragma's own comment in `ilp_for.hpp`.
+
+**Side effect on clang-tidy (found and fixed on this branch).** Marking the macro
+definitions as a system header also makes `clang-tidy` treat macro-expanded call
+sites in *user* code as non-user/system code by default, which silently drops the
+`ilp-loop-analysis` custom check's diagnostics there too (`tools/clang-tidy/`) —
+not just `-Wshadow`. Fixed at two depths: a repo-root `.clang-tidy` sets
+`HeaderFilterRegex: '.*'` and `SystemHeaders: true`, which clang-tidy's config
+discovery applies to every invocation on files inside this tree (including ones
+that don't exist yet); and the invocations whose inputs live *outside* the tree
+(the unit-test harness writes its cases to `/tmp`) pass the equivalent
+`-header-filter='.*' -system-headers` flags explicitly, as do the CI job, the
+VS Code tasks, and the README usage examples for self-documentation. Anyone
+running `clang-tidy` against their own code that uses `ilp_for.hpp` needs those
+same two settings (flags or `.clang-tidy` lines) for checks to fire on ILP loop
+call sites — the tool README's Configuration section shows both forms.
+
 ---
 
-## Incidental finding (not in scope, noted for tracking)
+## 5. A macro loop nested inside a function-API lambda: UB, not a clean swallow
 
-The standalone `godbolt_examples/*.cpp` still use the C++23 `0uz` literal (e.g.
-`loop_with_break.cpp:175`), which warns under `-std=c++20`
-(`use of C++23 'size_t' integer constant`). The in-repo `README.md` was already
-migrated off `0uz`; the godbolt copies were not. These files are deliberately
-line-for-line copies of library source per `godbolt_examples/INSTRUCTIONS.md`, so any
-fix should go through that regeneration process. Out of scope for this investigation;
-listed so it isn't lost.
+### Finding
+
+[NESTED_RETURN_PLAN.md](NESTED_RETURN_PLAN.md)'s propagation mechanism works by
+having `ILP_END_RETURN` look up the unqualified name `ilp_detail_ctrl` at its own
+expansion point: nested inside another *macro* loop's body, that name resolves to
+the outer loop's ctrl parameter (also always spelled `ilp_detail_ctrl`); at true
+top level, it falls back to a global sentinel function of the same name.
+
+This breaks down when the outer scope is a **function-API** lambda instead of a
+macro-expanded one. `ilp::for_loop`/`ilp::for_each` bodies name their ctrl parameter
+whatever the caller wrote (commonly `ctrl`, not `ilp_detail_ctrl`), so a macro loop
+nested inside one of those bodies finds no matching name in scope and falls back to
+the same global sentinel a true top-level loop would use. `ILP_END_RETURN`'s
+`return ::ilp::detail::propagate_return(ilp_detail_ret, ilp_detail_ctrl);` is a bare
+statement embedded directly in whatever scope contains the macro invocation - here,
+the **outer function-API lambda's body itself** (not the macro loop's own IIFE,
+which has already returned by this point). That single `return` statement, on the
+branch where the inner macro loop found a match, makes the *outer lambda's* return
+type get deduced as non-void (a `Proxy`). But the outer lambda's other control-flow
+paths - every iteration where the inner macro loop's search comes up empty - fall
+through to the end of the lambda body with **no return statement at all**.
+
+**This is not a benign discard - it's undefined behavior** (a value-returning
+function/lambda reaching its end without executing a `return`), confirmed with
+`-fsanitize=undefined`: `runtime error: execution reached the end of a
+value-returning function without returning a value`, which traps (`SIGILL`) under
+UBSan and is free to do anything in a non-sanitized build. The "silently returns
+not-found" behavior only happens in the degenerate case where the inner macro loop's
+condition happens to match on *every single* outer iteration (so every path through
+the outer lambda does hit the injected `return`) - in that specific case, no path
+falls off the end, there is no UB, and the propagated value genuinely is discarded
+cleanly (the outer `for_loop`'s ctrl was never told about a match, so the outer call
+reports not-found). Any realistic search - where the inner loop sometimes finds
+nothing - hits the UB path.
+
+### Reproduction
+
+```cpp
+int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
+    auto outer = ilp::for_loop<2>(std::size_t{0}, rows.size(), [&](auto r, auto& outer_ctrl) {
+        ILP_FOR(auto c, std::size_t{0}, rows[r].size(), 4) {
+            if (rows[r][c] == target)
+                ILP_RETURN(static_cast<int>(r * 100 + c));
+        }
+        ILP_END_RETURN;   // injects a `return` into the OUTER lambda's body; any
+                           // outer iteration whose inner search finds nothing falls
+                           // off the end of that (now non-void) lambda instead
+        // outer_ctrl.return_with(...) was never called, so `outer` reports not-found
+        // on the paths that don't crash first
+    });
+    if (outer) return *std::move(outer);
+    return -1;
+}
+// rows = {{1,2,3},{4,5,6},{7,8,9}}, target = 6: the r=0 iteration's inner search
+// finds nothing before r=1 would find the match, so control falls off the end of
+// the outer lambda on r=0 -> UB, reproduced as a UBSan trap (SIGILL).
+```
+
+**Severity:** narrow in the sense that it's self-inflicted - it requires deliberately
+mixing the two APIs (a loop macro inside a function-API lambda body) rather than
+nesting within one API consistently - but the actual failure mode (UB/crash on any
+realistic input, not a quietly-wrong value) is worse than the README's current
+"silently swallowed" wording suggests. The README's
+[Nested Loops](../README.md#nested-loops) section already tells users not to do this
+and names the correct alternative (nested `for_loop` calls, propagating explicitly
+via `ctrl.return_with(...)`); its wording should be tightened to say "undefined
+behavior" rather than "silently swallowed" given the above.
+
+### Proposed plan
+
+Not fixed; documented here as the counterpart to items 1-4 so it's tracked
+alongside them rather than only living in a README caveat. Two possible directions,
+neither attempted:
+
+- **Detect the mismatch.** If the function-API ctrl types (`ForCtrl`, `EachCtrl`,
+  etc.) exposed a distinguishing trait, a macro loop could `static_assert` that its
+  own top-level fallback path is only reached from genuine top-level scope - but the
+  macro has no way to inspect what identifiers exist in an *enclosing* scope beyond
+  the unqualified lookup it already does, so detecting "I'm nested inside some
+  lambda, but not one of mine" doesn't have an obvious mechanism.
+- **Document only (current state).** Keep this as a documented caveat and rely on
+  users not mixing macro and function-API loops within a single nesting chain -
+  which is also the simpler mental model regardless (pick one API per call chain).
+  Given that the actual failure mode is UB rather than a clean wrong-value swallow,
+  this option is weaker than it would be for a merely-wrong-value bug - a user who
+  ignores the caveat doesn't just get a wrong answer, they get a program that may
+  crash unpredictably depending on iteration order and optimization level.
+
+Given the self-inflicted (mixing two APIs) nature of the trigger and the lack of an
+obvious detection mechanism, documentation is likely the right near-term answer, not
+a code fix - but the severity re-assessment above (UB, not a clean swallow) makes
+"detect the mismatch" worth a real attempt in a future pass rather than being ruled
+out permanently. Recorded as a numbered item (rather than folded into the
+README-only caveat) so a future contributor evaluating the nested-propagation design
+sees this gap listed alongside the others.
+
+**Status: detection net added (not a semantics fix) — "detect the mismatch" above
+was reattempted and partially succeeds.** Implemented per
+[OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md): detecting the *nesting* is still
+impossible (unchanged from the analysis above — the macro genuinely cannot inspect
+what identifiers exist in an enclosing scope), but the bug's *signature* is
+detectable: a loop-result `Proxy` (`ForResult::Proxy`, `ForResultTyped<R>::Proxy`)
+holding a value but destroyed without ever being converted. Every legitimate flow
+converts its value-bearing Proxy exactly once (top level: into the declared
+return type; function API: via `*std::move(r)`); the mixed-API bug is the one
+path that doesn't. Under the existing `ILP_TYPECHECK_ENABLED` debug gate, `Proxy`
+now carries an `ilp_debug_has_value` flag (from `has_return` at creation) and an
+`ilp_debug_consumed` flag (set by every conversion operator), and a destructor
+that aborts naming the mixed-API cause and the fix if a value was present but
+never consumed — verified against the repro above
+(`tests/runtime_fail/swallowed_proxy.cpp`, `// RUN_ABORT: swallowed return
+value`) and zero false positives across the full test suite. Two deliberate
+non-aborts, pinned by `tests/runtime_fail/proxy_discard_ok.cpp`: an *empty*
+result's Proxy may be discarded freely (`*std::move(r);` on a no-match result is
+a silent no-op — nothing was swallowed), and *copying* a live Proxy transfers
+the consume obligation to the copy (the source counts as consumed; matters on
+MSVC, whose conversions are lvalue-callable so proxies can be named and copied).
+Zero-cost in release (`NDEBUG`): verified byte-identical assembly (same
+probe/flags as item 3's check; on GCC, identical modulo internal `.LFB`/`.LFE`
+label numbering).
+
+**What this does and doesn't cover.** The check fires deterministically on the
+first outer iteration whose inner search finds a match — any test that exercises
+the return path hits it. But per the severity re-assessment above, the *far more
+common* failure mode is the outer lambda falling off its end on an iteration where
+the inner search finds *nothing* — that is undefined behavior (confirmed via
+UBSan trap), happens **before** the Proxy destructor would ever run on that path,
+and this check does nothing for it; it remains exactly as documented above. So
+this item stays "documented + now debug-detected for the non-UB degenerate case,"
+not "resolved" in the sense of items 1-4 — the underlying UB is unchanged by
+design (there is still no known mechanism to detect the nesting itself). Users
+must still avoid mixing the two APIs; see the
+[README's nested-loops caveat](../README.md#nested-loops) for the recommended
+alternative (nested `ilp::for_loop` calls, propagating explicitly via
+`ctrl.return_with(...)`).
 
 ---
 
-## Suggested sequencing
+## Incidental finding: `ilp-loop-analysis` clang-tidy check was broken on `main` — found and fixed
 
-1. **#3 debug type check** and **#2 doc caveat** first — smallest, highest-value, no
-   public-API or codegen impact (#3 is behind a debug guard).
-2. **#1 control-token** next — the biggest correctness win, but a breaking change and
-   the one that *requires* the godbolt asm verification before merge.
-3. **#4 `-Wshadow`** last — quality-of-life; prototype the pragma approach, else
-   document.
+Found while re-verifying the clang-tidy module during the branch review that
+followed the END-enforcement and nested-return work. Two separate issues, both
+fixed on this branch (`tools/clang-tidy/ILPLoopCheck.cpp`):
 
-None of these change public macro *names*. #1 changes public macro *expansion* and is
-a breaking source change for code relying on bare `return;`; it should land behind a
-clear changelog entry (and, if desired, a transition `ILP_ALLOW_BARE_RETURN` escape
-hatch).
+- **Regression from this branch:** the check's AST matcher keyed on callee names
+  matching `for_loop.*`, which matched the macro layer's expansion before the
+  END-enforcement rework. After that rework, `ILP_FOR`/`ILP_FOR_T` expand to
+  `::ilp::detail::macro_for*` instead, so the matcher stopped firing on any
+  macro-written loop — silently, since nothing in the local test suite builds the
+  clang-tidy module (it requires `llvm-18-dev`/`libclang-18-dev`, not part of the
+  default dev setup). CI's clang-tidy job greps the check's output for pattern
+  names and would have gone red.
+- **Pre-existing, unrelated to this branch:** the check's "already-fixed code is not
+  re-detected" idempotency test (`ILP_FOR_AUTO` should be skipped, since it already
+  selects `N` via `LoopType`) relied on `check()`-time source-text extraction
+  (`extractMacroArgs`) to recognize the `_AUTO` macro name and suppress the
+  diagnostic. That extraction never actually worked for the `_AUTO` variants — the
+  unit test asserting it was not wired into CI (only `test/loop_patterns.cpp`'s
+  pattern-detection is), so the rot went unnoticed on `main` as well as on this
+  branch.
+
+Both are fixed together by moving the `_AUTO` exclusion to the matcher itself
+(`unless(matchesName("_auto"))` on the callee, since `macro_for_auto`/
+`macro_for_range_auto` are now distinct, separately-named entry points from the
+non-auto macros - see `loops_ilp.hpp`), rather than relying on fragile
+check()-time text parsing. Verified against llvm-18: all 8 CI grep patterns
+detected on `test/loop_patterns.cpp`, and all 10 of the tool's unit tests pass,
+from a reproduced red baseline for the regression.
+
+## Incidental finding: nested `ILP_RETURN` does not propagate through an outer loop's body
+
+Found while adding coverage for the END-enforcement work
+([END_ENFORCEMENT_PLAN.md](END_ENFORCEMENT_PLAN.md)). An `ILP_FOR`/`ILP_END_RETURN`
+block nested inside *another* `ILP_FOR`'s body does not return its value out of the
+true enclosing C++ function - reproduces identically against the pre-enforcement
+library snapshot (this is not something the tag-dispatch mechanism introduced or
+could have fixed).
+
+```cpp
+int find_first_match(const std::vector<std::vector<int>>& rows, int target) {
+    ILP_FOR(auto r, std::size_t{0}, rows.size(), 2) {
+        const auto& row = rows[r];
+        ILP_FOR(auto c, std::size_t{0}, row.size(), 4) {
+            if (row[c] == target)
+                ILP_RETURN(static_cast<int>(r * 100 + c));
+        }
+        ILP_END_RETURN;
+    }
+    ILP_END;
+    return -1;
+}
+// find_first_match({{1,2,3},{4,5,6},{7,8,9}}, 6) returns -1, not 105.
+```
+
+**Cause:** `ILP_END_RETURN`'s `return *std::move(ilp_detail_ret);` is a bare C++
+`return` statement, textually embedded at whatever scope directly contains the macro
+invocation. When the inner `ILP_FOR`/`ILP_END_RETURN` block is nested inside another
+`ILP_FOR`'s `{ body }`, that scope is the *outer* loop's body lambda (`[&](auto r,
+auto& ctrl){ ... }`) - not the real enclosing function. The `return` only escapes as
+far as that outer lambda. Because the outer lambda's return type is deduced (`auto`,
+from its single `return` statement) rather than declared, this doesn't produce a
+compile error: it silently deduces a return type and discards the value the inner
+loop found, falling through to the outer loop's own `return -1;`. GCC does emit a
+`-Wreturn-type` "control reaches end of non-void function" warning, but it is easy to
+miss among the deprecation/nodiscard warnings this library already emits by design.
+
+**Severity:** narrow - only affects code that nests an `ILP_RETURN`-using loop inside
+another loop's body and expects the inner return to escape both loops. The far more
+common pattern (an inner *break-only* `ILP_END` loop nested inside an outer
+`ILP_END_RETURN` loop, or vice versa with the return used only at the outer level) is
+unaffected and is covered by `tests/correctness/test_end_enforcement.cpp`.
+
+**Out of scope for this investigation.** A fix would need the outer loop's body
+lambda to have a declared (not deduced) return type matching whatever the innermost
+nested `ILP_RETURN` produces, which conflicts with the outer loop potentially having
+no `ILP_RETURN` of its own (i.e., being `void`) - this needs its own design pass, not
+a fold-in to the END-enforcement work. Listed so it isn't lost.
+
+**Status: resolved.** Implemented per
+[NESTED_RETURN_PLAN.md](NESTED_RETURN_PLAN.md), which took the different approach
+this note ruled out above: rather than giving the outer body lambda a declared
+return type, `ILP_END_RETURN` now dispatches on what unqualified lookup finds for
+`ilp_detail_ctrl` at its own expansion point. Nested inside another loop's body,
+that name resolves to the *outer* loop's ctrl (shadowing a global sentinel function
+that only plain function-scope invocations see), so the inner value is carried into
+the outer ctrl and the outer loop's own `ILP_END_RETURN` propagates it one level
+further - keeping every lambda's return type `void` or the Proxy, exactly as
+before, with no declared-return-type conflict. An enclosing loop closed with plain
+`ILP_END` (whose ctrl is `EachCtrl`, break-only) now produces a compile error
+naming the fix, extending the END-enforcement mechanism transitively through
+nesting. `ILP_RETURN` now means the same thing - return from the enclosing
+function - at any nesting depth, matching `ILP_MODE_SIMPLE`.
+
+---
+
+## Suggested sequencing (historical)
+
+This section originally sequenced items #1-#4 by cost/value before any of them were
+implemented. Superseded by events: #2 and #3 both shipped (via different mechanisms
+than sequenced here — #2 as a compile-time tag-dispatch redesign rather than leaning
+on #3's type check; #3 as a debug-mode runtime check rather than #2's originally
+imagined side effect of it), and #5 was discovered afterward. All five items have
+since been addressed, per [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) for #1/#4/#5.
+Current state:
+
+- **#1** (bare `return;` meaning continue) — resolved, by unifying the two build
+  modes (`ILP_MODE_SIMPLE`'s separate macro expansion deleted; it now only flips
+  `ilp::default_mode`) rather than the breaking macro-expansion change originally
+  sketched below.
+- **#2** (`ILP_END`/`ILP_END_RETURN` mismatch) — resolved, compile-time error.
+- **#3** (SBO type pun) — resolved, debug-mode abort; release-mode pun unchanged
+  by design.
+- **#4** (`-Wshadow` on nested loops) — resolved, `#pragma GCC system_header`
+  (with a clang-tidy invocation caveat — see the item).
+- **#5** (macro nested in function-API lambda is UB) — debug-mode detection net
+  added for the non-UB degenerate case; the UB itself is unchanged, no known
+  detection mechanism for the general case.
+
+Because #1 shipped via mode unification instead of the originally-sketched
+non-`void`-lambda restructuring, it did not need the breaking macro-expansion
+change the note below anticipated — no public macro names or expansions changed,
+only what a bare `return;` means under `ILP_MODE_SIMPLE` (see item 1's resolution
+above for the concrete breaking-change list).

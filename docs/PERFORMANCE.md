@@ -1,6 +1,6 @@
 # Performance Notes
 
-This library's goal is not to be a performance library, but to ensure performance doesn't stop you from using it. The patterns here generate efficient code comparable to hand-written unrolled loops.
+The numbers, and the reasoning behind them: where the speedup comes from, and where you shouldn't expect one. The generated code matches what you'd get hand-writing the unrolled main-loop-plus-remainder pattern yourself.
 
 ## ILP_FOR Benchmarks
 
@@ -13,11 +13,11 @@ Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 | `ILP_FOR` with `ILP_CONTINUE` | 1.96ms | 1.72ms | 1.49ms | **1.31x** |
 | `ILP_FOR_RANGE` with `ILP_BREAK` | 2.21ms | - | 0.94ms | **2.35x** |
 
-Note: `#pragma unroll` is slower than a simple loop for early-exit patterns due to per-iteration bounds checks. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md) for details.
+Note: for early-exit patterns, `#pragma unroll` performs no better than the simple loop — the per-iteration bounds checks it inserts cancel the unroll. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md).
 
 ### Why ILP_RETURN is Faster
 
-`ILP_RETURN` allows the compiler to hoist comparisons before the conditional return logic:
+`ILP_RETURN` lets the compiler hoist the comparisons ahead of the conditional return logic, so they execute in parallel:
 
 ```cpp
 // ILP pattern - comparisons run in parallel
@@ -37,12 +37,12 @@ bool b3 = data[i+3] == target;  // parallel
 
 **Good candidates:**
 - Loops with early exit (`ILP_BREAK`, `ILP_RETURN`)
-- Operations with dependency chains (min, max)
-- Search operations where comparisons can run in parallel
+- Bodies with loop-carried dependency chains (min, max, running products)
+- Searches whose comparisons can be evaluated in parallel
 
 **Skip ILP for:**
-- Simple sums without early exit - compilers auto-vectorize better
-- Operations where the compiler already optimizes well
+- Straight-line sums with no early exit — the auto-vectorizer already wins
+- Anything the compiler demonstrably optimizes well on its own
 
 ```cpp
 // Use ILP - early exit benefits from parallel evaluation
@@ -56,8 +56,8 @@ int sum = std::accumulate(data.begin(), data.end(), 0);
 
 ## Why Not `#pragma unroll`?
 
-For loops with early exit, `#pragma unroll` inserts per-iteration bounds checks that negate the performance benefit. The compiler cannot determine the trip count (SCEV fails for loops with `break`), so it conservatively checks bounds after each element.
+For loops with early exit, the compiler cannot determine the trip count (SCEV has no answer for a loop that might `break`), so `#pragma unroll` conservatively re-checks the bounds after every element — and those checks consume exactly the win the unroll was meant to deliver.
 
-**Result:** Pragma unroll performs the same as a simple loop for early-exit patterns.
+**Result:** for early-exit patterns, pragma unroll performs the same as a simple loop.
 
 See [PRAGMA_UNROLL.md](PRAGMA_UNROLL.md) for assembly evidence and technical details.

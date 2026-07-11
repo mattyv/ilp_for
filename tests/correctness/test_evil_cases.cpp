@@ -6,7 +6,6 @@
 #include <ranges>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // EVIL TEST CASES: Really trying to break things
@@ -248,4 +247,3 @@ TEST_CASE("Range iteration order verification", "[evil][order]") {
     REQUIRE(order == data);
 }
 
-#endif // !ILP_MODE_SIMPLE

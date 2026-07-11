@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "ctrl.hpp"
+#include "mode.hpp"
 
 namespace ilp {
     namespace detail {
@@ -72,13 +73,7 @@ namespace ilp {
 
         // body signature concepts
         template<typename F, typename T>
-        concept ForBody = std::invocable<F, T>;
-
-        template<typename F, typename T>
-        concept ForCtrlBody = std::invocable<F, T, LoopCtrl<void>&>;
-
-        template<typename F, typename T, typename R>
-        concept ForRetBody = std::invocable<F, T, LoopCtrl<R>&>;
+        concept ForEachBody = std::invocable<F, T, EachCtrl&>;
 
         template<typename F, typename T>
         concept ForUntypedCtrlBody = std::invocable<F, T, ForCtrl&>;
@@ -87,13 +82,7 @@ namespace ilp {
         concept ForTypedCtrlBody = std::invocable<F, T, ForCtrlTyped<R>&>;
 
         template<typename F, typename Ref>
-        concept ForRangeBody = std::invocable<F, Ref>;
-
-        template<typename F, typename Ref>
-        concept ForRangeCtrlBody = std::invocable<F, Ref, LoopCtrl<void>&>;
-
-        template<typename F, typename Ref, typename R>
-        concept ForRangeRetBody = std::invocable<F, Ref, LoopCtrl<R>&>;
+        concept ForEachRangeBody = std::invocable<F, Ref, EachCtrl&>;
 
         template<typename F, typename Ref>
         concept ForRangeUntypedCtrlBody = std::invocable<F, Ref, ForCtrl&>;

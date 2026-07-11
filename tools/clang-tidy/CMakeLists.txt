@@ -53,4 +53,6 @@ set_target_properties(ILPTidyModule PROPERTIES
 )
 
 # Note: To use with clang-tidy, load the module with:
-#   clang-tidy -load ./ILPTidyModule.so -checks='ilp-*' file.cpp
+#   clang-tidy -load ./ILPTidyModule.so -checks='ilp-*' -header-filter='.*' -system-headers file.cpp
+# (ilp_for.hpp is a #pragma GCC system_header - see DESIGN_NOTES.md item 4 -
+# so those flags are needed or clang-tidy drops its own diagnostics there)

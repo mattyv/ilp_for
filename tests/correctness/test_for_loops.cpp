@@ -177,8 +177,6 @@ TEST_CASE("ILP_FOR_RANGE_AUTO basic", "[for_range_auto][basic]") {
     }
 }
 
-// Test ILP_RETURN only in non-SUPER_SIMPLE modes (different semantics)
-#if !defined(ILP_MODE_SIMPLE)
 TEST_CASE("ILP_FOR with ILP_RETURN", "[for][return]") {
     SECTION("return value from loop exits function") {
         auto find_and_double = []() -> int {
@@ -276,4 +274,3 @@ TEST_CASE("ILP_FOR_RANGE_T_AUTO basic", "[for_range_t_auto][basic]") {
         REQUIRE(find_triple(data, 99) == -1);
     }
 }
-#endif

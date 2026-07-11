@@ -1,6 +1,6 @@
 # ilp-loop-analysis clang-tidy Check
 
-A best-effort static analysis tool that detects ILP loop patterns and suggests optimal `LoopType` or `N` values.
+A best-effort static analysis that recognizes the computation pattern inside your ILP loops and suggests the matching `LoopType` (or architecture-specific `N`) — including rewriting the loop for you with `--fix`.
 
 > **Note:** I'd really like this tool to be community-driven. If you encounter incorrect pattern detection or have improvements, please contribute back to help other users.
 
@@ -40,11 +40,23 @@ Once you've got it built, here's how to run it.
 
 ### Command Line
 
+`ilp_for.hpp` marks itself `#pragma GCC system_header` (see DESIGN_NOTES.md
+item 4, to keep `-Wshadow` quiet on nested `ILP_FOR` expansions). That makes
+clang-tidy treat macro-expanded call sites as non-user code by default, so
+pass `-header-filter='.*' -system-headers` or its diagnostics get silently
+dropped. Equivalently, put those two settings in a `.clang-tidy` file
+(`HeaderFilterRegex: '.*'` / `SystemHeaders: true`) so every invocation in
+your tree gets them automatically — this repo's root `.clang-tidy` does
+exactly that, so runs *inside this repo* work without the flags; the explicit
+flags below are what you need in your own project (or add the two lines to
+your own `.clang-tidy`).
+
 ```bash
 # Analyze a file
 clang-tidy \
   -load path/to/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   your_file.cpp \
   -- -std=c++20
 
@@ -52,6 +64,7 @@ clang-tidy \
 /opt/homebrew/opt/llvm/bin/clang-tidy \
   -load tools/clang-tidy/build/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   your_file.cpp \
   -- -std=c++20
 ```
@@ -64,6 +77,7 @@ Add `--fix` to automatically convert `ILP_FOR` to `ILP_FOR_AUTO` with the detect
 clang-tidy \
   -load path/to/ILPTidyModule.so \
   -checks='-*,ilp-*' \
+  -header-filter='.*' -system-headers \
   --fix \
   your_file.cpp \
   -- -std=c++20
@@ -103,7 +117,7 @@ Then run via `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Linux/Windows):
 
 Warnings will appear in the Problems panel.
 
-Note: The `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to prevent shell glob expansion. Yeah, I know its ugly.
+Note: the `-checks` argument uses escaped asterisks (`-\\*,ilp-\\*`) to stop the shell glob-expanding them. Yes, it's ugly; blame the shell.
 
 ## Detected Patterns
 
@@ -168,10 +182,14 @@ You can tweak these options via `.clang-tidy` or command line:
 | `TargetCPU` | `skylake` | CPU profile for N values (`skylake`, `alderlake`, `zen5`, `apple_m1`) |
 | `PreferPortableFix` | `true` | Use `ILP_FOR_AUTO` fix instead of architecture-specific `ILP_FOR` |
 
-Example `.clang-tidy`:
+Example `.clang-tidy` (the `HeaderFilterRegex`/`SystemHeaders` lines are
+required — without them clang-tidy silently drops this check's diagnostics,
+because `ilp_for.hpp` is a `#pragma GCC system_header`; see Command Line above):
 
 ```yaml
 Checks: '-*,ilp-*'
+HeaderFilterRegex: '.*'
+SystemHeaders: true
 CheckOptions:
   - key: ilp-loop-analysis.TargetCPU
     value: apple_m1

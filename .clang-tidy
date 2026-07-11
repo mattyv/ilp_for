@@ -1,0 +1,11 @@
+# ilp_for.hpp marks its macro-definition region with #pragma GCC system_header
+# (DESIGN_NOTES.md item 4, to keep -Wshadow quiet on nested ILP_FOR). By
+# default clang-tidy suppresses diagnostics it attributes to system headers /
+# non-user code, which silently drops warnings anchored at ILP macro call
+# sites - including the ilp-loop-analysis check in tools/clang-tidy/. These
+# two options restore them for any clang-tidy run inside this repo (config
+# discovery walks up from the analyzed file). Files analyzed OUTSIDE the repo
+# tree (e.g. the unit-test harness's /tmp inputs) don't see this file and pass
+# the equivalent -header-filter='.*' -system-headers flags explicitly.
+HeaderFilterRegex: '.*'
+SystemHeaders: true

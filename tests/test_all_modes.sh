@@ -27,9 +27,37 @@ run_tests() {
     echo ""
 }
 
-# Test both modes
+# The macro layer is unconditional (ILP_MODE_SIMPLE only flips ilp::default_mode
+# - see mode.hpp), so the compile-fail and runtime-fail harnesses are meaningful
+# in both modes and run once per mode below.
+
 run_tests "ILP (default)" ""
+
+echo "=========================================="
+echo "Testing: compile-fail harness (default mode)"
+echo "=========================================="
+bash compile_fail/check_compile_fail.sh
+echo ""
+
+echo "=========================================="
+echo "Testing: runtime-fail harness (default mode)"
+echo "=========================================="
+bash runtime_fail/check_runtime_fail.sh
+echo ""
+
 run_tests "SIMPLE" "-DCMAKE_CXX_FLAGS=-DILP_MODE_SIMPLE"
+
+echo "=========================================="
+echo "Testing: compile-fail harness (SIMPLE mode)"
+echo "=========================================="
+ILP_EXTRA_CXXFLAGS="-DILP_MODE_SIMPLE" bash compile_fail/check_compile_fail.sh
+echo ""
+
+echo "=========================================="
+echo "Testing: runtime-fail harness (SIMPLE mode)"
+echo "=========================================="
+ILP_EXTRA_CXXFLAGS="-DILP_MODE_SIMPLE" bash runtime_fail/check_runtime_fail.sh
+echo ""
 
 echo "=========================================="
 echo "All modes passed!"

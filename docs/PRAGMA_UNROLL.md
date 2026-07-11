@@ -1,12 +1,12 @@
 # Why Not Just `#pragma unroll`?
 
-Compilers *can* unroll loops with `break`/`continue`/`return` using `#pragma unroll`. The difference is not in whether it unrolls, but in **how many instructions it generates per iteration**.
+Compilers *will* unroll a loop with `break`/`continue`/`return` if you ask with `#pragma unroll`. The question is not whether it unrolls — it's **how many instructions each element costs once it has**.
 
 ---
 
 ## The Real Issue: Per-Iteration Bounds Checks
 
-When you add `#pragma unroll` to a loop with early exit, the compiler must preserve exact break semantics. Since it cannot determine the trip count (SCEV fails for loops with `break`), it inserts bounds checks after **each unrolled element**.
+Adding `#pragma unroll` to an early-exit loop obliges the compiler to preserve exact break semantics. It cannot determine the trip count (SCEV has no answer for a loop that might `break`), so it protects itself with a bounds check after **every unrolled element** — the unrolled body is bigger, but each element still pays the full loop overhead.
 
 ### Assembly Evidence (x86-64 Clang)
 
@@ -105,7 +105,7 @@ for (size_t i = 0; i < n; ++i) {
 }
 ```
 
-SCEV cannot determine how many iterations will execute - it depends on runtime data. The compiler must conservatively assume the loop could exit at any element.
+SCEV cannot say how many iterations will run — the answer lives in the data. The compiler must assume the loop could exit at any element and plan accordingly.
 
 **Without break:** SCEV knows exactly `n` iterations will run. The compiler can:
 - Unroll cleanly into a main loop + tail loop
@@ -116,6 +116,115 @@ SCEV cannot determine how many iterations will execute - it depends on runtime d
 - Check bounds after each element to preserve exact semantics
 - Cannot speculatively execute past a potential exit point
 - Falls back to "interleaved" unrolling instead of "strip-mining"
+
+---
+
+## Could This Be Fixed Upstream?
+
+Probably, in principle. Nothing about "unknown trip count" *requires* a bounds
+check per element — it only requires a bounds check per unrolled *block*, which
+is exactly the code `ILP_FOR` hand-generates. An unroller that speculatively
+executes a full block of N iterations and only re-checks the exit condition
+after the block (rolling back or masking off the speculatively-executed tail
+elements past the true exit point, since the loop body here has no
+externally-visible side effects to undo before the check — `ILP_FOR`'s own
+correctness argument for exactly this pattern) is a known, implementable shape;
+it's a missed optimization in current SCEV-driven unrolling, not a fundamental
+impossibility. This is a phase-ordering / cost-model gap, similar in spirit to
+other unroll-heuristic gaps compilers have closed over time.
+
+If LLVM or GCC ever taught their unrollers to do this, the gap `ILP_FOR`
+exists to fill would shrink or close outright — and that would be a genuinely
+good outcome: this library's job is to make a hand-rolled workaround for a
+compiler limitation unnecessary to write by hand, not to be a permanent
+alternative to the compiler doing its job. Worst case if that ever happens,
+`ILP_FOR` degrades to emitting the same code the compiler would produce on its
+own (see [Where ilp_for loses](../README.md#where-ilp_for-loses) for the class
+of loop where this is already largely true today).
+
+### State of play (as of late 2025)
+
+The gap is still open on general targets, though there's movement:
+
+- **The infrastructure exists but is switched off.** LLVM has carried
+  runtime-unrolling support for multiple-exit loops (`-unroll-runtime-multi-exit`,
+  with prologue/epilogue remainder handling) for years, but it's a hidden option
+  defaulting to *off* — the cost model was never changed to enable it in normal
+  compilation ([D107381](https://reviews.llvm.org/D107381)). So on a stock
+  x86-64 or generic AArch64 target, an early-exit loop still gets the
+  per-element bounds checks shown above.
+- **Vendor-specific unrolling has started to appear.** In Dec 2024, LLVM gained
+  runtime unrolling of loops with early-*continues* on Apple Silicon (A14–A16,
+  M4) — [llvm/llvm-project#118499](https://github.com/llvm/llvm-project/pull/118499)
+  — plus a companion pass for small load/store loops
+  ([#118317](https://github.com/llvm/llvm-project/pull/118317)). Note the
+  distinction: an early-`continue` doesn't break the trip count (the loop still
+  runs to `n`), so this targets branch-prediction and memory-level parallelism,
+  *not* the per-block-vs-per-element bounds-check problem that a `break`/`return`
+  creates. It's a sign the door is open, not a fix for this specific case — and
+  it's gated to one vendor's out-of-order cores.
+- **The specific limitation is still reported as unresolved.** As of Oct 2025,
+  LLVM still declines to runtime-unroll loops whose exit trip count SCEV can't
+  prove non-wrapping
+  ([llvm-project#165354](http://www.mail-archive.com/llvm-bugs@lists.llvm.org/msg93415.html)) —
+  the direct descendant of the SCEV limitation described above.
+
+None of this changes the recommendation today; it's here so the "missed
+optimization, not a fundamental limit" claim above stays honest and checkable.
+
+**GCC predicate-order caveat (as of Jul 2026, confirmed on 14.3.0 and 15.2.0):**
+When a loop body has two or more independent predicates, GCC can fail to fuse
+them through `ILP_FOR`'s macro expansion the way it does for a hand-written
+loop. The macro's nested lambda layers *are* inlined before GCC's `ifcombine`
+pass (the one that fuses independent conditions into a single branch) — but
+not by the *early* inliner, so the body reaches ifcombine in a shape its
+pattern-match rejects, and the predicates are never fused. (The exact IL
+property that blocks the match isn't pinned down; what is confirmed is that
+forcing *early* inlining fixes it, while merely marking the wrapper functions
+`always_inline` — which also inlines them before ifcombine — does not.) If the
+loop body's *first* condition is poorly predictable (e.g. a 50/50 parity check)
+and a later, almost-always-false condition (e.g. a rarely-true threshold check)
+is checked second, the unfused coin-flip check is left as the per-element
+branch. Once the data exceeds cache, this shows up as a large throughput
+cliff (measured ~16x with `-march=native` on one such loop: ~0.3 G/s vs.
+~4.8 G/s, ~26% vs. ~0% branch-misses — a figure that includes vectorization
+unlocked by the fusion, not misprediction alone; see the `ILP_FLATTEN` bullet
+below). Clang is unaffected — it emits the fused, branchless form for this
+shape through the macro expansion (verified Clang 20).
+
+Two independent fixes, either is sufficient:
+- **Reorder the body:** put the most-predictable or most-selective condition
+  first, so the coin-flip check is no longer the one left exposed.
+- **Force early inlining:** mark the enclosing function `ILP_FLATTEN` (see
+  `ilp_for.hpp`). This expands to `[[gnu::flatten]]` on GCC/Clang, which
+  force-inlines the whole `ILP_FOR` call tree into the annotated function
+  early, letting ifcombine fuse the predicates (and, under `-march=native`,
+  auto-vectorize the recovered loop — so the measured speedup above includes
+  vectorization unlocked by the fusion, not fusion alone). No-op on other
+  compilers.
+
+  Two caveats on `ILP_FLATTEN`: (1) it only takes effect when the debug-mode
+  typecheck is disabled — `NDEBUG` without `-DILP_DEBUG_TYPECHECK`, or
+  `-DILP_NO_DEBUG_TYPECHECK` on its own (the gate is `ILP_TYPECHECK_ENABLED`
+  in `detail/ctrl.hpp`) — otherwise the typecheck layer keeps the predicates
+  unfusable even with flatten, and the annotation silently does nothing.
+  Ordinary release builds (`-DNDEBUG`) are fine; plain `-O3` debug-ish builds,
+  and release builds that force the typecheck on with `-DILP_DEBUG_TYPECHECK`,
+  are not. This interaction was confirmed on GCC 14.3/15.2 on return-carrying
+  (`ILP_RETURN`) loops; break/continue-only loops contain no typecheck
+  machinery at all, and GCC 13 was observed to fuse under flatten even with
+  the typecheck active — so treat it as a caveat for the measured
+  configurations, not a universal rule. (2) `[[gnu::flatten]]`
+  force-inlines *every* call the annotated function makes, so apply it to a
+  small function containing the hot loop — on a large function, or one with
+  heavy unrelated calls, it costs code size and compile time.
+
+We believe this is a GCC missed-optimization, not a fundamental limit or a
+correctness bug: the generated code is correct, just slow, and Clang fuses the
+same predicates through the identical code with no hint. Forcing early inlining
+recovers it on GCC too. We have *not* pinned the exact IL property that blocks
+the fuse, and we have not reported it upstream — so treat `ILP_FLATTEN` and
+predicate reordering as workarounds for current GCC, not a permanent tax.
 
 ---
 
@@ -130,7 +239,7 @@ size_t count_pragma(const uint32_t* data, size_t n, uint32_t threshold);
 size_t count_ilp(const uint32_t* data, size_t n, uint32_t threshold);
 ```
 
-**Conclusion:** ILP_FOR only helps for loops with early exit. For simple loops without `break`/`return`, just use a regular loop - the compiler optimizes it perfectly.
+**Conclusion:** `ILP_FOR` only earns its keep on loops with early exit. Without `break`/`return`, write the plain loop — the compiler already produces optimal code.
 
 ---
 

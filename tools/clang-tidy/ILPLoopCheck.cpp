@@ -142,16 +142,21 @@ namespace clang::tidy::ilp {
     }
 
     void ILPLoopCheck::registerMatchers(MatchFinder* Finder) {
-        // Match lambda expressions that are passed to functions starting with "for_loop"
-        // This catches the expanded form of ILP_FOR and ILP_FOR_AUTO macros
+        // Match lambda bodies passed to the loop entry points, index-loop shape
+        // (lambda at argument index 2). Covers:
+        //   - ilp::detail::macro_for* - the expanded form of ILP_FOR / ILP_FOR_T
+        //                               (the macros dispatch through these since the
+        //                               END-enforcement rework)
+        //   - ilp::for_loop*          - direct function-API calls
+        //   - ilp::for_each           - direct function-API break/continue-only calls
+        // The *_auto flavors (ILP_FOR_AUTO expansions and direct for_loop_auto calls)
+        // are excluded here: they already select N via LoopType, so there is nothing
+        // to suggest. Excluding by callee name is more robust than the check()-time
+        // macro-name suppression, which depends on source-text extraction.
         Finder->addMatcher(
-            callExpr(callee(functionDecl(matchesName("for_loop.*"))), hasArgument(2, lambdaExpr().bind("loopBody")))
-                .bind("forLoopCall"),
-            this);
-
-        // Also match direct calls to ilp::for_loop
-        Finder->addMatcher(
-            callExpr(callee(functionDecl(hasName("ilp::for_loop"))), hasArgument(2, lambdaExpr().bind("loopBody")))
+            callExpr(callee(functionDecl(allOf(matchesName("(for_loop|macro_for|for_each)"),
+                                               unless(matchesName("_auto"))))),
+                     hasArgument(2, lambdaExpr().bind("loopBody")))
                 .bind("forLoopCall"),
             this);
     }

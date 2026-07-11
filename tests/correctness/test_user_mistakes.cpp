@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#if !defined(ILP_MODE_SIMPLE)
 
 // =============================================================================
 // TEST: Dumb Stuff Users Might Do
@@ -355,4 +354,3 @@ TEST_CASE("Return vs break confusion", "[mistake][control]") {
     REQUIRE(sum == 45);
 }
 
-#endif // !ILP_MODE_SIMPLE
