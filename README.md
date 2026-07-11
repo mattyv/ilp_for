@@ -711,32 +711,6 @@ Default Header values by type:
 
 ---
 
-## Formal Specifications with Axiom
-
-An experiment: what if a library shipped a formal, machine-readable knowledge base that LLMs could query, instead of inferring the rules from documentation and source? Prose docs have gaps and ambiguities, and models fill them with plausible-sounding falsehoods. A graph of precise contracts — each node grounded, link by link, all the way down to the C/C++ standard — leaves much less room for that.
-
-### How it works
-
-The [`knowledge/ilp_for_axioms.toml`](knowledge/ilp_for_axioms.toml) file contains 1000+ formal axioms auto extracted from the codebase covering:
-- Macro preconditions (e.g., "N must be a compile-time constant expression")
-- Type constraints (e.g., "loop variable must be integral")
-- Runtime invariants (e.g., "start <= end for valid loop range")
-- Template SFINAE conditions and concept requirements
-- Violation behavior (compile error, runtime error, undefined behavior)
-
-When you ask Claude Code or another AI tool about `ilp_for`, it can consult these specifications to generate correct code and explain *why* a given pattern fails — a precise statement of the library's contracts, rather than a hope that the model remembers them.
-
-The axiom system is built on [Axiom](https://github.com/mattyv/axiom) (included as a submodule at [`external/axiom/`](external/axiom/)), which provides:
-- **Automated extraction** - parses your C++20 library source to extract preconditions, postconditions, invariants
-- **MCP server integration** - query axioms from any AI tool that supports the Model Context Protocol
-- **Formal verification** - enable static analysis and contract checking
-
-See the [Axiom repository](https://github.com/mattyv/axiom) for documentation on extraction, verification, and LLM integration.
-
-**[View Axiom Test Report](docs/axiom-test-report.md)** - Sample validations showing how Axiom catches incorrect ILP_FOR usage.
-
----
-
 ## Requirements
 
 - C++20

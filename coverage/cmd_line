@@ -1,1 +1,0 @@
-genhtml coverage.info --output-directory /Users/matthew/Documents/Code/CPP/ilp_for/coverage
