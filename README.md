@@ -294,7 +294,9 @@ ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
     } ILP_END_RETURN;
     return n;
 }
+```
 
+```cpp
 // Function API - same annotation, same place
 ILP_FLATTEN size_t first_odd_over(const uint32_t* d, size_t n, uint32_t t) {
     auto r = ilp::for_loop<4>(size_t{0}, n, [&](auto i, auto& ctrl) {
@@ -312,17 +314,22 @@ before a rarely-true threshold check), and only if you actually measure a
 branch-misprediction cliff (it appears once the data spills cache). It is not a
 general "make it faster" knob — on a well-predicted loop it does nothing useful.
 
-**Why it works:** GCC only fuses those predicates into one branch if the loop's call
-tree is inlined by its *early* inliner; through both APIs several layers inline later
-than that, so the fusion is missed and the coin-flip check stays per-element.
-`[[gnu::flatten]]` forces the whole tree to inline early, restoring the fusion (~10-15x
-on the affected loops with `-march=native` — the fusion also unlocks auto-vectorization,
-so that figure isn't from branch-fusion alone; verified 26% → 0% branch-misses, GCC
-14/15). Clang doesn't need it. Two limits: it only takes effect under `NDEBUG` (or `-DILP_NO_DEBUG_TYPECHECK`),
-and `[[gnu::flatten]]` force-inlines *everything* the function calls, so keep the
-annotated function small. Reordering the predicates (selective condition first) fixes
-the same cliff with no annotation. Full story: the GCC predicate-order caveat in
-[docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
+**Why it works:** in practice GCC only fuses those predicates into one branch when the
+loop's call tree is inlined by its *early* inliner (the exact blocker isn't pinned
+down — see the caveat doc); through both APIs several layers inline later than that,
+so the fusion is missed and the coin-flip check stays per-element. `[[gnu::flatten]]`
+forces the whole tree to inline early, restoring the fusion (~10-16x on the affected
+loops with `-march=native` — the fusion also unlocks auto-vectorization, so that figure
+isn't from branch-fusion alone; verified 26% → 0% branch-misses, GCC 14/15). Yes,
+auto-vectorization of an early-exit loop: GCC 14+'s early-break vectorizer can reach
+this simple fused shape, an exception to the general rule that [early exits block
+vectorization](#how-it-works) — most loops ilp_for targets remain out of its reach.
+Clang doesn't need the hint. Two limits: it only takes effect when the debug-mode type
+check is disabled (`NDEBUG` without `-DILP_DEBUG_TYPECHECK`, or
+`-DILP_NO_DEBUG_TYPECHECK`), and `[[gnu::flatten]]` force-inlines *everything* the
+function calls, so keep the annotated function small. Reordering the predicates
+(selective condition first) fixes the same cliff with no annotation. Full story: the
+GCC predicate-order caveat in [docs/PRAGMA_UNROLL.md](docs/PRAGMA_UNROLL.md).
 
 ---
 

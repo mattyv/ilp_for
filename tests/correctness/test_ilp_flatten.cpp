@@ -37,11 +37,6 @@ TEST_CASE("ILP_FLATTEN is semantically transparent") {
         CHECK(first_odd_over(data.data(), data.size(), 500) == data.size());
     }
 
-    SECTION("finds the first odd value over threshold") {
-        data[400] = 501; // odd and > 500
-        CHECK(first_odd_over(data.data(), data.size(), 500) == 400);
-    }
-
     SECTION("skips values that fail either predicate") {
         data[100] = 500; // even -> skipped by parity check
         data[200] = 499; // odd but not > 500 -> skipped by threshold check

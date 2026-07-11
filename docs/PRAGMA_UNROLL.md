@@ -185,11 +185,12 @@ forcing *early* inlining fixes it, while merely marking the wrapper functions
 loop body's *first* condition is poorly predictable (e.g. a 50/50 parity check)
 and a later, almost-always-false condition (e.g. a rarely-true threshold check)
 is checked second, the unfused coin-flip check is left as the per-element
-branch. Once the data exceeds cache, this shows up as a ~10-15x throughput
-cliff from branch misprediction alone (measured: ~0.3 G/s vs. ~4.8 G/s on one
-such loop, ~26% vs. ~0% branch-misses). Clang is unaffected — it emits the
-fused, branchless form for this shape through the macro expansion (verified
-Clang 20).
+branch. Once the data exceeds cache, this shows up as a large throughput
+cliff (measured ~16x with `-march=native` on one such loop: ~0.3 G/s vs.
+~4.8 G/s, ~26% vs. ~0% branch-misses — a figure that includes vectorization
+unlocked by the fusion, not misprediction alone; see the `ILP_FLATTEN` bullet
+below). Clang is unaffected — it emits the fused, branchless form for this
+shape through the macro expansion (verified Clang 20).
 
 Two independent fixes, either is sufficient:
 - **Reorder the body:** put the most-predictable or most-selective condition
@@ -202,11 +203,18 @@ Two independent fixes, either is sufficient:
   vectorization unlocked by the fusion, not fusion alone). No-op on other
   compilers.
 
-  Two caveats on `ILP_FLATTEN`: (1) it only takes effect when `NDEBUG` is
-  defined (or `-DILP_NO_DEBUG_TYPECHECK` is set) — otherwise the debug
-  typecheck layer keeps the predicates unfusable even with flatten, and the
-  annotation silently does nothing. Release builds define `NDEBUG`, so they
-  are fine; plain `-O3` debug-ish builds are not. (2) `[[gnu::flatten]]`
+  Two caveats on `ILP_FLATTEN`: (1) it only takes effect when the debug-mode
+  typecheck is disabled — `NDEBUG` without `-DILP_DEBUG_TYPECHECK`, or
+  `-DILP_NO_DEBUG_TYPECHECK` on its own (the gate is `ILP_TYPECHECK_ENABLED`
+  in `detail/ctrl.hpp`) — otherwise the typecheck layer keeps the predicates
+  unfusable even with flatten, and the annotation silently does nothing.
+  Ordinary release builds (`-DNDEBUG`) are fine; plain `-O3` debug-ish builds,
+  and release builds that force the typecheck on with `-DILP_DEBUG_TYPECHECK`,
+  are not. This interaction was confirmed on GCC 14.3/15.2 on return-carrying
+  (`ILP_RETURN`) loops; break/continue-only loops contain no typecheck
+  machinery at all, and GCC 13 was observed to fuse under flatten even with
+  the typecheck active — so treat it as a caveat for the measured
+  configurations, not a universal rule. (2) `[[gnu::flatten]]`
   force-inlines *every* call the annotated function makes, so apply it to a
   small function containing the hot loop — on a large function, or one with
   heavy unrelated calls, it costs code size and compile time.

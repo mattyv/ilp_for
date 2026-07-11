@@ -182,11 +182,13 @@ inline void ilp_detail_ctrl() {}
 // branch - a misprediction cliff once data exceeds cache. See the GCC
 // predicate-order caveat in docs/PRAGMA_UNROLL.md. [[gnu::flatten]] forces the
 // whole ILP_FOR call tree to inline early, restoring the fusion. Two caveats:
-// it only takes effect when NDEBUG is defined (or ILP_NO_DEBUG_TYPECHECK is
-// set) - the debug typecheck layer otherwise keeps the predicates unfusable
-// even with flatten; and flatten force-inlines *everything* the function
-// calls, so keep the annotated function small. No-op (and safe to leave in
-// place) on compilers other than GCC/Clang.
+// it only takes effect when the debug-mode typecheck is disabled (NDEBUG
+// without ILP_DEBUG_TYPECHECK, or ILP_NO_DEBUG_TYPECHECK - the gate is
+// ILP_TYPECHECK_ENABLED in detail/ctrl.hpp), since the typecheck layer
+// otherwise keeps the predicates unfusable even with flatten (confirmed GCC
+// 14/15, ILP_RETURN loops); and flatten force-inlines *everything* the
+// function calls, so keep the annotated function small. No-op (and safe to
+// leave in place) on compilers other than GCC/Clang.
 #if defined(__GNUC__) || defined(__clang__)
 #define ILP_FLATTEN [[gnu::flatten]]
 #else
