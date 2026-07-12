@@ -94,11 +94,12 @@ Copy LINE-FOR-LINE from these files:
 | `validate_unroll_factor`/`warn_large_unroll_factor`, the `ForEachBody`/`ForUntypedCtrlBody`/`ForTypedCtrlBody` concepts | `ilp_for/detail/loops_common.hpp` |
 | `unrolled_block_end`, `index_loop_core`, `for_each_impl`, `for_loop_untyped_impl`, `for_loop_typed_impl`, `macro_for` (both tag overloads) | `ilp_for/detail/loops_ilp.hpp` |
 | Macros, `ilp_detail_ctrl()` sentinel | `ilp_for.hpp` |
+| `find_if_default_block`-strategy constants, `find_if_resolved_block`, `validate_find_block`/`warn_gcc_find_block_cliff`, `find_if_impl`, `find_if` | `ilp_for/detail/find.hpp` |
 
-None of the four examples use `ILP_FOR_RANGE`/`ILP_FOR_AUTO`, so the range-based
+None of the four `ILP_FOR`-based examples use `ILP_FOR_RANGE`/`ILP_FOR_AUTO`, so the range-based
 (`range_loop_core`, `for_each_range_impl`, `for_loop_range_*_impl`,
 `macro_for_range*`) and auto-N (`optimal_N`, `LoopType`, `cpu_profiles/`)
-machinery is genuinely unused across all four files and stays out.
+machinery is genuinely unused across all five files and stays out.
 
 ---
 
@@ -129,6 +130,13 @@ instantiates most of them. Concretely:
   shape and are near-identical except for their demo functions/macros - don't
   try to trim one below the other's dependencies without re-verifying the
   interdependency above.
+- **`find_if.cpp`** is a different shape entirely: it uses the function API
+  only (no `ILP_FOR`/`ILP_END` macro at all), so none of the ctrl-type zoo
+  above is reachable - `find_if_impl` doesn't take a `Ctrl&` and never calls
+  `propagate_return`. It needs only `Mode`/`default_mode` (from `mode.hpp`)
+  and `ILP_ALWAYS_INLINE` (the macro definition from `ctrl.hpp`, not the rest
+  of that file) plus everything in `find.hpp` itself. This is the leanest of
+  the five examples.
 
 | Example | Path |
 |---------|------|
@@ -136,6 +144,7 @@ instantiates most of them. Concretely:
 | `pragma_vs_ilp.cpp` | `ILP_END`-only (lean) |
 | `loop_with_return.cpp` | `ILP_END_RETURN` (full zoo) |
 | `loop_with_return_typed.cpp` | `ILP_END_RETURN` (full zoo) |
+| `find_if.cpp` | function-API-only (leanest - no ctrl-type zoo) |
 
 ---
 
@@ -162,6 +171,16 @@ against the real source (adjust the `sed` range per component):
 ```bash
 diff <(sed -n '/struct SmallStorage {/,/^    };$/p' ilp_for/detail/ctrl.hpp) \
      <(sed -n '/struct SmallStorage {/,/^    };$/p' godbolt_examples/loop_with_return.cpp)
+```
+
+For `find_if.cpp`, the whole `namespace ilp { namespace detail { ... } ... }` body
+of `find.hpp` (Mode-definition line aside, folded in from `mode.hpp` since both
+headers reopen `namespace ilp`) is copied verbatim, so a single range diff
+covers it:
+
+```bash
+diff <(sed -n '/^namespace ilp {$/,/^} \/\/ namespace ilp$/p' ilp_for/detail/find.hpp | sed -n '3,$p') \
+     <(sed -n '/^    namespace detail {$/,/^} \/\/ namespace ilp$/p' godbolt_examples/find_if.cpp)
 ```
 
 ---

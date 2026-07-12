@@ -54,29 +54,31 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 
 Unlike the examples above, `ilp::find_if` isn't part of the ILP_FOR/hand-rolled/simple
 comparison — it's a separate primitive for the case none of those three win at:
-a trivially-vectorizable search. No Godbolt link yet (see
-`godbolt_examples/INSTRUCTIONS.md` for how those are generated); the snippet
-below is copy-pasted from the `"find_if README example"` test case in
-`tests/correctness/test_find_if.cpp`.
+a trivially-vectorizable search. The example compiles three versions instead:
+`ilp::find_if` (using the default, compiler+ISA-resolved strategy), a hand-rolled
+blockcheck (the shape Clang's default - and GCC's SLP-fallback default - compile
+down to), and a simple scalar loop (what GCC 15+ with SSE4.1 or better resolves
+the default to directly, deferring to its own early-break loop vectorizer).
 
-```cpp
-#include <ilp_for.hpp>
-#include <vector>
+**View on Godbolt:** [x86-64 Clang (MCA)](https://godbolt.org/z/T66Gxj4xG) | [x86-64 GCC](https://godbolt.org/z/b5zfheb7f) | [ARM64](https://godbolt.org/z/Pevsj9T3P)
 
-std::vector<int> data = {5, 3, 8, 42, 1, 9};
-auto it = ilp::find_if(data, [](int v) { return v == 42; });
-// it - data.begin() == 3
-```
+[Source code](../godbolt_examples/find_if.cpp)
 
 The generated assembly (`-O3 -march=native`, AVX-512) uses `zmm`-width vector
 compares either way, but via different code paths: Clang's default resolves to
 the blockcheck shape and vectorizes the block-check loop directly; GCC 15+
-(with SSE4.1 or better) instead resolves to the *plain* scalar loop above and
-lets its own early-break loop vectorizer emit the `zmm` compare-and-mask
-kernel — see [Why two shapes](PERFORMANCE.md#why-two-shapes) for the mechanism
-behind the split. See `benchmarks/bench_find_if.cpp` for the full benchmark
-this is drawn from, and [docs/PERFORMANCE.md](PERFORMANCE.md#ilpfind_if-benchmarks)
+(with SSE4.1 or better) instead resolves to the *plain* scalar loop and lets
+its own early-break loop vectorizer emit the `zmm` compare-and-mask kernel —
+see [Why two shapes](PERFORMANCE.md#why-two-shapes) for the mechanism behind
+the split. See `benchmarks/bench_find_if.cpp` for the full benchmark this is
+drawn from, and [docs/PERFORMANCE.md](PERFORMANCE.md#ilpfind_if-benchmarks)
 for the measured numbers.
+
+The README's `ilp::find_if` snippet (`{5, 3, 8, 42, 1, 9}`, find `v == 42`) is
+copy-pasted from the `"find_if README example"` test case in
+`tests/correctness/test_find_if.cpp` - see the README's
+[`ilp::find_if`](../README.md#ilpfind_if--vectorizable-first-match-search)
+section for that one.
 
 ---
 

@@ -69,6 +69,7 @@ SECTIONS = [
     ("pragma_vs_ilp.cpp", "Pragma Unroll vs ILP_FOR"),
     ("loop_with_return.cpp", "Loop with Return"),
     ("loop_with_return_typed.cpp", "Loop with Large Return Type"),
+    ("find_if.cpp", "`ilp::find_if` — Vectorizable First-Match Search"),
 ]
 
 
