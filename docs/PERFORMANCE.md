@@ -15,6 +15,31 @@ Apple M2, Clang 19, 10M elements, `-O3 -march=native`
 
 Note: for early-exit patterns, `#pragma unroll` performs no better than the simple loop — the per-iteration bounds checks it inserts cancel the unroll. See [Why Not Pragma Unroll?](PRAGMA_UNROLL.md).
 
+### x86: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 10M elements, `-O3 -march=native`
+
+Clang 20:
+
+| Loop Type | Simple | Pragma | ILP | Speedup |
+|-----------|--------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.02ms | 0.73ms | 0.50ms | **2.04x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.02ms | 0.70ms | 0.49ms | **2.07x** |
+| `ILP_FOR` with `ILP_CONTINUE` | 1.10ms | 1.03ms | 1.02ms | **1.08x** |
+| `ILP_FOR_RANGE` with `ILP_BREAK` | 1.18ms | - | 0.49ms | **2.40x** |
+
+GCC 15:
+
+| Loop Type | Simple | Pragma | ILP | Speedup |
+|-----------|--------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 0.30ms | 0.32ms | 0.50ms | 0.60x |
+| `ILP_FOR` with `ILP_RETURN` | 1.04ms | 0.66ms | 0.53ms | **1.95x** |
+| `ILP_FOR` with `ILP_CONTINUE` | 0.34ms | 0.33ms | 13.39ms | 0.03x |
+| `ILP_FOR_RANGE` with `ILP_BREAK` | 0.32ms | - | 0.47ms | 0.68x |
+
+Two honest caveats on GCC 15 / Zen 5:
+
+- **GCC's early-break vectorizer wins the simple loops.** GCC 14+ auto-vectorizes the plain `break`/`continue`/range loops here (~0.3ms), and the ILP transformation blocks that vectorization. On GCC, measure before reaching for ILP on these patterns; `ILP_RETURN` still delivers ~2x.
+- **The `ILP_CONTINUE` benchmark hits GCC's predicate-order branch-miss cliff** (13.39ms): an unpredictable parity check ahead of a rarely-true threshold check, through the macro expansion. Order the most-selective condition first, or mark the enclosing function `ILP_FLATTEN` — see the GCC predicate-order caveat in [PRAGMA_UNROLL.md](PRAGMA_UNROLL.md).
+
 ### Why ILP_RETURN is Faster
 
 `ILP_RETURN` lets the compiler hoist the comparisons ahead of the conditional return logic, so they execute in parallel:

@@ -17,7 +17,15 @@ Headline numbers (Apple M2, Clang 19, 10M elements, `-O3 -march=native`):
 | `ILP_FOR` with `ILP_RETURN` | 1.68ms | 1.51ms | 0.94ms | **1.79x** |
 | `ILP_FOR_RANGE` with `ILP_BREAK` | 2.21ms | - | 0.94ms | **2.35x** |
 
-Full benchmarks in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+x86 (AMD Ryzen AI 9 HX PRO 370, Zen 5, Clang 20, 10M elements, `-O3 -march=native`):
+
+| Loop Type | Simple | Pragma | ILP | Speedup |
+|-----------|--------|--------|-----|---------|
+| `ILP_FOR` with `ILP_BREAK` | 1.02ms | 0.73ms | 0.50ms | **2.04x** |
+| `ILP_FOR` with `ILP_RETURN` | 1.02ms | 0.70ms | 0.49ms | **2.07x** |
+| `ILP_FOR_RANGE` with `ILP_BREAK` | 1.18ms | - | 0.49ms | **2.40x** |
+
+GCC 15 on the same CPU is a different story: its early-break vectorizer auto-vectorizes the simple `break`/`continue`/range loops to ~0.3ms — faster than even Clang's ILP code (~0.5ms). SIMD beats scalar unrolling there, so on GCC 15 write the plain loop for those patterns; only `ILP_RETURN` (which GCC can't vectorize) keeps its ~2x win. Full per-compiler tables in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ---
 
