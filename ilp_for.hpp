@@ -19,6 +19,7 @@
 
 #include "ilp_for/detail/iota.hpp"
 #include "ilp_for/detail/loops_ilp.hpp"
+#include "ilp_for/detail/find.hpp"
 
 // Mark the REMAINDER of this header (the macro definitions below) as a system
 // header. Nested ILP_FOR expansions necessarily reuse fixed names

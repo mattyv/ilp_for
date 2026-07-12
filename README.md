@@ -426,6 +426,94 @@ bounds-check-per-iteration code path `ILP_MODE_SIMPLE` produces for the macros
 (both go through the same body-lambda mechanism, so there's no macro-vs-function-API
 difference in debugger experience here).
 
+### `ilp::find_if` — vectorizable first-match search
+
+`ILP_FOR`/`ILP_BREAK` (and `ilp::for_loop`) lower to a per-lane body call with
+exit-state tracking, which cannot auto-vectorize (see
+[Where ilp_for loses](#where-ilp_for-loses) below). `ilp::find_if` is a
+separate, dedicated primitive for the specific case a `break`-style search
+can't reach. Its default (`N = 0`) resolves to one of two shapes, chosen per
+compiler **and** ISA — see [Default block-size strategy](#default-block-size-strategy)
+below: on Clang, a two-phase "blockcheck" shape (a branch-free "does this
+block contain a match?" scan, then a scalar re-scan of only the hit block)
+that scales its block size to the element type; on GCC 15+ with a suitable
+ISA, the plain scalar loop, deferring to GCC's own early-break loop
+vectorizer. On Clang, this is roughly **5x faster than a scalar loop at
+4-byte elements and ~24x at 1-byte elements**; on GCC 15+ with SSE4.1 or
+better, the default wins or near-ties GCC's own fastest known code for this
+pattern on **native** (AVX-512) hardware — but on mid-tier ISAs (SSE4.2/AVX2)
+that's not universal: an explicit-N blockcheck still wins outright at some
+element sizes there (see the v2/v3 breakdown in
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md#ilpfind_if-benchmarks)). The
+blockcheck shape is the default for older GCC and narrower ISAs (no SSE4.1),
+where it's still 3-5x over scalar. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md#ilpfind_if-benchmarks)
+for the full measured tables.
+
+```cpp
+std::vector<int> data = {5, 3, 8, 42, 1, 9};
+auto it = ilp::find_if(data, [](int v) { return v == 42; });
+if (it != data.end())
+    std::cout << "found at " << (it - data.begin()) << "\n";
+```
+
+Signature:
+
+```cpp
+template<std::size_t N = 0, ilp::Mode M = ilp::default_mode,
+         std::ranges::random_access_range Range, typename Pred>
+    requires std::ranges::sized_range<Range>
+          && std::indirect_unary_predicate<Pred, std::ranges::iterator_t<Range>>
+std::ranges::borrowed_iterator_t<Range> ilp::find_if(Range&& range, Pred pred);
+```
+
+Like `std::ranges::find_if`, the return type is
+`std::ranges::borrowed_iterator_t<Range>` — passing an rvalue non-borrowed
+range (e.g. a temporary `std::vector`) yields `std::ranges::dangling` instead
+of a usable iterator, since it would point into a range that no longer exists
+by the time you can use it.
+
+**Purity/over-invocation contract:** `pred` must be pure. The blockcheck shape
+invokes it on every element of a block before knowing whether that block
+contains the match, so it may be called on elements past the first match, and
+more than once per element — don't rely on side effects or a specific
+invocation count. An exception thrown from `pred` propagates normally, but may
+happen after later elements were already tested.
+
+### Default block-size strategy
+
+`N = 0` (the default) resolves to a strategy keyed on compiler **and** ISA —
+this tunes the auto-vectorizer/compiler, not the CPU microarchitecture, so
+(unlike `for_loop`'s `optimal_N`) there is no `cpu::Profile` knob for it:
+
+| Compiler / ISA | Default | Notes |
+|---|---|---|
+| Clang (any) | Blockcheck, `B = clamp(256 / sizeof(T), 32, 128)` | No measured cliff at any element size; block size scales with the element's byte width. |
+| GCC 15+ **and** SSE4.1+ (x86) or AArch64 | Plain scalar loop, no block phase | Wins or near-ties on **native** (AVX-512) hardware; on mid-tier ISAs (SSE4.2/AVX2) it's a net win on balance, but blockcheck still wins outright at some element sizes there — an explicit `N` is the escape hatch (see PERFORMANCE.md's v2/v3 breakdown). 32-bit ARM/NEON is deliberately excluded — unverified, and the riskier guess. |
+| GCC (otherwise), MSVC, unknown | Blockcheck, `B = min(16, 64 / sizeof(T))` | Conservative SLP-safe sizing — GCC only vectorizes blockcheck via SLP over one native vector group. |
+
+An **explicit** `N` always forces the blockcheck shape on every compiler,
+unaffected by this table (unchanged behavior). Passing an explicit `N > 16` on
+GCC still triggers a deprecation warning pointing at the measured SLP cliff
+(Clang has no such cliff in the measured range, so the warning is GCC-only).
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md#ilpfind_if-benchmarks) for the
+full measured tables and the SLP-vs-loop-vectorizer mechanism behind this
+split, and `benchmarks/find_block_sweep.cpp` to reproduce the numbers (or
+re-tune) on new hardware.
+
+**Index-predicate searches:** `find_if` takes an element predicate, not an
+index predicate. For an index-based search, pass `std::views::iota` as the
+range:
+
+```cpp
+auto indices = std::views::iota(std::size_t{0}, data.size());
+auto it = ilp::find_if(indices, [&](std::size_t i) { return data[i] == target; });
+```
+
+**`Mode::Simple`:** as with the rest of the function API, an explicit
+`ilp::Mode::Simple` (or `ILP_MODE_SIMPLE`, via `ilp::default_mode`) degrades
+`find_if` to the scalar finish loop only — no block phase, one bounds check
+per element.
+
 ---
 
 ## Important Notes
@@ -543,7 +631,20 @@ exit condition is a simple comparison over contiguous data (`std::find`, `memchr
 scanning: load a vector of elements, compare them all at once, and use a `movemask`
 (or equivalent) to find the first hit, exactly as a tuned `memchr`/`std::find`
 implementation does. That processes 16/32/64 elements per branch instead of unrolling
-scalar comparisons.
+scalar comparisons — or use [`ilp::find_if`](#ilpfind_if--vectorizable-first-match-search),
+which generates that chunked-scan shape for you. The win is compiler-and-ISA-dependent:
+on Clang it's roughly 5x over a plain scalar loop at 4-byte elements and ~24x at
+1-byte elements. On GCC 15+ with SSE4.1 or better, the default wins or near-ties
+GCC's own already-vectorized plain loop on **native** (AVX-512) hardware — GCC's
+early-break loop vectorizer is at least competitive with the blockcheck shape
+there, so `find_if` mostly defers to it rather than competing with it. That's
+not universal, though: on mid-tier ISAs (SSE4.2/AVX2) the vectorizer fires but
+doesn't always win, and an explicit-N blockcheck still beats the default
+outright at some element sizes (see PERFORMANCE.md's v2/v3 breakdown). The
+blockcheck shape remains the default for older GCC and narrower ISAs (no
+SSE4.1), where it's still 3-5x over scalar. See
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md#ilpfind_if-benchmarks) for the full
+measured tables.
 
 `ilp_for` targets the case the auto-vectorizer and `movemask` tricks *can't* reach:
 early-exit loops whose bodies aren't vectorizable (branchy per-element work, function

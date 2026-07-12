@@ -36,3 +36,34 @@ target_compile_options(bench_reduce PRIVATE
     $<$<CXX_COMPILER_ID:Clang>:-Rpass-missed=loop-unroll>
     $<$<CXX_COMPILER_ID:GNU>:-fopt-info-loop>
 )
+
+add_executable(bench_find_if
+    bench_find_if.cpp
+)
+
+target_link_libraries(bench_find_if
+    benchmark::benchmark_main
+)
+
+target_compile_options(bench_find_if PRIVATE
+    -O3
+    -march=native
+    # Show when loop unrolling/vectorization fails/is ignored
+    $<$<CXX_COMPILER_ID:Clang>:-Rpass-missed=loop-unroll>
+    $<$<CXX_COMPILER_ID:GNU>:-fopt-info-loop>
+)
+
+# Standalone element-size x block-size sweep (see find_block_sweep.cpp) - no
+# Google Benchmark dependency, so it builds instantly on a fresh checkout or
+# unfamiliar machine (e.g. Apple Silicon) to re-derive find_if's default block
+# sizes. Not linked against benchmark::benchmark_main - it has its own main().
+add_executable(find_block_sweep
+    find_block_sweep.cpp
+)
+
+target_compile_options(find_block_sweep PRIVATE
+    -O3
+    -march=native
+    $<$<CXX_COMPILER_ID:Clang>:-Rpass-missed=loop-unroll>
+    $<$<CXX_COMPILER_ID:GNU>:-fopt-info-loop>
+)

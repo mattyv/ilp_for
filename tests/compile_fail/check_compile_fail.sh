@@ -3,11 +3,17 @@
 # optional EXTRA_FLAGS line, other compile-time-observable properties like
 # -Wshadow behavior).
 #
-# Each .cpp file's first line declares its expectation, with an optional second
-# line adding compile flags:
+# Each .cpp file's first line declares its expectation; optional following
+# lines (2nd/3rd, order doesn't matter between them) add compile flags or
+# restrict which compiler the case applies to:
 #   // COMPILE_FAIL: <substring expected in the compiler's stderr>
 #   // COMPILE_OK
-#   // EXTRA_FLAGS: <flags appended to the compile command>   (optional 2nd line)
+#   // EXTRA_FLAGS: <flags appended to the compile command>
+#   // GCC_ONLY   (skip this file entirely when $CXX is Clang - for cases that
+#                  probe a GCC-specific diagnostic, e.g. a [[deprecated]]
+#                  warning gated on __GNUC__ && !__clang__, which simply never
+#                  fires under Clang and would otherwise make an expected
+#                  COMPILE_FAIL wrongly succeed there)
 #
 # The macro layer is unconditional (ILP_MODE_SIMPLE only flips ilp::default_mode
 # - see mode.hpp), so every case here holds in both build modes. Set
@@ -23,17 +29,31 @@ CXX="${CXX:-c++}"
 BASE_CXXFLAGS="-std=c++20 -I../.. ${ILP_EXTRA_CXXFLAGS:-}"
 FAILED=0
 
+# Detect once whether $CXX is Clang, for GCC_ONLY skipping below.
+IS_CLANG=0
+if "$CXX" -dM -E -x c++ /dev/null 2>/dev/null | grep -q '__clang__'; then
+    IS_CLANG=1
+fi
+
 for src in *.cpp; do
     # Strip trailing CR so CRLF-saved test files don't produce baffling
     # failures (an invisible \r makes "// COMPILE_OK" unrecognizable and
-    # poisons the last EXTRA_FLAGS flag).
+    # poisons an EXTRA_FLAGS/GCC_ONLY line).
     expectation=$(sed -n '1p' "$src"); expectation="${expectation%$'\r'}"
-    second_line=$(sed -n '2p' "$src"); second_line="${second_line%$'\r'}"
+
+    # EXTRA_FLAGS and GCC_ONLY may each appear on line 2 or 3, in either order.
+    header=$(sed -n '2,3p' "$src" | sed 's/\r$//')
 
     extra_flags=""
-    if [[ "$second_line" == "// EXTRA_FLAGS:"* ]]; then
-        extra_flags="${second_line#// EXTRA_FLAGS:}"
+    extra_line=$(grep -m1 '^// EXTRA_FLAGS:' <<< "$header") || true
+    if [[ -n "$extra_line" ]]; then
+        extra_flags="${extra_line#// EXTRA_FLAGS:}"
         extra_flags="${extra_flags# }" # tolerate both "FLAGS: -x" and "FLAGS:-x"
+    fi
+
+    if grep -q '^// GCC_ONLY$' <<< "$header" && [[ $IS_CLANG -eq 1 ]]; then
+        echo "SKIP: $src (GCC-only case, running under Clang)"
+        continue
     fi
 
     obj="$(mktemp /tmp/ilp_compile_fail.XXXXXX.o)"

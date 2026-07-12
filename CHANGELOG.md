@@ -5,6 +5,32 @@ Notable, user-visible changes to `ilp_for`. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- `ilp::find_if(range, pred)`: a dedicated vectorizable first-match search
+  primitive, separate from `ILP_FOR`/`ilp::for_loop`, unlike the per-lane
+  exit-state tracking `ILP_FOR`/`ILP_BREAK` lower to (which cannot
+  auto-vectorize). Its `N=0` default resolves to one of two shapes, chosen per
+  **compiler and ISA** (element-size x ISA sweeps across GCC 13/15 and Clang
+  20 at multiple `-march` levels falsified an earlier flat-N-per-compiler
+  default): a two-phase "blockcheck" shape (branch-free block-level match
+  test, then a scalar re-scan of the hit block), block size scaled to the
+  element's byte width, on Clang; the *plain* scalar loop on GCC 15+ with a
+  ptest-capable ISA (SSE4.1+/AArch64 - 32-bit ARM/NEON deliberately excluded
+  as unverified), deferring to GCC's own early-break loop vectorizer, which
+  wins or near-ties blockcheck on native (AVX-512) hardware but not
+  universally on mid-tier ISAs (SSE4.2/AVX2), where an explicit `N` remains
+  the escape hatch; a conservative SLP-safe blockcheck size elsewhere (older
+  GCC, narrower ISAs, MSVC, unknown). An explicit `N` still always forces the
+  blockcheck shape, unaffected by this strategy. See the README's
+  [`ilp::find_if`](README.md#ilpfind_if--vectorizable-first-match-search)
+  section and [docs/PERFORMANCE.md](docs/PERFORMANCE.md#ilpfind_if-benchmarks)
+  for the full measured tables and the SLP-vs-loop-vectorizer mechanism.
+- `benchmarks/find_block_sweep.cpp` (CMake target `find_block_sweep`): a
+  standalone, dependency-free element-size x block-size sweep tool for
+  reproducing (or re-tuning) `ilp::find_if`'s default block sizes on new
+  hardware.
+
 ### Breaking changes (all `ILP_MODE_SIMPLE`-only; the default build is unchanged)
 
 The two build modes were unified: `ILP_MODE_SIMPLE` no longer selects a

@@ -50,6 +50,36 @@ ILP_FOR_T for return types > 8 bytes (structs, large objects)
 ---
 
 
+## `ilp::find_if` — Vectorizable First-Match Search
+
+Unlike the examples above, `ilp::find_if` isn't part of the ILP_FOR/hand-rolled/simple
+comparison — it's a separate primitive for the case none of those three win at:
+a trivially-vectorizable search. No Godbolt link yet (see
+`godbolt_examples/INSTRUCTIONS.md` for how those are generated); the snippet
+below is copy-pasted from the `"find_if README example"` test case in
+`tests/correctness/test_find_if.cpp`.
+
+```cpp
+#include <ilp_for.hpp>
+#include <vector>
+
+std::vector<int> data = {5, 3, 8, 42, 1, 9};
+auto it = ilp::find_if(data, [](int v) { return v == 42; });
+// it - data.begin() == 3
+```
+
+The generated assembly (`-O3 -march=native`, AVX-512) uses `zmm`-width vector
+compares either way, but via different code paths: Clang's default resolves to
+the blockcheck shape and vectorizes the block-check loop directly; GCC 15+
+(with SSE4.1 or better) instead resolves to the *plain* scalar loop above and
+lets its own early-break loop vectorizer emit the `zmm` compare-and-mask
+kernel — see [Why two shapes](PERFORMANCE.md#why-two-shapes) for the mechanism
+behind the split. See `benchmarks/bench_find_if.cpp` for the full benchmark
+this is drawn from, and [docs/PERFORMANCE.md](PERFORMANCE.md#ilpfind_if-benchmarks)
+for the measured numbers.
+
+---
+
 ## How to Use
 
 1. Pick the Godbolt link for your target architecture — the code loads with optimizations already enabled
