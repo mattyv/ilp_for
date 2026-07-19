@@ -337,7 +337,7 @@ namespace ilp {
             // MSVC needs an unqualified conversion to the exact target type;
             // it does not deduce T for operator std::optional<T>() here.
             template<typename R>
-            operator R() {
+            operator R() const {
                 ilp_debug_mark_consumed();
                 if constexpr (detail::is_optional_v<R>)
                     return R(s.template extract<typename R::value_type>());
