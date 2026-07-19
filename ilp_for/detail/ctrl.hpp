@@ -334,18 +334,15 @@ namespace ilp {
             }
 
 #if defined(_MSC_VER) && !defined(__clang__)
-            // MSVC needs explicit overloads without && qualifier
-            // templated conversion operators don't deduce properly in return statements
-            template<typename T>
-            operator std::optional<T>() {
-                ilp_debug_mark_consumed();
-                return std::optional<T>(s.template extract<T>());
-            }
-
-            template<typename R, std::enable_if_t<!detail::is_optional_v<R>, int> = 0>
+            // MSVC needs an unqualified conversion to the exact target type;
+            // it does not deduce T for operator std::optional<T>() here.
+            template<typename R>
             operator R() {
                 ilp_debug_mark_consumed();
-                return s.template extract<R>();
+                if constexpr (detail::is_optional_v<R>)
+                    return R(s.template extract<typename R::value_type>());
+                else
+                    return s.template extract<R>();
             }
 #else
             template<typename R>
