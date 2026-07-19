@@ -213,17 +213,23 @@ int find_index(const std::vector<int>& data, int target) {
 So you never have to spell the return type at the loop site, `ILP_FOR` and `ILP_FOR_AUTO` carry returned values in a small inline buffer (SBO), sized to `sizeof(std::intmax_t)` on your target — typically 8 bytes on 64-bit platforms. That works for any type that is:
 - **≤ SBO size** in size (typically 8 bytes)
 - **≤ SBO size** alignment
-- **Trivially destructible** (no custom destructor)
+- **Trivially copyable**
 
-This covers `int`, `size_t`, pointers, and simple structs. Size/alignment/destructibility
-violations are caught at compile time via `static_assert`. The implementation uses
-placement new and `std::launder` for well-defined object access.
+This covers `int`, `size_t`, pointers, and trivially-copyable structs. Contract
+violations are caught at compile time via `static_assert`. Transport uses `std::memcpy`
+and recovery uses `std::bit_cast`, which are valid for this restricted set of types;
+the result wrapper itself is move-only. Recovery also rejects references and types
+larger than the SBO instead of permitting a dangling reference or out-of-bounds read.
+Use the typed API for non-trivially-copyable move-only classes or any type with
+custom copy/move/destruction.
 
 **One thing `static_assert` can't catch:** the untyped path is type-erased, so if the
 value you `ILP_RETURN` and the type you recover it as (usually the enclosing
-function's declared return type) are two *different* same-size-or-smaller types —
+function's declared return type) are two *different* types that both fit the SBO —
 say, `ILP_RETURN(some_int)` inside a function that returns `long` — the bytes get
-reinterpreted, not converted. That's silently wrong in a release build. Debug builds
+reinterpreted, not converted. That is a wrong-value contract violation in release
+and can still be undefined for a target type that does not admit every bit pattern
+(use particular care with pointers and enums). Debug builds
 (any build without `-DNDEBUG`) catch this automatically: on a mismatch, the program
 aborts with a message naming both types, rather than returning a wrong value. This
 also covers mismatches across [nested](#nested-loops) propagation, not just the
@@ -234,7 +240,7 @@ pointer to the SBO when enabled; don't mix TUs built with and without it. When i
 doubt, just make sure your `ILP_RETURN` argument's type matches what you're recovering
 it as, or use `ILP_FOR_T` to make the type explicit and skip this whole class of bug.
 
-Types that don't fit take `ILP_FOR_T`, which names the return type explicitly. In practice most hot loops traffic in integers, indices, and pointers, so the SBO covers the common case and `ILP_FOR_T` is the exception.
+Types that don't fit this contract take `ILP_FOR_T`, which names the return type explicitly. In practice most hot loops traffic in integers, indices, and pointers, so the SBO covers the common case and `ILP_FOR_T` is the exception.
 
 To override the SBO size, define `ILP_SBO_SIZE` before including the header:
 ```bash
@@ -264,10 +270,10 @@ Result find_result(const std::vector<int>& data, int target) {
 | `ILP_FOR_RANGE(var, range, N)` | Range-based loop with explicit N |
 | `ILP_FOR_AUTO(var, start, end, LoopType, element_type)` | Index loop with auto-selected N |
 | `ILP_FOR_RANGE_AUTO(var, range, LoopType, element_type)` | Range loop with auto-selected N |
-| `ILP_FOR_T(type, var, start, end, N)` | Index loop for large return types (> 8 bytes) |
-| `ILP_FOR_RANGE_T(type, var, range, N)` | Range loop for large return types |
-| `ILP_FOR_T_AUTO(type, var, start, end, LoopType, element_type)` | Index loop for large types with auto-selected N |
-| `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType, element_type)` | Range loop for large types with auto-selected N |
+| `ILP_FOR_T(type, var, start, end, N)` | Index loop for typed/non-trivial return values |
+| `ILP_FOR_RANGE_T(type, var, range, N)` | Range loop for typed/non-trivial return values |
+| `ILP_FOR_T_AUTO(type, var, start, end, LoopType, element_type)` | Index loop for typed/non-trivial values with auto-selected N |
+| `ILP_FOR_RANGE_T_AUTO(type, var, range, LoopType, element_type)` | Range loop for typed/non-trivial values with auto-selected N |
 
 See [LoopType Reference](#looptype-reference) for available types (`Sum`, `Search`, `MinMax`, etc.)
 
@@ -536,7 +542,7 @@ ILP_FOR_RANGE(auto val, strings, 4) {
 
 None of this is news if you've written a range-for before — but it bites harder in a loop you chose specifically for speed: over a `std::vector<std::string>`, `auto` copies every single string.
 
-Range loops require a **random-access range** (`std::vector`, `std::array`, `std::span`, raw arrays...) — the unrolled blocks need indexed access. A `std::list`, `std::set`, or non-random-access view won't compile; those containers can't benefit from ILP anyway, so use an ordinary range-for there.
+Range loops require a **sized random-access range** (`std::vector`, `std::array`, `std::span`, raw arrays...) — the unrolled blocks need indexed access and a block bound. A `std::list`, `std::set`, or non-random-access/unsized view won't compile; those containers can't use this lowering, so use an ordinary range-for there.
 
 Index-based loops are immune — the loop variable is an integer, so plain `auto` is right:
 
@@ -581,23 +587,14 @@ already returning the exact type you want. Debug builds catch this particular
 mismatch automatically and abort naming both types — see the debug-mode type check
 note in [Large Return Types](#large-return-types).
 
-Two things this does *not* cover:
-- **A loop macro nested inside a function-API `for_loop`/`for_each` body — do not do
-  this, it is undefined behavior, not just a wrong answer.** The ctrl variable
-  there has whatever name your lambda parameter used, so the macro's `ILP_RETURN`
-  can't find it and treats itself as top-level. The `ILP_END_RETURN` it expands to
-  ends up injecting a `return` directly into your outer lambda's body — on any outer
-  iteration where the nested macro loop's search doesn't find a match, control falls
-  off the end of that (now non-void) lambda with no `return` at all. That's UB,
-  reproducible as a compiler-sanitizer trap, not a safe silent discard — see
-  [DESIGN_NOTES.md](docs/DESIGN_NOTES.md) item 5 for the verified repro. Debug
-  builds (`ILP_TYPECHECK_ENABLED`, on by default without `NDEBUG`) add a second net
-  for the one case that doesn't hit the UB path — every outer iteration's inner
-  search matching, so the value is silently discarded instead of crashing: they now
-  abort with a message naming the mixed-API cause. That's a detection net for the
-  narrower case, not a fix for the UB itself. Don't mix the two APIs; use nested
-  `for_loop` calls instead and propagate explicitly (extract the inner result into a
-  local, then call `ctrl.return_with(that_local)` on the outer ctrl).
+Two boundary cases to know:
+- **A loop macro nested inside a function-API `for_loop`/`for_each` body is rejected
+  at compile time.** Supported loop callbacks return `void`; the mixed expansion
+  would make the callback return a result Proxy and historically could fall off the
+  end as a non-`void` lambda. The callback-return check now stops that UB with a
+  diagnostic naming the fix. Use nested `for_loop` calls and propagate explicitly
+  (extract the inner result into a local, then call `ctrl.return_with(that_local)` on
+  the outer ctrl).
 - **An intervening non-ILP callback** (e.g. an `ILP_FOR` inside a `std::for_each`
   lambda inside an outer `ILP_FOR`). The value still propagates once the inner
   `ILP_FOR` completes, but the enclosing algorithm (`std::for_each`, etc.) finishes

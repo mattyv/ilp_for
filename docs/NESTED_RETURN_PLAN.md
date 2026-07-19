@@ -11,6 +11,10 @@ shadow warnings it does trigger are the pre-existing, already-tracked
 DESIGN_NOTES item 4 category (unchanged by this work, and since resolved — see
 that item).
 
+**Current transport note:** untyped `SmallStorage` is now restricted to
+trivially-copyable values. Its move-only wrapper transports those bytes explicitly;
+non-trivially-copyable values must use the typed path.
+
 **Historical note (mode-parity caveat superseded):** the paragraph below and the
 README's former "Mode parity caveat" described a divergence between default-mode
 byte reinterpretation and `ILP_MODE_SIMPLE`'s (then-separate) literal nested
@@ -30,11 +34,10 @@ from item 3, so an *untyped* `ILP_RETURN` propagating into a differently-typed
 outer loop reinterprets bytes rather than converting (in *either* mode now — see
 the historical note above). Not a regression from this plan (the pun is
 inherited, not introduced). Separately, `docs/DESIGN_NOTES.md` item 5 documents a
-distinct gap in this plan's `ilp_detail_ctrl` sentinel mechanism itself (a macro
-loop nested inside a *function-API* lambda, rather than another macro loop,
-resolves to the sentinel and can hit undefined behavior) - found while writing
-this plan's test coverage, not caused by any later change, and since given a
-debug-mode detection net (not a full fix) — see that item.
+distinct gap found in this plan's sentinel mechanism: a macro nested inside a
+function-API callback used to resolve to the sentinel and could hit undefined
+behavior. That API mixture is now rejected at compile time by the exact-`void`
+callback return contract.
 
 Mechanism prototype-validated against the in-repo headers on GCC 13.3 and
 Clang 18.1: 2-level and 3-level nesting, typed×untyped combinations, and
@@ -122,7 +125,7 @@ ILP_ALWAYS_INLINE decltype(auto) propagate_return(Res& r, Ctrl& outer) {
             "ILP_END to ILP_END_RETURN so the value can propagate out.");
     } else if constexpr (std::is_same_v<C, ForCtrl>) {
         if constexpr (std::is_same_v<Res, ForResult>) {
-            outer.storage = r.storage;   // type-erased byte copy, same pun contract
+            outer.storage = std::move(r.storage);   // move-only byte transport
             outer.return_set = true;
             outer.ok = false;
         } else {
@@ -159,8 +162,8 @@ Why each piece is safe (all prototype-verified):
 
   | | outer `ForCtrl` (untyped) | outer `ForCtrlTyped<R2>` | outer `EachCtrl` |
   |---|---|---|---|
-  | inner `ForResult` (untyped) | byte-copy the `SmallStorage` (trivially copyable char buffer) | `extract<R2>()` → `return_with` | compile error |
-  | inner `ForResultTyped<R1>` | `extract()` (R1) → `return_with` — SBO static_assert fires with the existing "Use ILP_FOR_T" message if R1 > 8 bytes, correctly telling the user to make the *outer* loop `ILP_FOR_T` too (verified) | `extract()` → `return_with` (R1→R2 conversion) | compile error |
+  | inner `ForResult` (untyped) | move the trivially-copyable `SmallStorage` payload | `extract<R2>()` → `return_with` | compile error |
+  | inner `ForResultTyped<R1>` | `extract()` (R1) → `return_with` — SBO static_assert fires with the existing "Use ILP_FOR_T" message if R1 > 8 bytes, correctly telling the user to make the *outer* loop `ILP_FOR_T` too (verified) | same `R`: move owned storage directly; different `R`: `extract()` → `return_with` conversion | compile error |
 
 - **`-Wshadow`.** The sentinel is a *function*; GCC/Clang shadow warnings cover
   variables, parameters, types, and built-ins — not ordinary functions. Verified:
@@ -207,7 +210,7 @@ Why each piece is safe (all prototype-verified):
   simple mode (where the plain `return` would exit only the callback). One
   caveat sentence in the README nested-loops note.
 - **The stored-type/extracted-type pun contract** (DESIGN_NOTES item 3) now also
-  applies across propagation hops (untyped→untyped byte copy, untyped→typed
+  applies across propagation hops (untyped→untyped transport, untyped→typed
   `extract<R2>`). Item 3's eventual debug-mode type check must cover
   `propagate_return`'s extracts too — add a cross-reference to item 3.
 

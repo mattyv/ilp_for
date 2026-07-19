@@ -1,9 +1,12 @@
 // ILP_FOR with ILP_RETURN - godbolt example
 // Early exit loop that returns a value from the enclosing function
 
+#include <array>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <new>
 #include <optional>
 #include <type_traits>
@@ -73,11 +76,9 @@ namespace ilp {
         inline constexpr bool always_false = false;
 
 #if ILP_TYPECHECK_ENABLED
-        // RTTI-free type identity for the debug-mode SBO type check: the ADDRESS of
-        // type_tag_v<T> is the identity (C++17 inline variables have one address
-        // program-wide, so cross-TU comparison is exact), and the embedded compiler
-        // signature string names the type in diagnostics without RTTI or constexpr
-        // string parsing.
+        // RTTI-free type identity for the debug-mode SBO type check. Compare the
+        // compiler signature text rather than inline-variable addresses so correct
+        // types also match across shared-library/hidden-visibility boundaries.
         template<typename T>
         constexpr const char* type_name() {
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -108,27 +109,15 @@ namespace ilp {
             std::abort();
         }
 
-        // DESIGN_NOTES.md item 5: a macro loop nested inside a function-API
-        // (ilp::for_loop/ilp::for_each) lambda body cannot find that lambda's ctrl
-        // (it has whatever name the caller chose, not the macro's fixed
-        // `ilp_detail_ctrl`), so propagate_return treats it as top-level and
-        // returns a Proxy - which is then just an ordinary expression statement
-        // inside the enclosing function-API lambda, discarded without conversion
-        // (and, on any code path that doesn't happen to also return, undefined
-        // behavior from falling off the end of that lambda). Every legitimate use
-        // of a Proxy holding a value converts it exactly once; one destroyed with
-        // a value present but never converted is this bug's signature, so it's
-        // caught here instead of only in the README as a "don't do this" caveat.
+        // A value-bearing result Proxy must be converted exactly once. Destroying
+        // one unconverted means the caller wrote a discard such as `*result;`
+        // instead of extracting or returning the value.
         [[noreturn]] inline void swallowed_proxy_abort() {
             std::fprintf(stderr,
                          "\n*** ilp_for swallowed return value ***\n"
                          "A loop result holding a value was destroyed without being converted.\n"
-                         "Most likely cause: an ILP_FOR/.../ILP_END_RETURN loop macro nested inside\n"
-                         "an ilp::for_loop / ilp::for_each lambda body (docs/DESIGN_NOTES.md item 5) -\n"
-                         "the macro cannot see the function-API ctrl, so its return value is silently\n"
-                         "discarded (and other code paths through that lambda are undefined behavior).\n"
-                         "Fix: don't mix the two APIs in one nesting chain - use nested ilp::for_loop\n"
-                         "calls and propagate via ctrl.return_with(...) instead.\n\n");
+                         "A value-bearing result Proxy was discarded instead of converted.\n"
+                         "Fix: extract it into a typed local or return it from the enclosing function.\n\n");
             std::abort();
         }
 #endif // ILP_TYPECHECK_ENABLED
@@ -158,15 +147,27 @@ namespace ilp {
     inline constexpr Mode default_mode = Mode::Unrolled;
 #endif
 
-    // Small buffer optimization for integral types.
+    // Small buffer optimization for integral and other small, trivially-copyable types.
     // Buffer size matches the largest integral type on this architecture (typically 8 bytes).
-    // Only supports trivially destructible types to avoid lifetime management complexity.
+    // Byte transport is valid only for trivially-copyable objects.
     // Use ILP_FOR_T for non-trivial or larger return types.
     struct SmallStorage {
-        alignas(arch::sbo_size) char buffer[arch::sbo_size];
+        alignas(arch::sbo_size) unsigned char buffer[arch::sbo_size]{};
 #if ILP_TYPECHECK_ENABLED
         const detail::TypeTag* ilp_debug_stored_tag = nullptr;
 #endif
+
+        SmallStorage() = default;
+        SmallStorage(const SmallStorage&) = delete;
+        SmallStorage& operator=(const SmallStorage&) = delete;
+
+        ILP_ALWAYS_INLINE SmallStorage(SmallStorage&& other) noexcept { move_from(other); }
+
+        ILP_ALWAYS_INLINE SmallStorage& operator=(SmallStorage&& other) noexcept {
+            if (this != &other)
+                move_from(other);
+            return *this;
+        }
 
         template<typename T>
         ILP_ALWAYS_INLINE void set(T&& val) {
@@ -178,9 +179,9 @@ namespace ilp {
                           "Return type exceeds SBO size. Use ILP_FOR_T(type, ...) instead.");
             static_assert(alignof(U) <= arch::sbo_size,
                           "Return type alignment exceeds SBO size. Use ILP_FOR_T(type, ...) instead.");
-            static_assert(std::is_trivially_destructible_v<U>,
-                          "SmallStorage only supports trivially-destructible types. "
-                          "Use ILP_FOR_T(type, ...) for non-trivial return types.");
+            static_assert(std::is_trivially_copyable_v<U>,
+                          "SmallStorage only supports trivially-copyable types. "
+                          "Use ILP_FOR_T(type, ...) or for_loop_typed for this return type.");
             new (buffer) U(static_cast<T&&>(val));
 #if ILP_TYPECHECK_ENABLED
             ilp_debug_stored_tag = &detail::type_tag_v<U>;
@@ -189,34 +190,68 @@ namespace ilp {
 
         template<typename R>
         ILP_ALWAYS_INLINE R extract() {
-#if ILP_TYPECHECK_ENABLED
             using Rt = std::remove_cvref_t<R>;
-            if (ilp_debug_stored_tag != nullptr && ilp_debug_stored_tag != &detail::type_tag_v<Rt>)
+            static_assert(!std::is_reference_v<R>,
+                          "SmallStorage cannot return references to its internal buffer. "
+                          "Return a value or use an explicitly owned typed result.");
+            static_assert(sizeof(Rt) <= arch::sbo_size,
+                          "Recovered type exceeds SBO size. Use ILP_FOR_T(type, ...) instead.");
+            static_assert(std::is_trivially_copyable_v<Rt>,
+                          "SmallStorage can only recover trivially-copyable types. "
+                          "Use ILP_FOR_T(type, ...) or for_loop_typed for this return type.");
+#if ILP_TYPECHECK_ENABLED
+            if (ilp_debug_stored_tag != nullptr &&
+                std::strcmp(ilp_debug_stored_tag->name, detail::type_tag_v<Rt>.name) != 0)
                 detail::type_mismatch_abort(ilp_debug_stored_tag->name, detail::type_tag_v<Rt>.name);
 #endif
-            return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
+            std::array<std::byte, sizeof(Rt)> representation{};
+            std::memcpy(representation.data(), buffer, sizeof(Rt));
+            Rt result = std::bit_cast<Rt>(representation);
+#if ILP_TYPECHECK_ENABLED
+            ilp_debug_stored_tag = nullptr;
+#endif
+            return result;
+        }
+
+    private:
+        ILP_ALWAYS_INLINE void move_from(SmallStorage& other) noexcept {
+            std::memcpy(buffer, other.buffer, sizeof(buffer));
+#if ILP_TYPECHECK_ENABLED
+            ilp_debug_stored_tag = other.ilp_debug_stored_tag;
+            other.ilp_debug_stored_tag = nullptr;
+#endif
         }
     };
 
-    // Typed storage for user-specified types (exact size)
-    // Properly destructs stored object after extraction to avoid leaks.
+    // Typed storage for user-specified types. std::optional owns the lifetime so
+    // stored objects are destroyed on extraction, replacement, or abandonment.
     template<typename R>
     struct TypedStorage {
-        alignas(R) char buffer[sizeof(R)];
+        std::optional<R> value;
 
         template<typename T>
         ILP_ALWAYS_INLINE void set(T&& val) {
             static_assert(!detail::is_proxy_v<std::decay_t<T>>,
                           "Cannot store a loop-result Proxy: extract the value into a typed local "
                           "first, or return it directly with `return *std::move(r);`.");
-            new (buffer) R(static_cast<T&&>(val));
+            value.emplace(static_cast<T&&>(val));
         }
 
         ILP_ALWAYS_INLINE R extract() {
-            R* ptr = std::launder(reinterpret_cast<R*>(buffer));
-            R tmp = static_cast<R&&>(*ptr);
-            ptr->~R();
+            R tmp = static_cast<R&&>(*value);
+            value.reset();
             return tmp;
+        }
+
+        ILP_ALWAYS_INLINE std::optional<R> extract_optional() {
+            std::optional<R> result(std::in_place, static_cast<R&&>(*value));
+            value.reset();
+            return result;
+        }
+
+        ILP_ALWAYS_INLINE void move_from(TypedStorage& other) {
+            value.emplace(static_cast<R&&>(*other.value));
+            other.value.reset();
         }
     };
 
@@ -259,7 +294,7 @@ namespace ilp {
         }
     };
 
-    // ok=false means early exit (typed version - exact size storage)
+    // ok=false means early exit (typed version - explicit return type)
     template<typename R>
     struct ForCtrlTyped {
         bool ok = true;
@@ -335,7 +370,6 @@ namespace ilp {
                 return s.template extract<R>();
             }
 #else
-            // GCC/Clang do implicit Proxy→T→optional
             template<typename R>
                 requires(!detail::is_optional_v<R>)
             ILP_ALWAYS_INLINE operator R() && {
@@ -392,7 +426,7 @@ namespace ilp {
 #if defined(_MSC_VER) && !defined(__clang__)
             operator std::optional<R>() {
                 ilp_debug_mark_consumed();
-                return std::optional<R>(s.extract());
+                return s.extract_optional();
             }
 
             operator R() {
@@ -400,6 +434,11 @@ namespace ilp {
                 return s.extract();
             }
 #else
+            ILP_ALWAYS_INLINE operator std::optional<R>() && {
+                ilp_debug_mark_consumed();
+                return s.extract_optional();
+            }
+
             ILP_ALWAYS_INLINE operator R() && {
                 ilp_debug_mark_consumed();
                 return s.extract();
@@ -451,7 +490,7 @@ namespace ilp {
                               "ILP_END to ILP_END_RETURN so the value can propagate out.");
             } else if constexpr (std::is_same_v<C, ForCtrl>) {
                 if constexpr (std::is_same_v<Res, ForResult>) {
-                    outer.storage = r.storage; // type-erased byte copy, same pun contract
+                    outer.storage = std::move(r.storage);
                     outer.return_set = true;
                     outer.ok = false;
                 } else {
@@ -461,6 +500,10 @@ namespace ilp {
                 using R2 = typename ctrl_typed_return<C>::type;
                 if constexpr (std::is_same_v<Res, ForResult>) {
                     outer.return_with(r.storage.template extract<R2>());
+                } else if constexpr (std::is_same_v<Res, ForResultTyped<R2>>) {
+                    outer.storage.move_from(r.storage);
+                    outer.return_set = true;
+                    outer.ok = false;
                 } else {
                     outer.return_with(r.storage.extract()); // typed inner -> typed outer
                 }
@@ -531,6 +574,11 @@ namespace ilp {
         // packaging the result; the unroll/remainder/early-exit shape lives only here.
         template<std::size_t N, Mode M, std::integral T, typename Ctrl, typename F>
         ILP_ALWAYS_INLINE void index_loop_core(T start, T end, Ctrl& ctrl, F&& body) {
+            static_assert(std::in_range<T>(N),
+                          "Unroll factor N must be representable by the loop index type.");
+            static_assert(std::is_void_v<std::invoke_result_t<F&, T, Ctrl&>>,
+                          "ilp_for loop bodies must return void; use ctrl.return_with(...) for "
+                          "loop results and do not nest ILP_FOR macros inside function-API callbacks.");
             validate_unroll_factor<N>();
             T i = start;
 

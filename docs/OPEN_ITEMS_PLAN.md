@@ -9,6 +9,12 @@ anticipated by this plan — `#pragma GCC system_header` also affects clang-tidy
 own diagnostic suppression, fixed by a repo-root `.clang-tidy` setting
 `HeaderFilterRegex`/`SystemHeaders` plus explicit `-header-filter='.*'
 -system-headers` flags on invocations whose inputs live outside the tree).
+
+**Item 5 follow-up:** the debug Proxy check below remains, but the underlying
+mixed-API UB is now fully rejected at compile time. The shared loop cores require
+callbacks to return exactly `void`; a macro nested inside a function-API callback
+deduces a Proxy return type and fails with an actionable diagnostic. See
+`tests/compile_fail/mixed_api_nesting.cpp` and DESIGN_NOTES item 5.
 A post-implementation review pass added further hardening: the abort is now
 gated on a value actually being present (empty-result Proxies discard freely),
 Proxy copies transfer the consume obligation (the MSVC caveat this plan's item 5
@@ -72,8 +78,8 @@ builds.
   macros_simple.hpp` / `#else` / `#endif` scaffolding (macros become
   unconditional). Update the two stale comments referencing "In
   ILP_MODE_SIMPLE this maps to X" semantics.
-- Delete `ilp_for/detail/macros_simple.hpp`. Keep `iota.hpp` (public, has its
-  own tests).
+- Delete `ilp_for/detail/macros_simple.hpp`. The otherwise-unused `iota.hpp`
+  wrapper was later removed in favor of `std::views::iota`.
 - Tests: strip the `#if !defined(ILP_MODE_SIMPLE)` guards from the 9
   correctness files (leave `#if defined(...)`-style positive checks like the
   `default_mode` STATIC_REQUIRE alone — flip its expectation branches only if

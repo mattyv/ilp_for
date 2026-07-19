@@ -43,7 +43,7 @@ modes. Consequences for code that only ever compiled under `ILP_MODE_SIMPLE`:
   body lambda), matching the default build — previously it returned from the
   enclosing function. Use `ILP_RETURN(x)` / `ILP_CONTINUE`, which mean the same
   thing in both modes.
-- **`ILP_FOR_RANGE*` now requires a random-access range** in SIMPLE builds too
+- **`ILP_FOR_RANGE*` now requires a sized random-access range** in SIMPLE builds too
   (the old literal range-for accepted any range). Iterating a `std::list`,
   `std::set`, or non-random-access view no longer compiles; those containers
   get no ILP benefit anyway — use an ordinary range-for.
@@ -55,8 +55,26 @@ modes. Consequences for code that only ever compiled under `ILP_MODE_SIMPLE`:
 In exchange, every compile-time and debug-mode guarantee below now applies
 identically under `ILP_MODE_SIMPLE` (previously most were default-build-only).
 
+### Breaking changes (return-storage hardening)
+
+- The untyped `ILP_FOR` / `for_loop` return path now accepts only small,
+  trivially-copyable values. Non-trivially-copyable values must use `ILP_FOR_T`
+  or `for_loop_typed`; the previous raw relocation of such objects had undefined
+  behavior even when they fit the inline buffer. Untyped result wrappers are now
+  move-only so their inline payload cannot be relocated by implicit wrapper copies.
+- Function-API loop callbacks must return exactly `void`. This rejects macro loops
+  nested inside a function-API callback, whose expansion previously produced a
+  non-`void` callback that could fall off its end. It also rejects callbacks ending
+  in `return expression;`, whose returned value was previously silently discarded.
+
 ### Changed
 
+- Typed return storage now uses `std::optional<R>` to own object lifetime. Untyped
+  storage is move-only, transports trivially-copyable bytes explicitly, and recovers
+  values with `std::bit_cast`; oversized, reference, and non-trivially-copyable
+  recovery types are rejected at compile time.
+- Unroll factors that cannot be represented by the integral index type are rejected
+  at compile time, and block bounds avoid overflowing `i + N` arithmetic.
 - **`ILP_END` vs `ILP_END_RETURN` mismatch is now a compile-time error** with a
   message naming the fix. Previously a body that called `ILP_RETURN` but was
   closed with plain `ILP_END` compiled and aborted at runtime — and only on
@@ -100,6 +118,12 @@ identically under `ILP_MODE_SIMPLE` (previously most were default-build-only).
 
 ### Removed
 
+- Unused internal remnants: `LoopCtrl`, `no_return_t`, `for_result_t`, the signed/
+  unsigned concept aliases, and the uncalled accumulator-width warning helpers.
+- The undocumented `for_loop_range_ret_simple` prototype and implementation; the
+  supported search API is `ilp::find_if`.
+- The unused `ilp::iota` wrapper and its wrapper-only tests; use the C++20
+  `std::views::iota` directly.
 - `ilp_for/detail/macros_simple.hpp` (the separate `ILP_MODE_SIMPLE`
   implementation — see Breaking changes).
 - The Axiom formal-specification experiment (`knowledge/`, `external/axiom`

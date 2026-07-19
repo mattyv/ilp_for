@@ -5,19 +5,9 @@
 
 #pragma once
 
-#include <cassert>
-#include <concepts>
-#include <cstddef>
-#include <functional>
-#include <optional>
-#include <ranges>
-#include <type_traits>
-#include <utility>
-
 // CPU profile selection via -DILP_CPU_SKYLAKE, -DILP_CPU_ZEN5, etc.
 #include "ilp_for/cpu_profiles/ilp_cpu.hpp"
 
-#include "ilp_for/detail/iota.hpp"
 #include "ilp_for/detail/loops_ilp.hpp"
 #include "ilp_for/detail/find.hpp"
 

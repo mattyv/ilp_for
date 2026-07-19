@@ -19,10 +19,9 @@ extensions:
    unchanged (by design — see the item).
 4. `-Wshadow` fires on nested `ILP_FOR` because the expansion locals collide.
    **Resolved** — see the item.
-5. A macro loop nested inside a function-API lambda is undefined behavior, not a
-   clean discard. **Debug-mode detection added** for the non-UB degenerate case
-   (silent discard); the UB itself is unchanged and remains a documented
-   API-mixing hazard — see the item.
+5. A macro loop nested inside a function-API lambda used to create a non-`void`
+   callback that could fall off its end. **Resolved:** loop callbacks must now
+   return exactly `void`, so the mixed-API expansion is rejected at compile time.
 
 Environment used for the reproductions below: Linux x86-64, GCC 13.3.0, Clang
 (system), `-std=c++20`. The library is header-only; reproductions compiled against
@@ -180,9 +179,9 @@ Consequences of the unification, beyond closing this item:
   unification (such ranges were getting a plain loop anyway — no ILP — so the
   fix is an ordinary range-for; the default build always rejected them). The
   requirement is now documented in the README's range-loop section.
-- `ilp_for/detail/macros_simple.hpp` is deleted; `ilp_for/detail/iota.hpp` (which it
-  had included) is kept — it's a public header with its own tests
-  (`tests/correctness/test_iota.cpp`).
+- `ilp_for/detail/macros_simple.hpp` was deleted. Its otherwise-unused `iota.hpp`
+  helper and wrapper-only tests were later removed too; callers use the C++20
+  `std::views::iota` directly.
 
 ---
 
@@ -262,7 +261,7 @@ deleted. This also introduced `ilp::for_each`/`for_each_range` (break/continue-o
 
 ---
 
-## 3. Type-erased SBO recovers the *function's* return type, not the stored type — silent pun
+## 3. Type-erased SBO recovers the *function's* return type — exact match is debug-checked
 
 ### Finding
 
@@ -273,7 +272,7 @@ template<typename T> void set(T&& val) {
     using U = std::decay_t<T>;
     static_assert(sizeof(U)  <= arch::sbo_size, ...);   // checks the STORED type
     static_assert(alignof(U) <= arch::sbo_size, ...);
-    static_assert(std::is_trivially_destructible_v<U>, ...);
+    static_assert(std::is_trivially_copyable_v<U>, ...);
     new (buffer) U(static_cast<T&&>(val));              // placement-new of U
 }
 ```
@@ -286,16 +285,22 @@ template<typename R> requires(!detail::is_optional_v<R>)
 operator R() && { return s.template extract<R>(); }   // R deduced from RETURN context
 
 template<typename R> R extract() {
-    return static_cast<R&&>(*std::launder(reinterpret_cast<R*>(buffer)));
+    using Rt = std::remove_cvref_t<R>;
+    static_assert(sizeof(Rt) <= arch::sbo_size, ...);
+    static_assert(std::is_trivially_copyable_v<Rt>, ...);
+    std::array<std::byte, sizeof(Rt)> representation;
+    std::memcpy(representation.data(), buffer, sizeof(Rt));
+    return std::bit_cast<Rt>(representation);
 }
 ```
 
 `R` is deduced from the **enclosing function's return type** (the macro does
-`return *std::move(ilp_detail_ret);`), *not* from the type that `set()` stored. There
-is no check that the recovered type matches the stored type. If a function returns
-`long` but the body does `ILP_RETURN(i)` with `int i`, the buffer holds a 4-byte `int`
-and is then read as an 8-byte `long`. The bytes above the stored `int` were never
-initialized.
+`return *std::move(ilp_detail_ret);`), *not* from the type that `set()` stored.
+Compile-time checks reject references, oversized recovery types, and non-trivially-
+copyable recovery types. Debug builds additionally verify exact type identity.
+Release builds retain the documented zero-overhead contract that stored and recovered
+types must match; a same-size mismatch such as `int` to `float` bit-casts the object
+representation rather than performing a numeric conversion.
 
 This affects the **untyped** path (`ILP_FOR` / `ILP_FOR_AUTO`, `SmallStorage`). The
 **typed** path (`ILP_FOR_T*`, `TypedStorage<R>`) is not type-erased — `R` is fixed by
@@ -305,25 +310,25 @@ fails to convert/compile instead).
 ### Reproduction
 
 ```cpp
-long find_it(const std::vector<int>& data, int target) {
+float find_it(const std::vector<int>& data, int target) {
     ILP_FOR(auto i, 0, (int)data.size(), 4) {
-        if (data[i] == target) ILP_RETURN(i);   // stores int, function returns long
+        if (data[i] == target) ILP_RETURN(i);   // stores int, function returns float
     } ILP_END_RETURN;
-    return -1;
+    return -1.0f;
 }
 ```
 
 | Build | Result for found index 3 |
 |-------|--------------------------|
-| `-O0` | `result = 94124208291843` (`0x559b00000003`) — low 4 bytes = stored `3`, high 4 bytes = uninitialized stack |
-| `-O2` | `result = 3` — optimizer happened to forward the value; **not guaranteed** |
-| `-O1 -fsanitize=undefined` | `result = 3` — UBSan did **not** flag the indeterminate read |
+| Debug type check | abort naming stored `int` and recovered `float` |
+| `-DNDEBUG` | the floating-point value represented by integer bits `0x00000003`, not `3.0f` |
+| UBSan release build | no diagnostic; byte-wise representation recovery is defined |
 
-So the mistake is a genuine silent pun: wrong at `-O0`, accidentally "right" at `-O2`,
-and not caught by UBSan. Because `sbo_size == sizeof(intmax_t) == 8`, reading a `long`
-stays inside the buffer (no overflow), so it is a wrong-*value* bug, not a crash.
+So the remaining mistake is a silent wrong-value contract violation in release, not
+an object-lifetime violation or an out-of-bounds read. Use the typed API whenever the
+return expression and enclosing return type are not guaranteed to match exactly.
 
-### Proposed plan
+### Historical implementation plan
 
 Add a **debug-mode stored-vs-recovered type check** so the pun is caught.
 
@@ -331,11 +336,11 @@ Add a **debug-mode stored-vs-recovered type check** so the pun is caught.
   either `&typeid(U)` or a `constexpr` per-type tag pointer
   (`template<class U> constexpr char type_tag; auto id = &type_tag<U>;`, which works
   without RTTI) plus `sizeof(U)`/`alignof(U)` — into a debug-only member of `ForCtrl`
-  / `SmallStorage` (guarded by `#ifndef NDEBUG` or a dedicated `ILP_DEBUG_TYPECHECK`
-  so release builds keep the SBO at exactly `sbo_size` with zero overhead).
+  / `SmallStorage` (guarded by `#ifndef NDEBUG` or a dedicated
+  `ILP_DEBUG_TYPECHECK`).
 - Check on extract. `SmallStorage::extract<R>()` asserts the recorded tag equals the
   tag for `R` (or at least `sizeof(R) == stored_size && alignof(R) == stored_align`)
-  before the `launder`/read, with a message naming both types:
+  before recovery, with a message naming both types:
   `"ILP_RETURN stored T but enclosing function returns R"`.
 - Prefer a **compile-time** check where possible. The recovered `R` is known at the
   `ILP_END_RETURN` site, but the stored `U` is only known inside the body lambda.
@@ -344,8 +349,7 @@ Add a **debug-mode stored-vs-recovered type check** so the pun is caught.
   channel). That is a larger change; the runtime debug assert is the pragmatic first
   step and is sufficient to convert the silent pun into a loud failure under tests.
 - Keep release zero-cost. All of the above lives behind the debug guard; release
-  `SmallStorage` stays `alignas(sbo_size) char buffer[sbo_size]` with no extra
-  members, so #1/#2 asm verification and existing benchmarks are unaffected.
+  `SmallStorage` stays an inline byte buffer with no type-tag member.
 
 This also gives #2 a path to a stronger guarantee later: once the stored type is known
 to the result object, the `ILP_END` vs `ILP_END_RETURN` mismatch can become a
@@ -356,20 +360,20 @@ compile-time error instead of a runtime abort.
 loop's ctrl at each nesting level, and it reuses exactly this recovery path: an
 untyped inner result is read back via `extract<R2>()` where `R2` is the *outer*
 loop's type (or, at the outermost level, the enclosing function's declared return
-type via the `Proxy`). The stored-vs-recovered type is never checked at any hop, so
-the pun described above can now occur *between nesting levels*, not just between the
+type via the `Proxy`). Exact identity is debug-checked at every hop, but the pun can
+still occur *between nesting levels* in release, not just between the
 top-level `ILP_RETURN` and the function's return type — e.g. an untyped
-`ILP_RETURN(some_int)` propagating out through an `ILP_FOR_T(long, ...)` outer loop
-reinterprets the 4 stored bytes as an 8-byte `long`. The proposed debug-mode type
-check above should cover `propagate_return`'s extracts, not only the top-level
-`ForResult`/`ForResultTyped` recovery, when implemented. Documented as a caveat in
+`ILP_RETURN(some_int)` propagating out through an `ILP_FOR_T(float, ...)` outer loop
+recovers the integer representation as a `float`. The debug-mode type check covers
+`propagate_return`'s extracts as well as top-level `ForResult`/`ForResultTyped`
+recovery. Documented as a caveat in
 the README's [Nested Loops](../README.md#nested-loops) section and in
 `tests/correctness/test_nested_return.cpp` in the meantime.
 
 **Status: resolved (debug-mode check).** Implemented per
 [TYPECHECK_PLAN.md](TYPECHECK_PLAN.md): `SmallStorage::set` records an RTTI-free
-type tag (the address of a per-type `inline constexpr` variable — unique
-program-wide, so cross-TU comparison is exact) and `SmallStorage::extract<R>`
+per-type compiler signature and `SmallStorage::extract<R>` compares its contents
+(rather than relying on an address identity that can differ across DSOs), then
 aborts with a message naming both types if `R` doesn't match what was stored.
 Gated assert-style (`!NDEBUG`, with `ILP_DEBUG_TYPECHECK`/`ILP_NO_DEBUG_TYPECHECK`
 overrides), so the release-mode contract described above is **unchanged** — types
@@ -377,10 +381,11 @@ must still match exactly; the check only converts the silent wrong-value bug int
 a loud debug-build abort. Because every recovery in the library — the top-level
 `Proxy` conversion *and* every `propagate_return` hop across nested loops — funnels
 through this one `extract<R>`, the nested-propagation extension called for above is
-covered automatically, with no changes to `propagate_return` itself. Verified
-zero-cost under `-DNDEBUG`: generated assembly is byte-identical to the pre-check
-headers on GCC and Clang, and `sizeof(SmallStorage)` is unchanged (see
-`tests/runtime_fail/release_layout.cpp`, a permanent CI regression test for this).
+covered automatically. Recovery is now representation-based (`memcpy` + `bit_cast`)
+and compile-time rejects references, oversized types, and non-trivially-copyable
+types, removing the former lifetime/dangling/out-of-bounds cases. Verified
+zero-cost under `-DNDEBUG`: `SmallStorage` remains exactly `sbo_size` bytes (see
+`tests/runtime_fail/release_layout.cpp`).
 The `tests/runtime_fail/` harness covers the top-level pun, the same-size pun
 (`int`→`float`, proving the check is type-identity-based rather than
 size-based), and the nested-hop pun from the paragraph above.
@@ -612,45 +617,18 @@ out permanently. Recorded as a numbered item (rather than folded into the
 README-only caveat) so a future contributor evaluating the nested-propagation design
 sees this gap listed alongside the others.
 
-**Status: detection net added (not a semantics fix) — "detect the mismatch" above
-was reattempted and partially succeeds.** Implemented per
-[OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md): detecting the *nesting* is still
-impossible (unchanged from the analysis above — the macro genuinely cannot inspect
-what identifiers exist in an enclosing scope), but the bug's *signature* is
-detectable: a loop-result `Proxy` (`ForResult::Proxy`, `ForResultTyped<R>::Proxy`)
-holding a value but destroyed without ever being converted. Every legitimate flow
-converts its value-bearing Proxy exactly once (top level: into the declared
-return type; function API: via `*std::move(r)`); the mixed-API bug is the one
-path that doesn't. Under the existing `ILP_TYPECHECK_ENABLED` debug gate, `Proxy`
-now carries an `ilp_debug_has_value` flag (from `has_return` at creation) and an
-`ilp_debug_consumed` flag (set by every conversion operator), and a destructor
-that aborts naming the mixed-API cause and the fix if a value was present but
-never consumed — verified against the repro above
-(`tests/runtime_fail/swallowed_proxy.cpp`, `// RUN_ABORT: swallowed return
-value`) and zero false positives across the full test suite. Two deliberate
-non-aborts, pinned by `tests/runtime_fail/proxy_discard_ok.cpp`: an *empty*
-result's Proxy may be discarded freely (`*std::move(r);` on a no-match result is
-a silent no-op — nothing was swallowed), and *copying* a live Proxy transfers
-the consume obligation to the copy (the source counts as consumed; matters on
-MSVC, whose conversions are lvalue-callable so proxies can be named and copied).
-Zero-cost in release (`NDEBUG`): verified byte-identical assembly (same
-probe/flags as item 3's check; on GCC, identical modulo internal `.LFB`/`.LFE`
-label numbering).
+**Status: resolved at compile time.** The macro does not need to identify its
+enclosing scope. The enclosing function-API callback exposes the bug in its deduced
+return type: supported callbacks return `void`, while the mixed expansion returns a
+`ForResult::Proxy` or `ForResultTyped<R>::Proxy`. `index_loop_core` and
+`range_loop_core` now require `std::invoke_result_t<F&, element, Ctrl&>` to be
+exactly `void`, with a diagnostic that tells users not to nest macros inside
+function-API callbacks. The original UBSan repro is now a compile-fail regression
+test (`tests/compile_fail/mixed_api_nesting.cpp`).
 
-**What this does and doesn't cover.** The check fires deterministically on the
-first outer iteration whose inner search finds a match — any test that exercises
-the return path hits it. But per the severity re-assessment above, the *far more
-common* failure mode is the outer lambda falling off its end on an iteration where
-the inner search finds *nothing* — that is undefined behavior (confirmed via
-UBSan trap), happens **before** the Proxy destructor would ever run on that path,
-and this check does nothing for it; it remains exactly as documented above. So
-this item stays "documented + now debug-detected for the non-UB degenerate case,"
-not "resolved" in the sense of items 1-4 — the underlying UB is unchanged by
-design (there is still no known mechanism to detect the nesting itself). Users
-must still avoid mixing the two APIs; see the
-[README's nested-loops caveat](../README.md#nested-loops) for the recommended
-alternative (nested `ilp::for_loop` calls, propagating explicitly via
-`ctrl.return_with(...)`).
+The debug-mode unconsumed-Proxy check remains as a separate misuse guard for code
+that manually discards a value-bearing Proxy; `tests/runtime_fail/swallowed_proxy.cpp`
+and `proxy_discard_ok.cpp` cover the value-bearing and empty cases respectively.
 
 ---
 
@@ -757,8 +735,8 @@ This section originally sequenced items #1-#4 by cost/value before any of them w
 implemented. Superseded by events: #2 and #3 both shipped (via different mechanisms
 than sequenced here — #2 as a compile-time tag-dispatch redesign rather than leaning
 on #3's type check; #3 as a debug-mode runtime check rather than #2's originally
-imagined side effect of it), and #5 was discovered afterward. All five items have
-since been addressed, per [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) for #1/#4/#5.
+imagined side effect of it), and #5 was discovered afterward. All six items have
+since been addressed, per [OPEN_ITEMS_PLAN.md](OPEN_ITEMS_PLAN.md) for #1/#4/#5/#6.
 Current state:
 
 - **#1** (bare `return;` meaning continue) — resolved, by unifying the two build
@@ -770,9 +748,12 @@ Current state:
   by design.
 - **#4** (`-Wshadow` on nested loops) — resolved, `#pragma GCC system_header`
   (with a clang-tidy invocation caveat — see the item).
-- **#5** (macro nested in function-API lambda is UB) — debug-mode detection net
-  added for the non-UB degenerate case; the UB itself is unchanged, no known
-  detection mechanism for the general case.
+- **#5** (macro nested in function-API lambda) — resolved, compile-time rejection
+  via the exact-`void` callback return contract.
+- **#6** (return-value relocation in untyped and typed storage) — untyped transport is
+  now restricted to trivially-copyable values and uses explicit byte transport;
+  typed transport owns live objects via `std::optional<R>`. Non-trivially-copyable
+  values are rejected on the untyped path with a diagnostic naming the typed API.
 
 Because #1 shipped via mode unification instead of the originally-sketched
 non-`void`-lambda restructuring, it did not need the breaking macro-expansion
