@@ -109,7 +109,6 @@ namespace ilp {
             std::fprintf(stderr,
                          "\n*** ilp_for swallowed return value ***\n"
                          "A loop result holding a value was destroyed without being converted.\n"
-                         "A value-bearing result Proxy was discarded instead of converted.\n"
                          "Fix: extract it into a typed local or return it from the enclosing function.\n\n");
             std::abort();
         }
@@ -181,6 +180,7 @@ namespace ilp {
                           "SmallStorage can only recover trivially-copyable types. "
                           "Use ILP_FOR_T(type, ...) or for_loop_typed for this return type.");
 #if ILP_TYPECHECK_ENABLED
+            // Signature text can collide for distinct anonymous-namespace types in different TUs.
             if (ilp_debug_stored_tag != nullptr &&
                 std::strcmp(ilp_debug_stored_tag->name, detail::type_tag_v<Rt>.name) != 0)
                 detail::type_mismatch_abort(ilp_debug_stored_tag->name, detail::type_tag_v<Rt>.name);
@@ -188,9 +188,6 @@ namespace ilp {
             std::array<std::byte, sizeof(Rt)> representation{};
             std::memcpy(representation.data(), buffer, sizeof(Rt));
             Rt result = std::bit_cast<Rt>(representation);
-#if ILP_TYPECHECK_ENABLED
-            ilp_debug_stored_tag = nullptr;
-#endif
             return result;
         }
 

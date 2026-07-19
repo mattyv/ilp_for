@@ -64,7 +64,8 @@ identically under `ILP_MODE_SIMPLE` (previously most were default-build-only).
   move-only so their inline payload cannot be relocated by implicit wrapper copies.
 - Function-API loop callbacks must return exactly `void`. This rejects macro loops
   nested inside a function-API callback, whose expansion previously produced a
-  non-`void` callback that could fall off its end.
+  non-`void` callback that could fall off its end. It also rejects callbacks ending
+  in `return expression;`, whose returned value was previously silently discarded.
 
 ### Changed
 
