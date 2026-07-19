@@ -17,7 +17,7 @@ GCC 13.3 and Clang 18.1:
 - Matched-type programs (including nested propagation) run silently and correctly;
   the full 352-assertion test suite passes with the check **active** (the default
   in this repo's test builds, which never define `NDEBUG`).
-- Under `-DNDEBUG`, generated assembly is **byte-identical** to the pre-change
+- Under `-DNDEBUG`, generated assembly is **byte-identical** to the pre-check
   headers on both compilers, and `sizeof(ilp::SmallStorage) == ilp::arch::sbo_size`
   (verified via static_assert) — the zero-cost claim is proven, not asserted.
 - `ILP_MODE_SIMPLE` builds were unaffected at the time (they never touched
@@ -97,11 +97,11 @@ inline constexpr TypeTag type_tag_v{type_name<T>()};
 #endif
 ```
 
-The **address** of `type_tag_v<T>` is the identity — C++17 inline variables have
-one address program-wide, so cross-TU comparison is exact, and string-literal
-merging (not guaranteed) is irrelevant. The embedded compiler signature string
-(`"... [with T = int]"`) names the type in the diagnostic without RTTI and without
-constexpr string parsing; slightly verbose but unambiguous.
+The stored tag points at the per-type compiler signature. Recovery compares the
+signature contents, not the inline-variable address: address identity is normally
+stable across TUs but is not reliable across hidden-visibility/shared-library
+boundaries. The signature (`"... [with T = int]"`) supplies both identity and the
+diagnostic without RTTI; slightly verbose but unambiguous.
 
 ### SmallStorage changes (the only storage touched)
 
@@ -113,9 +113,10 @@ struct SmallStorage {
 #endif
 
     // set(): after the placement-new, record  ilp_debug_stored_tag = &type_tag_v<U>;
-    // extract<R>(): before the launder/read:
+    // extract<R>(): before bit-cast recovery:
     //   using Rt = std::remove_cvref_t<R>;
-    //   if (ilp_debug_stored_tag != nullptr && ilp_debug_stored_tag != &type_tag_v<Rt>)
+    //   if (ilp_debug_stored_tag != nullptr &&
+    //       std::strcmp(ilp_debug_stored_tag->name, type_tag_v<Rt>.name) != 0)
     //       type_mismatch_abort(ilp_debug_stored_tag->name, type_tag_v<Rt>.name);
 };
 ```
@@ -130,7 +131,7 @@ Why this one hook covers everything:
 |---|---|
 | Top-level `ILP_END_RETURN` recovery (Proxy → `extract<R>`, incl. the MSVC branch and the `std::optional<T>` conversion, which extracts `T`) | checked at extract |
 | Nested untyped → typed hop (`propagate_return` calls `extract<R2>`) | checked at extract |
-| Nested untyped → untyped hop (byte-copy `outer.storage = r.storage`) | the tag member rides along in the implicit copy; check happens at the final recovery — correct, since the value legitimately transits untouched |
+| Nested untyped → untyped hop (`outer.storage = std::move(r.storage)`) | the tag rides along with the move-only byte transport; check happens at the final recovery |
 | Nested typed → untyped hop (`outer.return_with(r.storage.extract())`) | `TypedStorage::extract` returns the true `R1`; `SmallStorage::set(R1)` records the tag fresh |
 | Typed → typed (any hop) and `ILP_FOR_T` top-level | **no tag needed** — `TypedStorage<R>` is not type-erased; a wrong `ILP_RETURN` type there is a real conversion or a compile error already (item 3's original observation) |
 

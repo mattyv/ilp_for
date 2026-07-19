@@ -7,10 +7,7 @@
 
 #include <concepts>
 #include <cstddef>
-#include <optional>
 #include <ranges>
-#include <type_traits>
-#include <utility>
 
 #include "ctrl.hpp"
 #include "mode.hpp"
@@ -18,22 +15,9 @@
 namespace ilp {
     namespace detail {
 
-        // void sentinel - makes "return *ret" compile in void fns
-        struct no_return_t {
-            constexpr explicit operator bool() const noexcept { return false; }
-            [[noreturn]] void operator*() const noexcept {
-#if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
-                std::unreachable();
-#elif defined(__GNUC__) || defined(__clang__)
-                __builtin_unreachable();
-#elif defined(_MSC_VER)
-                __assume(false);
-#endif
-            }
-        };
-
-        template<typename R>
-        using for_result_t = std::conditional_t<std::is_void_v<R>, no_return_t, std::optional<R>>;
+        template<typename Range>
+        concept SizedRandomAccessRange =
+            std::ranges::random_access_range<Range> && std::ranges::sized_range<Range>;
 
         template<std::size_t N>
         [[deprecated("Unroll factor N > 16 is likely counterproductive: "
@@ -46,28 +30,6 @@ namespace ilp {
             static_assert(N >= 1, "Unroll factor N must be at least 1");
             if constexpr (N > 16) {
                 warn_large_unroll_factor<N>();
-            }
-        }
-
-        template<typename T>
-        concept signed_integral_type = std::integral<T> && std::signed_integral<T>;
-
-        template<typename T>
-        concept unsigned_integral_type = std::integral<T> && std::unsigned_integral<T>;
-
-        template<typename AccumT, typename ElemT>
-        [[deprecated("Overflow risk: accumulator type may be too small for sum. "
-                     "Consider using a larger type (e.g., int64_t or double) or "
-                     "explicitly provide an init value with sufficient range. "
-                     "For small, bounded ranges this warning can be safely ignored.")]]
-        constexpr void warn_accumulator_overflow() {}
-
-        template<typename AccumT, typename ElemT>
-        constexpr void check_sum_overflow() {
-            if constexpr (std::integral<AccumT> && std::integral<ElemT>) {
-                if constexpr (sizeof(AccumT) < sizeof(ElemT)) {
-                    warn_accumulator_overflow<AccumT, ElemT>();
-                }
             }
         }
 

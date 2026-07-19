@@ -5,6 +5,7 @@
 
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
+#include <cstdint>
 #include <numeric>
 #include <ranges>
 #include <vector>
@@ -68,23 +69,55 @@ namespace {
         static void reset() { destructor_calls = 0; }
     };
 
+    struct SelfAwareSmall {
+        static inline bool bad_move = false;
+        SelfAwareSmall* self = this;
+
+        SelfAwareSmall() = default;
+        SelfAwareSmall(const SelfAwareSmall&) = delete;
+        SelfAwareSmall(SelfAwareSmall&& other) noexcept : self(this) {
+            bad_move |= other.self != &other;
+        }
+    };
+
+    struct SelfAwareLarge {
+        static inline bool bad_move = false;
+        SelfAwareLarge* self = this;
+        int padding[8]{};
+
+        SelfAwareLarge() = default;
+        SelfAwareLarge(const SelfAwareLarge&) = delete;
+        SelfAwareLarge(SelfAwareLarge&& other) noexcept : self(this) {
+            bad_move |= other.self != &other;
+        }
+    };
+
+    struct LiveObject {
+        static inline int count = 0;
+
+        LiveObject() { ++count; }
+        LiveObject(const LiveObject&) { ++count; }
+        LiveObject(LiveObject&&) noexcept { ++count; }
+        ~LiveObject() { --count; }
+    };
+
     static_assert(!std::is_trivially_destructible_v<DestructorTracker>,
                   "DestructorTracker must be non-trivially destructible for this test");
+    static_assert(!std::is_trivially_copyable_v<SelfAwareSmall>,
+                  "SelfAwareSmall must exercise the typed transport path");
 
 } // namespace
 
 // =============================================================================
-// for_loop with type-erased return path copy count tests
+// Typed return path copy count tests
 // =============================================================================
 
-TEST_CASE("No copies in for_loop return path", "[copy_count]") {
+TEST_CASE("No copies in for_loop_typed return path", "[copy_count]") {
     CopyMoveCounter::reset();
 
-    auto result = ilp::for_loop<4>(0, 10, [](int i, ilp::ForCtrl& ctrl) {
+    auto result = ilp::for_loop_typed<CopyMoveCounter>(0, 10, [](int i, auto& ctrl) {
         if (i == 5) {
-            ctrl.storage.set(CopyMoveCounter(i * 10));
-            ctrl.return_set = true;
-            ctrl.ok = false;
+            ctrl.return_with(CopyMoveCounter(i * 10));
         }
     });
 
@@ -95,13 +128,11 @@ TEST_CASE("No copies in for_loop return path", "[copy_count]") {
     CHECK(CopyMoveCounter::copies == 0);
 }
 
-TEST_CASE("Move-only type works with for_loop", "[copy_count][compile-time]") {
+TEST_CASE("Move-only type works with for_loop_typed", "[copy_count][compile-time]") {
     // If this compiles, no copies are attempted
-    auto result = ilp::for_loop<4>(0, 10, [](int i, ilp::ForCtrl& ctrl) {
+    auto result = ilp::for_loop_typed<MoveOnly>(0, 10, [](int i, auto& ctrl) {
         if (i == 5) {
-            ctrl.storage.set(MoveOnly(i * 10));
-            ctrl.return_set = true;
-            ctrl.ok = false;
+            ctrl.return_with(MoveOnly(i * 10));
         }
     });
 
@@ -110,19 +141,49 @@ TEST_CASE("Move-only type works with for_loop", "[copy_count][compile-time]") {
     CHECK(value.value == 50);
 }
 
+TEST_CASE("Typed return transport move-constructs small objects", "[copy_count][lifetime]") {
+    SelfAwareSmall::bad_move = false;
+
+    auto result = ilp::for_loop_typed<SelfAwareSmall>(0, 1, [](int, auto& ctrl) {
+        ctrl.return_with(SelfAwareSmall{});
+    });
+
+    [[maybe_unused]] SelfAwareSmall value = *std::move(result);
+    CHECK_FALSE(SelfAwareSmall::bad_move);
+}
+
+TEST_CASE("Typed return transport move-constructs large objects", "[copy_count][lifetime]") {
+    SelfAwareLarge::bad_move = false;
+
+    auto result = ilp::for_loop_typed<SelfAwareLarge>(0, 1, [](int, auto& ctrl) {
+        ctrl.return_with(SelfAwareLarge{});
+    });
+
+    [[maybe_unused]] SelfAwareLarge value = *std::move(result);
+    CHECK_FALSE(SelfAwareLarge::bad_move);
+}
+
+TEST_CASE("Discarded typed results destroy their stored object", "[copy_count][lifetime]") {
+    LiveObject::count = 0;
+    {
+        [[maybe_unused]] auto result = ilp::for_loop_typed<LiveObject>(0, 1, [](int, auto& ctrl) {
+            ctrl.return_with(LiveObject{});
+        });
+    }
+    CHECK(LiveObject::count == 0);
+}
+
 // =============================================================================
 // Range-based copy count tests
 // =============================================================================
 
-TEST_CASE("No copies in for_loop_range", "[copy_count][range]") {
+TEST_CASE("No copies in for_loop_range_typed", "[copy_count][range]") {
     CopyMoveCounter::reset();
     std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-    auto result = ilp::for_loop_range<4>(data, [](int val, ilp::ForCtrl& ctrl) {
+    auto result = ilp::for_loop_range_typed<CopyMoveCounter, 4>(data, [](int val, auto& ctrl) {
         if (val == 5) {
-            ctrl.storage.set(CopyMoveCounter(val * 10));
-            ctrl.return_set = true;
-            ctrl.ok = false;
+            ctrl.return_with(CopyMoveCounter(val * 10));
         }
     });
 
@@ -140,7 +201,7 @@ TEST_CASE("No copies in for_loop_range", "[copy_count][range]") {
 namespace {
     std::optional<CopyMoveCounter> test_ilp_for_helper() {
         CopyMoveCounter::reset();
-        ILP_FOR(auto i, 0, 10, 4) {
+        ILP_FOR_T(CopyMoveCounter, auto i, 0, 10, 4) {
             if (i == 5) {
                 ILP_RETURN(CopyMoveCounter(i * 10));
             }
@@ -150,7 +211,7 @@ namespace {
     }
 
     std::optional<MoveOnly> test_ilp_for_move_only_helper() {
-        ILP_FOR(auto i, 0, 10, 4) {
+        ILP_FOR_T(MoveOnly, auto i, 0, 10, 4) {
             if (i == 5) {
                 ILP_RETURN(MoveOnly(i * 10));
             }
@@ -168,9 +229,43 @@ namespace {
         ILP_END_RETURN;
         return std::nullopt;
     }
+
+    std::optional<SelfAwareSmall> test_ilp_for_nested_self_aware_helper() {
+        ILP_FOR_T(SelfAwareSmall, auto i, 0, 2, 4) {
+            if (i == 1) {
+                ILP_FOR_T(SelfAwareSmall, auto j, 0, 2, 4) {
+                    if (j == 1) {
+                        ILP_RETURN(SelfAwareSmall{});
+                    }
+                }
+                ILP_END_RETURN;
+            }
+        }
+        ILP_END_RETURN;
+        return std::nullopt;
+    }
+
+    std::optional<SelfAwareSmall> test_ilp_for_self_aware_helper() {
+        ILP_FOR_T(SelfAwareSmall, auto i, 0, 2, 4) {
+            if (i == 1) {
+                ILP_RETURN(SelfAwareSmall{});
+            }
+        }
+        ILP_END_RETURN;
+        return std::nullopt;
+    }
+
+    std::optional<std::uint64_t> test_ilp_for_untyped_optional_helper() {
+        ILP_FOR(auto i, 0, 2, 4) {
+            if (i == 1)
+                ILP_RETURN(std::uint64_t{42});
+        }
+        ILP_END_RETURN;
+        return std::nullopt;
+    }
 } // namespace
 
-TEST_CASE("No copies in ILP_FOR macro with return type", "[copy_count][macro]") {
+TEST_CASE("No copies in ILP_FOR_T macro", "[copy_count][macro]") {
     auto result = test_ilp_for_helper();
     REQUIRE(result.has_value());
     CHECK(result->value == 50);
@@ -178,10 +273,34 @@ TEST_CASE("No copies in ILP_FOR macro with return type", "[copy_count][macro]") 
     CHECK(CopyMoveCounter::copies == 0);
 }
 
-TEST_CASE("Move-only type works with ILP_FOR macro", "[copy_count][macro][compile-time]") {
+TEST_CASE("Move-only type works with ILP_FOR_T macro", "[copy_count][macro][compile-time]") {
     auto result = test_ilp_for_move_only_helper();
     REQUIRE(result.has_value());
     CHECK(result->value == 50);
+}
+
+TEST_CASE("Nested ILP_FOR_T loops move-construct self-aware small objects", "[copy_count][lifetime][nested]") {
+    SelfAwareSmall::bad_move = false;
+
+    auto result = test_ilp_for_nested_self_aware_helper();
+    REQUIRE(result.has_value());
+    [[maybe_unused]] SelfAwareSmall value = *std::move(result);
+    CHECK_FALSE(SelfAwareSmall::bad_move);
+}
+
+TEST_CASE("ILP_FOR_T move-constructs self-aware small objects", "[copy_count][lifetime][macro]") {
+    SelfAwareSmall::bad_move = false;
+
+    auto result = test_ilp_for_self_aware_helper();
+    REQUIRE(result.has_value());
+    [[maybe_unused]] SelfAwareSmall value = *std::move(result);
+    CHECK_FALSE(SelfAwareSmall::bad_move);
+}
+
+TEST_CASE("ILP_FOR converts an untyped result to optional", "[copy_count][macro]") {
+    auto result = test_ilp_for_untyped_optional_helper();
+    REQUIRE(result.has_value());
+    CHECK(*result == 42);
 }
 
 // =============================================================================
@@ -220,4 +339,3 @@ TEST_CASE("TypedStorage properly destructs stored object", "[copy_count][destruc
     INFO("Destructor calls: " << DestructorTracker::destructor_calls);
     CHECK(DestructorTracker::destructor_calls >= 2);
 }
-

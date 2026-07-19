@@ -35,7 +35,8 @@ The function API is the escape hatch for codebases whose style guides ban macros
 **Non-goals (explicitly out of scope for this change):**
 
 - The `std::optional`-returning "search" sugar (`ilp::find`-style bodies with no ctrl
-  param). Separate follow-up; `for_loop_range_ret_simple_impl` is the seed for it.
+  param). The unused prototype was later removed; `ilp::find_if` is the supported
+  dedicated search API.
 - Compile-time `ILP_END`/`ILP_END_RETURN` enforcement (DESIGN_NOTES item 2).
 - The SBO type-pun fix (DESIGN_NOTES item 3).
 
@@ -75,7 +76,6 @@ Same treatment for the whole family in `loops_ilp.hpp`:
 
 - `for_loop`, `for_loop_typed` (M after N)
 - `for_loop_range`, `for_loop_range_typed` (M after N)
-- `for_loop_range_ret_simple` (M after N)
 - `for_loop_auto`, `for_loop_typed_auto`, `for_loop_range_auto`,
   `for_loop_range_typed_auto` (M after LoopType `LT`)
 
@@ -114,9 +114,7 @@ ForResult for_loop_untyped_impl(T start, T end, F&& body) {
 }
 ```
 
-Apply the same pattern to all six `*_impl` functions in `loops_ilp.hpp`. For
-`for_loop_range_impl` (the ctrl-less/`LoopCtrl<void>` overload) both of its internal
-branches get the same treatment.
+Apply the same pattern to the remaining `*_impl` functions in `loops_ilp.hpp`.
 
 Notes:
 
@@ -152,8 +150,8 @@ no design change.
 
 ## Part 2 — `ForCtrl` / `ForCtrlTyped` ergonomics
 
-Add member functions so lambda bodies never touch raw fields. Match the naming
-already established by `LoopCtrl` (`break_loop`, `return_with`) for consistency:
+Add member functions so lambda bodies never touch raw fields. Use the matching
+`break_loop` / `return_with` names on both control types:
 
 ```cpp
 struct ForCtrl {
