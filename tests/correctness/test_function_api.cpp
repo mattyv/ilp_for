@@ -1,7 +1,9 @@
 #include "../../ilp_for.hpp"
 #include "catch.hpp"
+#include <cstdint>
 #include <limits>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 // Coverage for the macro-free function API (ilp::for_loop and friends), mirroring
@@ -431,4 +433,37 @@ TEST_CASE("matched-type return_with/extract round-trip is unaffected by the debu
     std::vector<int> v = {1, 2, 3, 42, 5};
     REQUIRE(find_and_double(v, 42) == 84);
     REQUIRE(find_and_double(v, 99) == -1);
+}
+
+TEMPLATE_TEST_CASE("index callbacks preserve small integer types in both modes", "[function_api][index_argument]",
+                   std::int8_t, std::uint8_t, std::int16_t, std::uint16_t) {
+    const auto end = static_cast<TestType>(GENERATE(0, 1, 3, 4, 5, 8, 9));
+    auto check = [&](auto mode) {
+        constexpr ilp::Mode M = decltype(mode)::value;
+        std::vector<TestType> visited;
+        ilp::for_each<4, M>(TestType{0}, end, [&](auto index, auto&) {
+            REQUIRE(std::is_same_v<decltype(index), TestType>);
+            visited.push_back(index);
+        });
+        REQUIRE(visited.size() == static_cast<std::size_t>(end));
+        for (std::size_t i = 0; i < visited.size(); ++i)
+            REQUIRE(visited[i] == static_cast<TestType>(i));
+    };
+    check(ModeSimpleTag{});
+    check(ModeUnrolledTag{});
+}
+
+TEMPLATE_TEST_CASE("index callbacks receive independent values in both modes", "[function_api][index_argument]",
+                   ModeSimpleTag, ModeUnrolledTag) {
+    constexpr ilp::Mode M = TestType::value;
+    const int end = GENERATE(0, 1, 3, 4, 5, 8, 9);
+    std::vector<int> visited;
+    ilp::for_each<4, M>(0, end, [&](auto&& index, auto&) {
+        REQUIRE(std::is_same_v<decltype(index), int&&>);
+        visited.push_back(index);
+        ++index; // Changing the argument must not change the loop's counter.
+    });
+    REQUIRE(visited.size() == static_cast<std::size_t>(end));
+    for (int i = 0; i < end; ++i)
+        REQUIRE(visited[static_cast<std::size_t>(i)] == i);
 }

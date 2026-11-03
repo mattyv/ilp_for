@@ -376,6 +376,12 @@ A bare `return;` from the body lambda means *continue* — the natural, idiomati
 meaning for a lambda, and not a footgun the way it is inside the `ILP_FOR` macro
 expansion (see [DESIGN_NOTES.md](docs/DESIGN_NOTES.md)).
 
+Index-loop callbacks receive an independent value of the bounds' integer type
+in every iteration, in both simple and unrolled modes. This also holds for small
+integer types such as `int8_t`. Changing the callback's index argument does not
+change the loop's internal counter. Range-loop callbacks retain the range's
+reference semantics so they can modify its elements.
+
 ### Break/continue-only loops: `ilp::for_each`
 
 `for_loop`/`for_loop_range` return a `[[nodiscard]]` `ForResult`, even for loops

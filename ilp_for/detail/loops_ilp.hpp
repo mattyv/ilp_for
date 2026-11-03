@@ -66,7 +66,8 @@ namespace ilp {
                 const T block_end = unrolled_block_end<N>(start, end);
                 for (; i != block_end; i += static_cast<T>(N)) {
                     for (std::size_t j = 0; j < N; ++j) {
-                        body(i + static_cast<T>(j), ctrl);
+                        // Keep the index type after integer promotion and pass an independent value.
+                        body(static_cast<T>(i + static_cast<T>(j)), ctrl);
                         if (!ctrl.ok) [[unlikely]]
                             return;
                     }
@@ -74,7 +75,7 @@ namespace ilp {
             }
 
             for (; i < end; ++i) {
-                body(i, ctrl);
+                body(static_cast<T>(i), ctrl);
                 if (!ctrl.ok) [[unlikely]]
                     return;
             }

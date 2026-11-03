@@ -5,6 +5,14 @@ Notable, user-visible changes to `ilp_for`. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Index callbacks now receive an independent value of the loop index type in
+  every block and remainder iteration, in both simple and unrolled modes.
+  Small integer indices no longer promote to `int` at the callback boundary,
+  including when returned through the untyped result API. A callback taking
+  `auto&&` can no longer modify the loop's internal counter through its index.
+
 ### Added
 
 - `ilp::find_if(range, pred)`: a dedicated vectorizable first-match search
